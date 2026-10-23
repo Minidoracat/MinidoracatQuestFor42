@@ -1,0 +1,21 @@
+{
+    "app_id": 108600,
+    "published_file_id": null,
+    "owner_steamid64": "76561198033176898",
+    "workshop_root": "MOD/MinidoracatQuestFor42",
+    "mod_info": "MOD/MinidoracatQuestFor42/Contents/mods/MinidoracatQuestFor42/42/mod.info",
+    "preview_gif": "MOD/MinidoracatQuestFor42/workshop/preview.gif",
+    "changelog": "STEAM_CHANGELOG.md",
+    "titles": {
+        "english": "[B42] Quests & Achievements by Minidoracat",
+        "tchinese": "[B42] 任務與成就 Quests & Achievements by Minidoracat",
+        "schinese": "[B42] 任务与成就 Quests & Achievements by Minidoracat",
+        "japanese": "[B42] クエストと実績 Quests & Achievements by Minidoracat"
+    },
+    "descriptions": {
+        "english": "STEAM_DESCRIPTION_EN.md",
+        "tchinese": "STEAM_DESCRIPTION.md",
+        "schinese": "STEAM_DESCRIPTION_CN.md",
+        "japanese": "STEAM_DESCRIPTION_JP.md"
+    }
+}

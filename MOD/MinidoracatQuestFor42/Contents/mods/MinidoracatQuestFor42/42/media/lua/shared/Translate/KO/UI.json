@@ -1,0 +1,9 @@
+{
+  "UI_MinidoracatQuest_Options": "퀘스트 및 업적",
+  "UI_MinidoracatQuest_ShowDock": "도구 모음 버튼 표시",
+  "UI_MinidoracatQuest_ShowDock_tooltip": "패밀리 도구 모음에 있는 퀘스트 및 업적 버튼입니다. 숨겨도 단축키(키 설정 > [MinidoracatQuest])로 창을 열 수 있습니다.",
+  "UI_MinidoracatQuest_ShowBroadcast": "서버 전체 해금 알림 표시",
+  "UI_MinidoracatQuest_ShowBroadcast_tooltip": "다른 플레이어가 높은 단계의 업적을 해금했을 때 표시되는 알림입니다.",
+  "UI_optionscreen_binding_MinidoracatQuest": "Minidoracat 퀘스트 및 업적",
+  "UI_optionscreen_binding_MinidoracatQuest_Toggle": "퀘스트 및 업적 열기/닫기"
+}

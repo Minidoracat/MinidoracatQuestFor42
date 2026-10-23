@@ -1,3 +1,9 @@
 {
-    "Sandbox_MinidoracatQuest": "Minidoracat Quests & Erfolge"
+  "Sandbox_MinidoracatQuest": "Minidoracat Quests & Erfolge",
+  "Sandbox_MinidoracatQuest_TimezoneOffset": "Zeitzone (UTC-Versatz, Stunden)",
+  "Sandbox_MinidoracatQuest_TimezoneOffset_tooltip": "Zeitzone für den täglichen und wöchentlichen Reset, wenn das Wirtschaftssystem nicht installiert ist. Mit dem Wirtschaftssystem wird stattdessen dessen Belohnungstag verwendet.",
+  "Sandbox_MinidoracatQuest_ResetHour": "Stunde des Tagesresets",
+  "Sandbox_MinidoracatQuest_ResetHour_tooltip": "Lokale Stunde (0-23), zu der die Tagesquests zurückgesetzt werden, wenn das Wirtschaftssystem nicht installiert ist. Wochenquests werden montags zu dieser Stunde zurückgesetzt.",
+  "Sandbox_MinidoracatQuest_AdminRoles": "Admin-Rollen",
+  "Sandbox_MinidoracatQuest_AdminRoles_tooltip": "Namen der Serverrollen, die das Quest-Adminpanel öffnen dürfen, getrennt durch Kommas oder Semikolons (Groß-/Kleinschreibung beachten). Der Server prüft jede Admin-Aktion. Verwende englische Rollennamen: Nicht-englische Zeichen in diesem Feld werden bei jedem Serverneustart beschädigt."
 }

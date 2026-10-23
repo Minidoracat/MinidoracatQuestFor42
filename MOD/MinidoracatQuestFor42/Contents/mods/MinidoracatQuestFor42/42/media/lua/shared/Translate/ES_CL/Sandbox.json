@@ -1,3 +1,9 @@
 {
-    "Sandbox_MinidoracatQuest": "Minidoracat Misiones y logros"
+  "Sandbox_MinidoracatQuest": "Minidoracat Misiones y logros",
+  "Sandbox_MinidoracatQuest_TimezoneOffset": "Zona horaria (desfase UTC, horas)",
+  "Sandbox_MinidoracatQuest_TimezoneOffset_tooltip": "Zona horaria usada para el reinicio diario y semanal cuando el sistema de economía no está instalado. Con el sistema de economía, se usa su día de recompensa.",
+  "Sandbox_MinidoracatQuest_ResetHour": "Hora del reinicio diario",
+  "Sandbox_MinidoracatQuest_ResetHour_tooltip": "Hora local (0-23) en la que se reinician las misiones diarias cuando el sistema de economía no está instalado. Las misiones semanales se reinician a esta hora el lunes.",
+  "Sandbox_MinidoracatQuest_AdminRoles": "Roles de administrador",
+  "Sandbox_MinidoracatQuest_AdminRoles_tooltip": "Nombres de roles del servidor que pueden abrir el panel de administración de misiones, separados por comas o punto y coma (distingue mayúsculas y minúsculas). El servidor verifica cada acción de administración. Usa nombres de roles en inglés: los caracteres no ingleses de este campo se dañan en cada reinicio del servidor."
 }

@@ -1,0 +1,9 @@
+{
+  "UI_MinidoracatQuest_Options": "Quêtes et succès",
+  "UI_MinidoracatQuest_ShowDock": "Afficher l'entrée dans la barre",
+  "UI_MinidoracatQuest_ShowDock_tooltip": "Le bouton Quêtes et succès de la barre de la famille de mods. S'il est masqué, le raccourci (Configuration des touches > [MinidoracatQuest]) ouvre toujours la fenêtre.",
+  "UI_MinidoracatQuest_ShowBroadcast": "Afficher les annonces de déblocage du serveur",
+  "UI_MinidoracatQuest_ShowBroadcast_tooltip": "Annonces lorsqu'un autre joueur débloque un palier de succès élevé.",
+  "UI_optionscreen_binding_MinidoracatQuest": "Minidoracat Quêtes et succès",
+  "UI_optionscreen_binding_MinidoracatQuest_Toggle": "Ouvrir / fermer Quêtes et succès"
+}

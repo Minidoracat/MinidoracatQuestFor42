@@ -1,0 +1,9 @@
+{
+  "UI_MinidoracatQuest_Options": "Quests & Erfolge",
+  "UI_MinidoracatQuest_ShowDock": "Toolbar-Eintrag anzeigen",
+  "UI_MinidoracatQuest_ShowDock_tooltip": "Die Schaltfläche Quests & Erfolge in der Familien-Toolbar. Ausgeblendet öffnet die Taste (Tastaturbelegung > [MinidoracatQuest]) das Fenster weiterhin.",
+  "UI_MinidoracatQuest_ShowBroadcast": "Serverweite Freischaltungen anzeigen",
+  "UI_MinidoracatQuest_ShowBroadcast_tooltip": "Hinweise, wenn ein anderer Spieler eine hohe Erfolgsstufe freischaltet.",
+  "UI_optionscreen_binding_MinidoracatQuest": "Minidoracat Quests & Erfolge",
+  "UI_optionscreen_binding_MinidoracatQuest_Toggle": "Quests & Erfolge öffnen / schließen"
+}

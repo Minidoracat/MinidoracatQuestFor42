@@ -1,3 +1,9 @@
 {
-    "Sandbox_MinidoracatQuest": "Minidoracat Missões e conquistas"
+  "Sandbox_MinidoracatQuest": "Minidoracat Missões e Conquistas",
+  "Sandbox_MinidoracatQuest_TimezoneOffset": "Fuso horário (diferença UTC, horas)",
+  "Sandbox_MinidoracatQuest_TimezoneOffset_tooltip": "Fuso horário usado para a renovação diária e semanal quando o sistema de economia não está instalado. Com o sistema de economia, o dia de recompensa dele é usado no lugar.",
+  "Sandbox_MinidoracatQuest_ResetHour": "Hora da renovação diária",
+  "Sandbox_MinidoracatQuest_ResetHour_tooltip": "Hora local (0-23) em que as missões diárias são renovadas, quando o sistema de economia não está instalado. As missões semanais são renovadas nesse horário na segunda-feira.",
+  "Sandbox_MinidoracatQuest_AdminRoles": "Cargos de admin",
+  "Sandbox_MinidoracatQuest_AdminRoles_tooltip": "Nomes de cargos do servidor que podem abrir o painel de administração de missões, separados por vírgulas ou ponto e vírgula (diferencia maiúsculas de minúsculas). O servidor verifica cada ação de admin. Use nomes de cargos em inglês: caracteres não ingleses neste campo são corrompidos a cada reinício do servidor."
 }

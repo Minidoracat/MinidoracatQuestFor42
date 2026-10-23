@@ -1,3 +1,9 @@
 {
-    "Sandbox_MinidoracatQuest": "Minidoracat Quêtes et succès"
+  "Sandbox_MinidoracatQuest": "Minidoracat Quêtes et succès",
+  "Sandbox_MinidoracatQuest_TimezoneOffset": "Fuseau horaire (décalage UTC, heures)",
+  "Sandbox_MinidoracatQuest_TimezoneOffset_tooltip": "Fuseau horaire utilisé pour les réinitialisations quotidienne et hebdomadaire si le système économique n'est pas installé. Avec le système économique, son jour de récompense est utilisé à la place.",
+  "Sandbox_MinidoracatQuest_ResetHour": "Heure de réinitialisation quotidienne",
+  "Sandbox_MinidoracatQuest_ResetHour_tooltip": "Heure locale (0-23) de réinitialisation des quêtes quotidiennes si le système économique n'est pas installé. Les quêtes hebdomadaires sont réinitialisées le lundi à cette heure.",
+  "Sandbox_MinidoracatQuest_AdminRoles": "Rôles d'administration",
+  "Sandbox_MinidoracatQuest_AdminRoles_tooltip": "Noms des rôles du serveur autorisés à ouvrir le panneau d'administration des quêtes, séparés par des virgules ou des points-virgules (sensible à la casse). Le serveur vérifie chaque action d'administration. Utilisez des noms de rôles en anglais : les caractères non anglais de ce champ sont corrompus à chaque redémarrage du serveur."
 }

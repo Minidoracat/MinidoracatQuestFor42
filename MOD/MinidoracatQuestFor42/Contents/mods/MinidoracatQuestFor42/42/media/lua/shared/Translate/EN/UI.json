@@ -1,0 +1,9 @@
+{
+  "UI_MinidoracatQuest_Options": "Quests & Achievements",
+  "UI_MinidoracatQuest_ShowDock": "Show the toolbar entry",
+  "UI_MinidoracatQuest_ShowDock_tooltip": "The Quests & Achievements button on the family toolbar. When hidden, the hotkey (Key Bindings > [MinidoracatQuest]) still opens the window.",
+  "UI_MinidoracatQuest_ShowBroadcast": "Show server-wide unlock notices",
+  "UI_MinidoracatQuest_ShowBroadcast_tooltip": "Notices when another player unlocks a high achievement tier.",
+  "UI_optionscreen_binding_MinidoracatQuest": "Minidoracat Quests & Achievements",
+  "UI_optionscreen_binding_MinidoracatQuest_Toggle": "Open / close Quests & Achievements"
+}

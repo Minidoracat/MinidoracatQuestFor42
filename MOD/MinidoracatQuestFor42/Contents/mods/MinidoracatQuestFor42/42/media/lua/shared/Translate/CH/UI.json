@@ -1,0 +1,9 @@
+{
+  "UI_MinidoracatQuest_Options": "任務與成就",
+  "UI_MinidoracatQuest_ShowDock": "顯示工具列入口",
+  "UI_MinidoracatQuest_ShowDock_tooltip": "家族工具列上的「任務與成就」按鈕。關掉後仍可用快捷鍵（按鍵設定 > [MinidoracatQuest]）開啟。",
+  "UI_MinidoracatQuest_ShowBroadcast": "顯示全服解鎖通知",
+  "UI_MinidoracatQuest_ShowBroadcast_tooltip": "其他玩家解鎖高等級成就時的通知。",
+  "UI_optionscreen_binding_MinidoracatQuest": "Minidoracat 任務與成就",
+  "UI_optionscreen_binding_MinidoracatQuest_Toggle": "任務與成就開關"
+}

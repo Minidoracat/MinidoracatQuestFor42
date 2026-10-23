@@ -1,3 +1,9 @@
 {
-    "Sandbox_MinidoracatQuest": "Minidoracat 퀘스트와 업적"
+  "Sandbox_MinidoracatQuest": "Minidoracat 퀘스트 및 업적",
+  "Sandbox_MinidoracatQuest_TimezoneOffset": "시간대 (UTC 시차, 시간 단위)",
+  "Sandbox_MinidoracatQuest_TimezoneOffset_tooltip": "경제 시스템이 설치되지 않은 경우 일일 및 주간 초기화에 사용할 시간대입니다. 경제 시스템이 설치되어 있으면 경제 시스템의 보상일 기준을 대신 따릅니다.",
+  "Sandbox_MinidoracatQuest_ResetHour": "일일 초기화 시각",
+  "Sandbox_MinidoracatQuest_ResetHour_tooltip": "경제 시스템이 설치되지 않은 경우 일일 퀘스트가 초기화되는 현지 시각(0-23)입니다. 주간 퀘스트는 월요일 이 시각에 초기화됩니다.",
+  "Sandbox_MinidoracatQuest_AdminRoles": "관리자 역할",
+  "Sandbox_MinidoracatQuest_AdminRoles_tooltip": "퀘스트 관리 패널을 열 수 있는 서버 역할 이름입니다. 쉼표나 세미콜론으로 구분하며 대소문자를 구별합니다. 모든 관리 작업은 서버에서 권한을 확인합니다. 역할 이름은 영어로 입력하십시오. 이 항목에 입력한 영어 이외의 문자는 서버를 재시작할 때마다 손상됩니다."
 }

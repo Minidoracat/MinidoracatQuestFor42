@@ -1,0 +1,9 @@
+{
+  "UI_MinidoracatQuest_Options": "Missões e Conquistas",
+  "UI_MinidoracatQuest_ShowDock": "Mostrar botão na barra de ferramentas",
+  "UI_MinidoracatQuest_ShowDock_tooltip": "O botão Missões e Conquistas na barra da família de mods. Quando oculto, o atalho (Atribuição de teclas > [MinidoracatQuest]) ainda abre a janela.",
+  "UI_MinidoracatQuest_ShowBroadcast": "Mostrar avisos de desbloqueio do servidor",
+  "UI_MinidoracatQuest_ShowBroadcast_tooltip": "Avisos quando outro jogador desbloqueia um patamar alto de conquista.",
+  "UI_optionscreen_binding_MinidoracatQuest": "Minidoracat Missões e Conquistas",
+  "UI_optionscreen_binding_MinidoracatQuest_Toggle": "Abrir / fechar Missões e Conquistas"
+}

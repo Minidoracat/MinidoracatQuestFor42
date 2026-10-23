@@ -1,3 +1,9 @@
 {
-    "Sandbox_MinidoracatQuest": "Minidoracat クエストと実績"
+  "Sandbox_MinidoracatQuest": "Minidoracat クエストと実績",
+  "Sandbox_MinidoracatQuest_TimezoneOffset": "タイムゾーン (UTCとの時差、時間単位)",
+  "Sandbox_MinidoracatQuest_TimezoneOffset_tooltip": "経済システムが導入されていない場合に、デイリーとウィークリーのリセットに使用するタイムゾーンです。経済システムが導入されている場合は、代わりに経済システムの報酬日が使用されます。",
+  "Sandbox_MinidoracatQuest_ResetHour": "デイリーリセット時刻",
+  "Sandbox_MinidoracatQuest_ResetHour_tooltip": "経済システムが導入されていない場合に、デイリークエストがリセットされる現地時刻 (0-23時) です。ウィークリークエストは月曜日のこの時刻にリセットされます。",
+  "Sandbox_MinidoracatQuest_AdminRoles": "管理者ロール",
+  "Sandbox_MinidoracatQuest_AdminRoles_tooltip": "クエスト管理パネルを開けるサーバーロール名です。カンマまたはセミコロンで区切って入力します (大文字と小文字を区別)。すべての管理操作はサーバー側で確認されます。ロール名は英語で入力してください。この欄に英語以外の文字を使うと、サーバーを再起動するたびに文字化けします。"
 }

@@ -1,3 +1,9 @@
 {
-    "Sandbox_MinidoracatQuest": "Minidoracat Zadania i osiągnięcia"
+  "Sandbox_MinidoracatQuest": "Minidoracat: Zadania i osiągnięcia",
+  "Sandbox_MinidoracatQuest_TimezoneOffset": "Strefa czasowa (przesunięcie UTC, godziny)",
+  "Sandbox_MinidoracatQuest_TimezoneOffset_tooltip": "Strefa czasowa dla resetu dziennego i tygodniowego, gdy system ekonomii nie jest zainstalowany. Z systemem ekonomii używany jest jego dzień nagród.",
+  "Sandbox_MinidoracatQuest_ResetHour": "Godzina resetu dziennego",
+  "Sandbox_MinidoracatQuest_ResetHour_tooltip": "Lokalna godzina (0-23) resetu zadań dziennych, gdy system ekonomii nie jest zainstalowany. Zadania tygodniowe resetują się o tej godzinie w poniedziałek.",
+  "Sandbox_MinidoracatQuest_AdminRoles": "Role adminów",
+  "Sandbox_MinidoracatQuest_AdminRoles_tooltip": "Nazwy ról serwera, które mogą otwierać panel admina zadań, oddzielone przecinkami lub średnikami (wielkość liter ma znaczenie). Serwer sprawdza każde działanie admina. Używaj angielskich nazw ról: znaki spoza alfabetu angielskiego w tym polu psują się przy każdym restarcie serwera."
 }

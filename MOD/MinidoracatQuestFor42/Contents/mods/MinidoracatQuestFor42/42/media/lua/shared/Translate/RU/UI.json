@@ -1,0 +1,9 @@
+{
+  "UI_MinidoracatQuest_Options": "Задания и достижения",
+  "UI_MinidoracatQuest_ShowDock": "Показывать кнопку на панели",
+  "UI_MinidoracatQuest_ShowDock_tooltip": "Кнопка «Задания и достижения» на панели семейства модов. Если её скрыть, окно всё равно открывается горячей клавишей (Назначение клавиш > [MinidoracatQuest]).",
+  "UI_MinidoracatQuest_ShowBroadcast": "Показывать общие уведомления о достижениях",
+  "UI_MinidoracatQuest_ShowBroadcast_tooltip": "Уведомления о том, что другой игрок получил высокую ступень достижения.",
+  "UI_optionscreen_binding_MinidoracatQuest": "Minidoracat: Задания и достижения",
+  "UI_optionscreen_binding_MinidoracatQuest_Toggle": "Открыть / закрыть «Задания и достижения»"
+}

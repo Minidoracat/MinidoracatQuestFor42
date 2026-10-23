@@ -1,0 +1,9 @@
+{
+  "UI_MinidoracatQuest_Options": "クエストと実績",
+  "UI_MinidoracatQuest_ShowDock": "ツールバーにボタンを表示",
+  "UI_MinidoracatQuest_ShowDock_tooltip": "ファミリーツールバー上の「クエストと実績」ボタンです。非表示にしても、ホットキー (キーバインド > [MinidoracatQuest]) でウィンドウを開けます。",
+  "UI_MinidoracatQuest_ShowBroadcast": "サーバー全体の実績解除通知を表示",
+  "UI_MinidoracatQuest_ShowBroadcast_tooltip": "他のプレイヤーが上位段階の実績を解除したときに表示される通知です。",
+  "UI_optionscreen_binding_MinidoracatQuest": "Minidoracat クエストと実績",
+  "UI_optionscreen_binding_MinidoracatQuest_Toggle": "クエストと実績を開く/閉じる"
+}

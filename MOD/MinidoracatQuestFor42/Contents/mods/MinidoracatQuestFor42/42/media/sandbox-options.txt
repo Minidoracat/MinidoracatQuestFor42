@@ -1,0 +1,35 @@
+VERSION = 1,
+
+/* Minidoracat Quests & Achievements. page is required: without it SandboxVars.MinidoracatQuest is nil and every
+   option falls back to the code default (shared/MinidoracatQuest/Sandbox.lua). Comments must be block comments;
+   string defaults must not contain commas (ScriptParser splits on them). Everything else is set in the admin panel. */
+
+/* Day boundary when Economy is not installed (with Economy its reward day is used). */
+option MinidoracatQuest.TimezoneOffset
+{
+    type = integer,
+    min = -12,
+    max = 14,
+    default = 8,
+    page = MinidoracatQuest,
+    translation = MinidoracatQuest_TimezoneOffset,
+}
+
+option MinidoracatQuest.ResetHour
+{
+    type = integer,
+    min = 0,
+    max = 23,
+    default = 0,
+    page = MinidoracatQuest,
+    translation = MinidoracatQuest_ResetHour,
+}
+
+/* Role names allowed to open the admin panel, separated by commas or semicolons. */
+option MinidoracatQuest.AdminRoles
+{
+    type = string,
+    default = admin,
+    page = MinidoracatQuest,
+    translation = MinidoracatQuest_AdminRoles,
+}

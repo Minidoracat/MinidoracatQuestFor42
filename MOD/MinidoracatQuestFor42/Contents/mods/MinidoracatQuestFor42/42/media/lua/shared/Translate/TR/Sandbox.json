@@ -1,3 +1,9 @@
 {
-    "Sandbox_MinidoracatQuest": "Minidoracat Görevler ve Başarımlar"
+  "Sandbox_MinidoracatQuest": "Minidoracat Görevler ve Başarımlar",
+  "Sandbox_MinidoracatQuest_TimezoneOffset": "Saat dilimi (UTC farkı, saat)",
+  "Sandbox_MinidoracatQuest_TimezoneOffset_tooltip": "Ekonomi sistemi kurulu değilken günlük ve haftalık sıfırlama için kullanılan saat dilimi. Ekonomi sistemi kuruluysa onun ödül günü kullanılır.",
+  "Sandbox_MinidoracatQuest_ResetHour": "Günlük sıfırlama saati",
+  "Sandbox_MinidoracatQuest_ResetHour_tooltip": "Ekonomi sistemi kurulu değilken günlük görevlerin sıfırlandığı yerel saat (0-23). Haftalık görevler pazartesi günü bu saatte sıfırlanır.",
+  "Sandbox_MinidoracatQuest_AdminRoles": "Yönetici rolleri",
+  "Sandbox_MinidoracatQuest_AdminRoles_tooltip": "Görev yönetim panelini açabilecek sunucu rol adları; virgül veya noktalı virgülle ayrılır (büyük/küçük harf duyarlı). Sunucu her yönetici işlemini denetler. İngilizce rol adları kullanın: bu alandaki İngilizce dışı karakterler her sunucu yeniden başlatmasında bozulur."
 }

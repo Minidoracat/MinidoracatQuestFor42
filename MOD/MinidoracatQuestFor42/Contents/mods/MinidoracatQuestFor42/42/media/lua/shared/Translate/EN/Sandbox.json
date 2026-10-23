@@ -1,3 +1,9 @@
 {
-    "Sandbox_MinidoracatQuest": "Minidoracat Quests & Achievements"
+  "Sandbox_MinidoracatQuest": "Minidoracat Quests & Achievements",
+  "Sandbox_MinidoracatQuest_TimezoneOffset": "Time zone (UTC offset, hours)",
+  "Sandbox_MinidoracatQuest_TimezoneOffset_tooltip": "Time zone used for the daily and weekly reset when the economy system is not installed. With the economy system, its reward day is used instead.",
+  "Sandbox_MinidoracatQuest_ResetHour": "Daily reset hour",
+  "Sandbox_MinidoracatQuest_ResetHour_tooltip": "Local hour (0-23) when daily quests reset, when the economy system is not installed. Weekly quests reset at this hour on Monday.",
+  "Sandbox_MinidoracatQuest_AdminRoles": "Admin roles",
+  "Sandbox_MinidoracatQuest_AdminRoles_tooltip": "Server role names allowed to open the quest admin panel, separated by commas or semicolons (case-sensitive). The server checks every admin action. Use English role names: non-English characters in this field are damaged on every server restart."
 }

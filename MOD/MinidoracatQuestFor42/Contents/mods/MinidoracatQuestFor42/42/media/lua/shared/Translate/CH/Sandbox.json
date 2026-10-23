@@ -1,3 +1,9 @@
 {
-    "Sandbox_MinidoracatQuest": "Minidoracat 任務與成就"
+  "Sandbox_MinidoracatQuest": "Minidoracat 任務與成就",
+  "Sandbox_MinidoracatQuest_TimezoneOffset": "時區（UTC 偏移小時）",
+  "Sandbox_MinidoracatQuest_TimezoneOffset_tooltip": "沒有安裝經濟系統時，每日與每週重置使用的時區。安裝經濟系統時改用它的獎勵日。",
+  "Sandbox_MinidoracatQuest_ResetHour": "每日重置時刻",
+  "Sandbox_MinidoracatQuest_ResetHour_tooltip": "沒有安裝經濟系統時，每日任務重置的當地整點（0～23）。每週任務在週一的這個時刻重置。",
+  "Sandbox_MinidoracatQuest_AdminRoles": "管理角色",
+  "Sandbox_MinidoracatQuest_AdminRoles_tooltip": "可以開啟任務管理面板的伺服器角色名稱，用逗號或分號分隔（區分大小寫）。每個管理操作都由伺服器核對。請使用英文角色名稱：本欄的非英文字每次伺服器重新啟動都會損毀。"
 }

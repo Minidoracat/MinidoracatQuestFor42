@@ -8,22 +8,33 @@ Daily and weekly quests, achievements, season leaderboards and titles; pair it w
 [h2]📦 Requirements[/h2]
 [list]
 [*] [b]Required:[/b] [url=https://steamcommunity.com/sharedfiles/filedetails/?id=3789836701]Minidoracat UI Library[/url]
-[*] [b]Optional:[/b] [url=https://steamcommunity.com/sharedfiles/filedetails/?id=3801482125]Minidoracat Economy[/url] (exchange points for Survivor Coins)
+[*] [b]Optional:[/b] [url=https://steamcommunity.com/sharedfiles/filedetails/?id=3801482125]Minidoracat Economy[/url] (exchange points for Survivor Coins on multiplayer servers)
 [*] Works in single player and multiplayer; in multiplayer the server must enable this mod
-[*] [b]Add/remove mid-save:[/b] XXXX (see pz-family-docs/release.md step 5)
+[*] [b]Add/remove mid-save:[/b] safe either way; adding it imports your zombie kills, days survived and skill levels (achievements from the import pay no coins), and removing it leaves your progress in the save, back as soon as you reinstall
 [*] [b]Languages:[/b] 繁體中文, 简体中文, English, 日本語, 한국어, Русский, Español, Português, Türkçe, Français, Polski, Deutsch (please report any translation issues)
 [/list]
 
 [h2]🚀 Quick start[/h2]
 [olist]
-[*] XXXX
+[*] Click the trophy icon on the family toolbar to open Quests & Achievements
+[*] Check today's quests on the Daily quests page; they advance as you play
+[*] Complete quests and unlock achievements to earn points, then see your rank on the Leaderboards page
+[*] On servers with the Economy mod, exchange points for Survivor Coins on the My records page
 [/olist]
 
 [h2]✨ Features[/h2]
 [list]
-[*] [b]Feature[/b]: XXXX
+[*] [b]Daily and weekly quests[/b]: drawn from the themes you prefer, with one swap a day
+[*] [b]Server-wide quest and server goal[/b]: one daily quest everyone shares, and a weekly goal the whole server works on together
+[*] [b]Streaks and newcomer quests[/b]: milestone rewards for playing day after day, and a guided start for new players
+[*] [b]Timed events[/b]: the host schedules a period that multiplies quest points for a theme
+[*] [b]Achievements and titles[/b]: about 110 achievements in four tiers; high-tier unlocks are announced server-wide
+[*] [b]Leaderboards and seasons[/b]: 8 leaderboard categories, with rewards and titles by rank when a season ends
+[*] [b]Point exchange[/b]: with the Economy mod, turn points into Survivor Coins
+[*] [b]Admin panel[/b]: thresholds, quests, seasons and exchange are all tuned in game, and every change can be undone
+[*] [b]For other mods[/b]: an API to add your own stats, achievements and daily quests
 [/list]
-📖 [b]Full guide and FAQ:[/b] [url=https://steamcommunity.com/sharedfiles/filedetails/?id=XXXX]Quests & Achievements Mod Guide[/url]
+📖 [b]How to play, admin panel, sandbox options and FAQ:[/b] [url={QUEST_GUIDE_EN}]Quests & Achievements Mod Guide: Quests, Achievements, Leaderboards & Admin Panel[/url]
 
 [h2]🔗 More Minidoracat mods[/h2]
 All my mods are in the [url=https://steamcommunity.com/sharedfiles/filedetails/?id=3809297109]Minidoracat Mods for B42 collection[/url] — pick what you need.
@@ -41,5 +52,5 @@ The mod is free and always will be, and the source code is open on GitHub. If yo
 
 [b]#Minidoracat[/b]
 
-Workshop ID: XXXX
+Workshop ID: Not assigned
 Mod ID: MinidoracatQuestFor42

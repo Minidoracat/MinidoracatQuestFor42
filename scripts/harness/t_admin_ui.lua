@@ -77,16 +77,14 @@ return function(T)
     end
     local exWarn = "over_cap"
     local replies = {
-        ["cfg.get"] = function() return { overrides = {}, history = { { id = 3, at = now, actor = "boss", summary = "x", n = 2 } }, rev = 3 } end,
+        ["cfg.get"] = function() return { overrides = {}, history = { { id = 3, at = now, actor = "boss", summary = "x", n = 2 } }, rev = 3,
+            file = { ok = false, at = now, source = "file", why = "target", path = "daily.pool.d_kill.target" } } end,
         ["cfg.preview"] = function(args)
             local rows = {}
             for i, c in ipairs(Q.Util.decode(args.changes)) do rows[i] = { path = c.path, before = 1, after = c.value } end
             return { rows = rows }
         end,
         ["cfg.apply"] = function() return { historyId = 4, rev = 4 } end,
-        ["cfg.export"] = function() return { file = "export-20261023-120000.json" } end,
-        ["cfg.import"] = function() return { changes = { { op = "set", path = "exchange.rate", value = 2 } },
-            rows = { { path = "exchange.rate", before = 1, after = 2 } } } end,
         ["diff.preview"] = function(args) return { changes = { { op = "set", path = "difficulty.preset", value = args.preset } },
             rows = { { path = "achievements.zombie_kills.tiers", before = { 100, 1000 }, after = { 160, 1600 } } },
             estimate = { { key = "IGUI_MQ_Est_Tier3", easy = 3000, normal = 5000, hard = 8000 },
@@ -293,19 +291,21 @@ return function(T)
     press("history", "u1")
     answer(true, "")
     T.check(last("cfg.undo").historyId == 3, "cfg.undo with the history id")
-    press("history", "export")
-    T.check(last("cfg.export") ~= nil and string.find(P.msg or "", "IGUI_MQ_Admin_Exported", 1, true) ~= nil, "export reports the file")
-    press("history", "import")
-    T.check(last("cfg.import") ~= nil and P.confirm ~= nil, "import shows the confirm view")
-    A.onConfirmCancel(P)
+    T.check(pool("history")["ios"] ~= nil and pool("history")["export"] == nil, "history tab shows the config.json state, no export/import")
     T.check(A.summaryText("event.add 3") == "IGUI_MQ_Admin_HistEventAdd" and A.summaryText("season.length 35") == "IGUI_MQ_Admin_HistSeasonLength"
-        and A.summaryText("undo #2") == "IGUI_MQ_Admin_HistUndo" and A.summaryText("Tiers of X") == "Tiers of X",
+        and A.summaryText("undo #2") == "IGUI_MQ_Admin_HistUndo" and A.summaryText("config.json") == "IGUI_MQ_Admin_HistFile"
+        and A.summaryText("Tiers of X") == "Tiers of X",
         "server-written history summaries get translated, admin-typed ones stay")
     local gt = getText
-    getText = function(key, a) return key .. "|" .. tostring(a) end
-    T.check(A.summaryText("event.add 3 Weekend Rush") == "IGUI_MQ_Admin_HistEventAdd|Weekend Rush"
-        and A.summaryText("event.remove 3") == "IGUI_MQ_Admin_HistEventRemove|#3",
+    getText = function(key, a, b) return key .. "|" .. tostring(a) .. "|" .. tostring(b) end
+    T.check(A.summaryText("event.add 3 Weekend Rush") == "IGUI_MQ_Admin_HistEventAdd|Weekend Rush|nil"
+        and A.summaryText("event.remove 3") == "IGUI_MQ_Admin_HistEventRemove|#3|nil",
         "event summaries show the event name, older rows the id")
+    local json = A.fileText({ ok = false, at = now, why = "json", line = 4 })
+    local bad = A.fileText({ ok = false, at = now, why = "target", path = "daily.pool.d_kill.target" })
+    T.check(string.find(json, "^IGUI_MQ_Admin_FileBad|") and string.find(json, "IGUI_MQ_Admin_FileJson|4", 1, true)
+        and string.find(bad, "IGUI_MQ_Admin_BadConfig|daily.pool.d_kill.target|target", 1, true),
+        "a rejected config.json names the line, or the key path as written in the file")
     getText = gt
     T.check(not T.printed("admin layout"), "no layout error during the flows")
     A.hide()

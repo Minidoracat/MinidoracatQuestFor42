@@ -1,6 +1,6 @@
 -- Client slice: state cache (state + delta merge), request matching and NO_REPLY, hello on the first tick and
 -- after respawn, effective achievement definitions (overrides, difficulty, custom "c:", facade packs), the board
--- page state machine (2 s send gap, 5 s timeout, failure result), records timeout, the exchange quote limits,
+-- page state machine (0.6 s send gap, 5 s timeout, failure result), records timeout, the exchange quote limits,
 -- toast texts, small formatters, and one SP round trip through the real server.
 return function(T)
     local check = T.check
@@ -128,9 +128,11 @@ return function(T)
     check(e.status == "loading" and sentCount("board") == sent0 + 1 and lastSent().args.board == "kills"
         and lastSent().args.period == "season", "ask -> loading, sent at once")
     C.requestBoard("kills", "total")
-    check(sentCount("board") == sent0 + 1, "second ask inside the 2 s server cooldown is queued, not dropped")
-    T.tick(25)
-    check(sentCount("board") == sent0 + 2 and lastSent().args.period == "total", "queued ask goes out after the gap")
+    check(sentCount("board") == sent0 + 1, "second ask inside the 0.5 s server cooldown is queued, not dropped")
+    T.tick(5)
+    check(sentCount("board") == sent0 + 1, "still held at 0.5 s: the server would drop it")
+    T.tick(1)
+    check(sentCount("board") == sent0 + 2 and lastSent().args.period == "total", "queued ask goes out after the 0.6 s gap")
     push("board", { board = "kills", period = "season", status = "ok", rows = { { r = 1, n = "bob", v = 9 } }, me = nil })
     check(C.board("kills", "season").status == "ready" and C.board("kills", "season").data.rows[1].n == "bob", "rows -> ready")
     push("board", { board = "kills", period = "total", status = "ok", rows = {}, me = nil })

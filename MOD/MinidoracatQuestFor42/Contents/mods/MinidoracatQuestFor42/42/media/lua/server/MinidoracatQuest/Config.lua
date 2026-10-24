@@ -23,7 +23,6 @@ local CODE = C.CODE
 
 Cf.MAX_CHANGES = 200
 Cf.MAX_CUSTOM = 200
-Cf.IMPORT_BYTES = 1000000
 
 -- ===== validators: function(v) -> true | false, why =====
 
@@ -196,14 +195,15 @@ local function child(node, key)
     return nil
 end
 
+-- true | false, why, the key path below node where it failed ("pool.d_kill.target")
 local function checkNode(node, v)
     if type(node) == "function" then return node(v) end
     if type(v) ~= "table" then return false, "type" end
     for k, x in pairs(v) do
         local c = child(node, k)
-        if c == nil then return false, "unknown " .. tostring(k) end
-        local ok, why = checkNode(c, x)
-        if not ok then return false, why end
+        if c == nil then return false, "unknown", tostring(k) end
+        local ok, why, at = checkNode(c, x)
+        if not ok then return false, why, at and (tostring(k) .. "." .. at) or tostring(k) end
     end
     return true
 end
@@ -223,7 +223,7 @@ function Cf.parsePath(path)
     return segs
 end
 
--- true | false, why
+-- true | false, why, the key path below change.path where it failed
 function Cf.validate(change)
     if type(change) ~= "table" then return false, "change" end
     for k in pairs(change) do
@@ -324,8 +324,12 @@ end
 local function validateAll(changes)
     if not isArray(changes, Cf.MAX_CHANGES) or #changes < 1 then return false, { why = "changes" } end
     for i, ch in ipairs(changes) do
-        local ok, why = Cf.validate(ch)
-        if not ok then return false, { index = i, path = type(ch) == "table" and ch.path or nil, why = why } end
+        local ok, why, at = Cf.validate(ch)
+        if not ok then
+            local path = type(ch) == "table" and type(ch.path) == "string" and ch.path or nil
+            if path and at then path = path .. "." .. at end
+            return false, { index = i, path = path, why = why }
+        end
     end
     -- custom achievement count limit on the resulting overrides
     local after = U.copy(Cf.overrides())
@@ -390,13 +394,130 @@ local function write(changes, summary, actor)
     return id, root.config.rev
 end
 
--- true, historyId, rev | false, code, detail
-function Cf.apply(changes, summary, actor)
+-- validated write; leaves config.json alone (file applies come from the file)
+local function applyChanges(changes, summary, actor)
     if not Q.Store.ready() or Q.Store.readOnly then return false, CODE.NOT_READY end
     local ok, detail = validateAll(changes)
     if not ok then return false, CODE.BAD_CONFIG, detail end
     local id, rev = write(changes, type(summary) == "string" and summary or "", actor)
     return true, id, rev
+end
+
+-- ===== config.json: the overrides as a file the owner can edit (section 3.5) =====
+-- <cacheDir>/Lua/MinidoracatQuest/<server>/config.json holds the overrides tree (only values that differ from the
+-- defaults). The server reads it at start and every POLL_MS (Server.onTick runs with nobody online too); a changed,
+-- valid file is applied like a panel change: a history entry by "config.json" that can be undone. A file that does
+-- not parse or validate is left as it is and the settings in effect stay; status.json, the server log and the
+-- History tab say where it failed. Every other apply and undo rewrites the file, so it shows the settings in
+-- effect. defaults.json, rewritten at start, holds every default value in the same shape.
+Cf.FILE, Cf.STATUS_FILE, Cf.DEFAULTS_FILE = "config.json", "status.json", "defaults.json"
+Cf.FILE_ACTOR = "config.json"      -- history actor and summary of a file apply
+Cf.POLL_MS = 60000
+Cf.FILE_BYTES = 1000000
+Cf.file = Cf.file or {}            -- { last = text applied or written, nextPoll, status }
+
+local function pad2(n) return n < 10 and ("0" .. n) or tostring(n) end
+
+-- text, or nil when the file does not exist, false when it cannot be read
+local function readText(name)
+    local lines = Q.Store.readLines(Q.Store.path(name), 100000)
+    if type(lines) ~= "table" then return lines end
+    local text = table.concat(lines, "\n")
+    -- the byte order mark some editors write: one char in Kahlua (Java strings), three bytes in standard Lua
+    local b = string.byte(text, 1)
+    if b == 65279 then return string.sub(text, 2) end
+    if b == 239 and string.sub(text, 1, 3) == "\239\187\191" then return string.sub(text, 4) end
+    return text
+end
+
+-- true when the file reads back as text (getFileWriter reports no I/O error)
+local function writeText(name, text)
+    if text == nil or not Q.Store.writeLines(Q.Store.path(name), { text }, false) then return false end
+    return readText(name) == text
+end
+
+-- st = { ok, source = "boot" | "file" | "panel", changed? (a read), why?, path?, line? }: kept for cfg.get, written to
+-- status.json, and logged unless it is a panel change written fine
+local function setStatus(st)
+    local t = getTimestampMs()
+    local y, m, d = Q.Clock.civil(math.floor(t / 86400000))
+    local s = math.floor(t / 1000) % 86400
+    st.at, st.rev = t, Q.Store.root().config.rev
+    st.time = string.format("%d-%s-%s %s:%s:%s UTC", y, pad2(m), pad2(d), pad2(math.floor(s / 3600)),
+        pad2(math.floor(s / 60) % 60), pad2(s % 60))
+    Cf.file.status = st
+    writeText(Cf.STATUS_FILE, U.encode(st, true))
+    if st.why == "read" or st.why == "write" then
+        U.log("config.json could not be " .. (st.why == "read" and "read" or "written") .. " (" .. st.source .. ")")
+    elseif not st.ok then
+        U.log("config.json not applied (" .. st.source .. "): " .. U.logSafe(st.why)
+            .. (st.line and (" near line " .. st.line) or "") .. (st.path and (" at " .. U.logSafe(st.path)) or ""))
+    elseif st.changed ~= nil then
+        U.log("config.json read (" .. st.source .. "): " .. st.changed .. " changed, rev " .. st.rev)
+    elseif st.source ~= "panel" then
+        U.log("config.json written (" .. st.source .. "), rev " .. st.rev)
+    end
+end
+
+-- writes the settings in effect to config.json
+local function mirror(source)
+    local text = U.encode(Cf.overrides(), true)
+    if writeText(Cf.FILE, text) then
+        Cf.file.last = text
+        setStatus({ ok = true, source = source })
+    else
+        setStatus({ ok = false, source = source, why = "write" })
+    end
+end
+
+local function same(a, b)
+    if type(a) ~= "table" or type(b) ~= "table" then return a == b end
+    for k, v in pairs(a) do
+        if not same(v, b[k]) then return false end
+    end
+    for k in pairs(b) do
+        if a[k] == nil then return false end
+    end
+    return true
+end
+
+-- changes that turn the overrides into tree: set each family that differs, del each family the file leaves out
+local function changesTo(tree)
+    local ov, changes = Cf.overrides(), {}
+    for k, v in pairs(tree) do
+        if not same(v, ov[k]) then changes[#changes + 1] = { op = "set", path = tostring(k), value = v } end
+    end
+    for k in pairs(ov) do
+        if tree[k] == nil then changes[#changes + 1] = { op = "del", path = tostring(k) } end
+    end
+    U.sort(changes, function(a, b) return a.path < b.path end)
+    return changes
+end
+
+-- source "boot" | "file"
+local function applyFile(text, source)
+    local tree, why, line = U.decode(text, Cf.FILE_BYTES)
+    if type(tree) ~= "table" then
+        return setStatus({ ok = false, source = source, why = why == "TOO_LARGE" and "too large" or "json", line = line })
+    end
+    local changes = changesTo(tree)
+    if #changes > 0 then
+        local ok, code, detail = applyChanges(changes, Cf.FILE_ACTOR, Cf.FILE_ACTOR)
+        if not ok then
+            detail = type(detail) == "table" and detail or {}
+            return setStatus({ ok = false, source = source, why = detail.why or code, path = detail.path })
+        end
+        Q.Audit.add("admin", Cf.FILE_ACTOR, nil, { op = "cfg.file" })
+        if Q.EventLog then Q.EventLog.write("admin", Cf.FILE_ACTOR, { op = "cfg.file" }) end
+    end
+    setStatus({ ok = true, source = source, changed = #changes })
+end
+
+-- true, historyId, rev | false, code, detail
+function Cf.apply(changes, summary, actor)
+    local ok, id, rev = applyChanges(changes, summary, actor)
+    if ok then mirror("panel") end
+    return ok, id, rev
 end
 
 function Cf.undo(historyId, actor)
@@ -413,6 +534,7 @@ function Cf.undo(historyId, actor)
     end
     if #changes == 0 then return false, CODE.BAD_CONFIG end
     local id, rev = write(changes, "undo #" .. tostring(historyId), actor)
+    mirror("panel")
     return true, id, rev
 end
 
@@ -426,42 +548,30 @@ function Cf.historyRows()
     return rows
 end
 
--- ===== export / import (private files, section 3.5) =====
-
-local function pad2(n) return n < 10 and ("0" .. n) or tostring(n) end
-
--- true, fileName | false, code
-function Cf.export()
-    local t = getTimestampMs()
-    local y, m, d = Q.Clock.civil(math.floor(t / 86400000))
-    local s = math.floor(t / 1000) % 86400
-    local name = string.format("export-%d%s%s-%s%s%s.json", y, pad2(m), pad2(d),
-        pad2(math.floor(s / 3600)), pad2(math.floor(s / 60) % 60), pad2(s % 60))
-    local text = U.encode(Cf.overrides())
-    if text == nil or not Q.Store.writeLines(Q.Store.path(name), { text }, false) then return false, CODE.FILE_ERROR end
-    local back = Q.Store.readLines(Q.Store.path(name), 100000)
-    if type(back) ~= "table" or table.concat(back, "\n") ~= text then return false, CODE.FILE_ERROR end
-    return true, name
+-- Server.onInitGlobalModData, after Store.init: rewrites defaults.json, then applies config.json, or writes it
+-- when there is none yet
+function Cf.fileBoot()
+    Cf.file = { nextPoll = getTimestampMs() + Cf.POLL_MS }
+    if not Q.Store.ready() or Q.Store.readOnly then return end
+    local defaults, all = {}, Cf.defaults()
+    for k in pairs(Cf.SCHEMA) do defaults[k] = all[k] end
+    writeText(Cf.DEFAULTS_FILE, U.encode(defaults, true))
+    local text = readText(Cf.FILE)
+    if text == nil then return mirror("boot") end
+    if text == false then return setStatus({ ok = false, source = "boot", why = "read" }) end
+    Cf.file.last = text
+    applyFile(text, "boot")
 end
 
--- Reads import.json (an overrides tree as written by export) and turns it into top-level changes:
--- set every family in the file, del every current family missing from it. true, changes, rows | false, code, detail
-function Cf.import()
-    local lines = Q.Store.readLines(Q.Store.path("import.json"), 100000)
-    if lines == nil then return false, CODE.NOT_FOUND end
-    if lines == false then return false, CODE.FILE_ERROR end
-    local tree, err = U.decode(table.concat(lines, "\n"), Cf.IMPORT_BYTES)
-    if type(tree) ~= "table" then return false, CODE.BAD_CONFIG, { why = err or "json" } end
-    local changes = {}
-    for k, v in pairs(tree) do
-        changes[#changes + 1] = { op = "set", path = tostring(k), value = v }
-    end
-    for k in pairs(Cf.overrides()) do
-        if tree[k] == nil then changes[#changes + 1] = { op = "del", path = tostring(k) } end
-    end
-    U.sort(changes, function(a, b) return a.path < b.path end)
-    if #changes == 0 then return false, CODE.BAD_CONFIG, { why = "empty" } end
-    local ok, rows, detail = Cf.preview(changes)
-    if not ok then return false, rows, detail end
-    return true, changes, rows
+-- Server.onTick: reads config.json every POLL_MS and applies it when the text changed; a deleted file is written again
+function Cf.fileTick(now)
+    local f = Cf.file
+    if f.nextPoll == nil or now < f.nextPoll then return end
+    f.nextPoll = now + Cf.POLL_MS
+    if not Q.Store.ready() or Q.Store.readOnly then return end
+    local text = readText(Cf.FILE)
+    if text == nil then return mirror("file") end
+    if text == false or text == f.last then return end
+    f.last = text
+    applyFile(text, "file")
 end

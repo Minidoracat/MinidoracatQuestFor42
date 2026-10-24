@@ -64,8 +64,10 @@ end
 -- ===== text =====
 local ROMAN = { "I", "II", "III", "IV", "V", "VI", "VII", "VIII", "IX", "X" }
 
+-- The spare "" argument: getTextOrNull formats the text, and a key with %1 but no argument prints a
+-- missing-argument warning with a stack trace each call (Translator.java:513-522, 538-541).
 function D.textOrNull(key)
-    if getTextOrNull then return getTextOrNull(key) end
+    if getTextOrNull then return getTextOrNull(key, "") end
     local t = getText(key)
     if t == key then return nil end
     return t

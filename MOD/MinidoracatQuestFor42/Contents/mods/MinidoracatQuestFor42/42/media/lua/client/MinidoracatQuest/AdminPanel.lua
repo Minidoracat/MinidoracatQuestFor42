@@ -346,9 +346,7 @@ end
 function A.questName(tid)
     local t = MQ.Client and MQ.Client.defs().daily[tid]
     if type(t) == "table" and type(t.nameKey) == "string" then return getText(t.nameKey, "N") end
-    local s = getTextOrNull("IGUI_MQ_Q_" .. tid)
-    if s == nil then return tid end
-    return getText("IGUI_MQ_Q_" .. tid, "N")
+    return getTextOrNull("IGUI_MQ_Q_" .. tid, "N") or tid   -- with the argument, %1 does not warn (Draw.textOrNull)
 end
 
 function A.titleText(id)
@@ -628,13 +626,6 @@ function A.onConfirmCancel(P)
     A.layout(P)
 end
 
-function A.onExport(P)
-    A.send(P, "cfg.export", {}, function(res)
-        if not res.ok then return A.fail(P, res) end
-        A.say(P, getText("IGUI_MQ_Admin_Exported", tostring(res.file)), "success")
-    end)
-end
-
 -- "Apply changes?" view: summary, rows with the old value struck through, note, estimate table
 function A.layoutConfirm(P, pg, F)
     local c = P.confirm
@@ -662,8 +653,7 @@ function A.layoutConfirm(P, pg, F)
     F:text("cf:n", c.note or getText("IGUI_MQ_Admin_KeepUnlocked"), "textMuted")
     local apply = F:button("cf:apply", getText("IGUI_MQ_Admin_ApplyChanges"), A.onConfirmApply, "primary")
     apply:setEnabled(not A.busy(P))
-    F:row({ apply, F:button("cf:cancel", getText("UI_Cancel"), A.onConfirmCancel, "ghost"),
-        F:button("cf:export", getText("IGUI_MQ_Admin_ExportJson"), A.onExport, "ghost") })
+    F:row({ apply, F:button("cf:cancel", getText("UI_Cancel"), A.onConfirmCancel, "ghost") })
 end
 
 -- difficulty estimate { { key, easy, normal, hard, custom? } } (Systems diff.preview)
@@ -730,7 +720,7 @@ function A.loadConfig(P)
         end
         P.loadError = nil
         P.S.overrides = type(res.overrides) == "table" and res.overrides or {}
-        P.history, P.rev = res.history or {}, res.rev
+        P.history, P.rev, P.file = res.history or {}, res.rev, res.file
         A.resync(P)
     end)
 end
@@ -869,13 +859,14 @@ function A.resize(width, height)
     A.layout(P)
 end
 
--- ===== history page: last 20 changes, undo, export, import =====
+-- ===== history page: last 20 changes, undo, config.json state =====
 
--- summaries the server writes itself (Quests events, Seasons length, Config undo) are fixed English codes;
--- event rows carry the event name after the id ("event.add 3 Fest"), older rows only the id -> "#3"
+-- summaries the server writes itself (Quests events, Seasons length, Config undo and file applies) are fixed English
+-- codes; event rows carry the event name after the id ("event.add 3 Fest"), older rows only the id -> "#3"
 local SERVER_SUMMARY = { { "^event%.add (%d+)(.*)$", "IGUI_MQ_Admin_HistEventAdd", true },
     { "^event%.remove (%d+)(.*)$", "IGUI_MQ_Admin_HistEventRemove", true },
-    { "^season%.length (%d+)$", "IGUI_MQ_Admin_HistSeasonLength" }, { "^undo #(%d+)$", "IGUI_MQ_Admin_HistUndo" } }
+    { "^season%.length (%d+)$", "IGUI_MQ_Admin_HistSeasonLength" }, { "^undo #(%d+)$", "IGUI_MQ_Admin_HistUndo" },
+    { "^(config%.json)$", "IGUI_MQ_Admin_HistFile" } }
 function A.summaryText(s)
     s = tostring(s or "")
     for _, m in ipairs(SERVER_SUMMARY) do
@@ -887,6 +878,19 @@ function A.summaryText(s)
         if n then return getText(m[2], n) end
     end
     return s
+end
+
+-- config.json state from cfg.get (Config.file.status): when it was last in sync, or why the file was not applied
+function A.fileText(fs)
+    if fs.why == "read" or fs.why == "write" then return getText("IGUI_MQ_Admin_FileIo", A.time(fs.at), fs.why) end
+    if fs.ok then return getText("IGUI_MQ_Admin_FileOk", A.time(fs.at)) end
+    local why = tostring(fs.why or "?")
+    if fs.line then
+        why = getText("IGUI_MQ_Admin_FileJson", fs.line)
+    elseif fs.path then
+        why = getText("IGUI_MQ_Admin_BadConfig", fs.path, why)
+    end
+    return getText("IGUI_MQ_Admin_FileBad", A.time(fs.at), why)
 end
 
 A.pages.history = {
@@ -910,10 +914,9 @@ A.pages.history = {
             end
         end
         F:gap()
-        F:head("io", getText("IGUI_MQ_Admin_IoHead"))
-        F:text("ion", getText("IGUI_MQ_Admin_IoNote"), "textMuted")
-        F:row({ F:button("export", getText("IGUI_MQ_Admin_ExportJson"), A.onExport),
-            F:button("import", getText("IGUI_MQ_Admin_Import"), A.onImport) })
+        F:head("io", getText("IGUI_MQ_Admin_FileHead"))
+        F:text("ion", getText("IGUI_MQ_Admin_FileNote"), "textMuted")
+        if type(P.file) == "table" then F:text("ios", A.fileText(P.file), P.file.ok and "textMuted" or "errorText") end
     end,
 }
 
@@ -927,13 +930,6 @@ function A.onUndo(P, b)
                 A.loadConfig(P)
             end)
         end })
-end
-
-function A.onImport(P)
-    A.send(P, "cfg.import", {}, function(res)
-        if not res.ok then return A.fail(P, res) end
-        A.confirm(P, res.changes or {}, res.rows, getText("IGUI_MQ_Admin_ImportSummary"))
-    end)
 end
 
 if MQ.ClientUI and MQ.ClientUI.registerAdminPage then MQ.ClientUI.registerAdminPage(A) end

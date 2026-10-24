@@ -216,7 +216,8 @@ end
 
 -- ---------- registration ----------
 
-MQ.Server.define("board", { kind = "query", fields = { board = "str", period = "str" }, cooldownMs = 2000,
+-- pages come from the sorted cache, so a short cooldown is cheap; the client paces its asks to match (Client.lua)
+MQ.Server.define("board", { kind = "query", fields = { board = "str", period = "str" }, cooldownMs = 500,
     run = function(ctx)
         local page, c = B.page(ctx.args.board, ctx.args.period, ctx.user, ctx.admin)
         if not page then return false, c end

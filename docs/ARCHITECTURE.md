@@ -64,7 +64,7 @@
 | `lua/server/MinidoracatQuest/Clock.lua` | Core | 日界線、週界線、經濟系統 `rewardDay` 探測 |
 | `lua/server/MinidoracatQuest/Audit.lua` | Core | `writeLog` 稽核、拒絕聚合、共用表的稽核環（500 筆） |
 | `lua/server/MinidoracatQuest/EventLog.lua` | Core | 每日事件記錄檔（緩衝、定時寫出） |
-| `lua/server/MinidoracatQuest/Config.lua` | Core | 有效設定＝Catalog 預設＋管理員覆寫；預覽、套用、復原、歷史 20 筆、匯出匯入 |
+| `lua/server/MinidoracatQuest/Config.lua` | Core | 有效設定＝Catalog 預設＋管理員覆寫；預覽、套用、復原、歷史 20 筆、`config.json` 同步（§3.5） |
 | `lua/server/MinidoracatQuest/Stats.lua` | Core | `add`／`max`／`seed`、每分鐘上限、三個範圍、監聽者 |
 | `lua/server/MinidoracatQuest/Points.lua` | Core | 發積分、扣積分、退回，三個數字的規則 |
 | `lua/server/MinidoracatQuest/Net.lua` | Core | 送出（含 SP 直呼）、全服廣播、對在線帳號推播 |
@@ -195,7 +195,9 @@ DEFAULTS = {
 - 位置 `Lua/MinidoracatQuest/<serverKey>/`，`serverKey`＝`getServerName()` 把 `[%w_-]` 以外換成 `_`。
 - `identity.txt`：身分綁定表，照 Safehouse `Registry.lua` 的 append-only＋讀回確認。
 - `events-YYYYMMDD.json`：§1 C14。行格式 `{"t":<ms>,"k":"<kind>","u":"<user>",…}`，kind：`quest_done`、`week_done`、`goal_paid`、`streak`、`achv`、`points`、`exchange`、`season`、`admin`、`over`、`revoke`、`hide`。
-- `export-<YYYYMMDD-HHMMSS>.json`：管理員匯出的設定覆寫；`import.json`：管理員放進去要匯入的檔。
+- `config.json`：管理員覆寫（和 `root.config.overrides` 同一棵樹，排序、縮排兩格）。開服與每 60 秒（`Config.POLL_MS`，掛在 `Server.onTick`，沒人在線也跑）讀一次；文字變了就解析、驗證，整份可用才套用：每個和目前不同的頂層組 `set`、檔案沒寫的組 `del`，記一筆操作者與摘要都是 `config.json` 的變更紀錄（可以復原），稽核與事件記錄寫 `admin`／`cfg.file`。解析失敗或驗證不過時整份不套用，`Config.file.status` 記下 `why`、`line`（JSON 停在第幾行）或 `path`（完整欄位路徑）。面板的套用與復原都會把覆寫寫回這個檔（`source = "panel"`）；檔案不見時重新寫出。前導的 BOM 會略過。
+- `defaults.json`：每次開服重寫，`Catalog.DEFAULTS` 裡屬於 `Config.SCHEMA` 的組（不含 `season`），形狀和 `config.json` 相同。
+- `status.json`：`Config.file.status` 的檔案版：`ok`、`source`（`boot`／`file`／`panel`）、`at`、`time`（UTC）、`rev`，失敗時加 `why`、`line`、`path`。
 
 ## 4. Catalog（`shared/MinidoracatQuest/Catalog.lua`）
 
@@ -313,7 +315,7 @@ boards[i] = { id = "kills", cat = "combat", stat = "zombie.kills", periods = { "
 - `Server.defineAdmin(op, spec)`：登記 `admin` 指令底下的一個 op。`spec` 同上（不用寫 `admin`，一律需要管理員），`fields` 是 `op` 以外的欄位；`kind = "mutation"` 的 op 成功後由 Server 統一寫稽核（`Audit.add("admin", actor, nil, { op = op })`）與事件記錄，回覆走 `admin` 推送 `{ op, ok, code, requestId, … }`。
 - `ctx = { player, user, args, now, admin, command }`；`run` 回 `true, data` 或 `false, code, data`。
 - 欄位型別：`int`、`num`、`bool`、`str`（≤ 64）、`text`（≤ 256）、`json`（≤ 32,000 bytes，伺服器端解碼成 table）。
-- 每人 5 秒 20 個指令；每指令冷卻預設 300 ms（`board` 2 秒、`exchange` 3 秒）；冷卻中直接丟、不回覆。mutation 用 `requestId` 冪等（60 秒）。
+- 每人 5 秒 20 個指令；每指令冷卻預設 300 ms（`board` 0.5 秒、`exchange` 3 秒）；冷卻中直接丟、不回覆。客戶端查榜每次至少隔 0.6 秒（`Client.BOARD_GAP_MS`），連點時只送最後一個。mutation 用 `requestId` 冪等（60 秒）。
 - 管理員：SP 一律是；MP 看角色名是否在沙盒 `AdminRoles`（預設 `admin`），`getRole()` 為 nil 時不是。
 
 ### 5.8 Systems 模組（Systems 擁有）
@@ -361,12 +363,10 @@ boards[i] = { id = "kills", cat = "combat", stat = "zombie.kills", periods = { "
 
 | op | 欄位 | 回應 data |
 |---|---|---|
-| `cfg.get` | — | `overrides`、`rev`、`history`（id、時間、操作者、摘要） |
+| `cfg.get` | — | `overrides`、`rev`、`history`（id、時間、操作者、摘要）、`file`（`config.json` 的同步狀態，同 `status.json`） |
 | `cfg.preview` | `changes: json` | `rows = { { path, before, after } }`、`ok` |
 | `cfg.apply` | `changes: json`、`summary: text` | `historyId`、`rev` |
 | `cfg.undo` | `historyId: int` | `historyId`、`rev` |
-| `cfg.export` | — | `file` |
-| `cfg.import` | — | `changes`、`rows`（預覽；要套用再送 `cfg.apply`） |
 | `diff.preview` | `preset: str`、`mult: num?` | `changes`、`rows`、`estimate` |
 | `season.preview` | `days: int` | `endMs`、`nextStartMs` |
 | `season.apply` | `days: int` | `endMs` |

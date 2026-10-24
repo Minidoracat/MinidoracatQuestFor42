@@ -168,10 +168,54 @@ local function enc(v, out, depth)
     return true
 end
 
--- Returns the JSON text, or nil when v holds functions/userdata or nests too deep.
-function U.encode(v)
+-- Files people edit (config.json): two-space indent, object keys sorted (numbers by value), arrays of plain values
+-- on one line.
+local function encPretty(v, out, depth, pad)
+    if type(v) ~= "table" then return enc(v, out, depth) end
+    if depth > C.LIMIT.JSON_DEPTH then return false end
+    local inner = pad .. "  "
+    local n = arrayLen(v)
+    if n then
+        local flat = true
+        for i = 1, n do if type(v[i]) == "table" then flat = false end end
+        out[#out + 1] = flat and "[" or "[\n"
+        for i = 1, n do
+            if not flat then out[#out + 1] = inner end
+            if not encPretty(v[i], out, depth + 1, inner) then return false end
+            if i < n then out[#out + 1] = flat and ", " or ",\n" end
+        end
+        out[#out + 1] = flat and "]" or ("\n" .. pad .. "]")
+        return true
+    end
+    local keys = {}
+    for k in pairs(v) do
+        local kt = type(k)
+        if kt ~= "string" and kt ~= "number" then return false end
+        keys[#keys + 1] = { k = k, s = kt == "number" and numText(k) or k }
+    end
+    if #keys == 0 then
+        out[#out + 1] = "{}"
+        return true
+    end
+    U.sort(keys, function(a, b)
+        if type(a.k) == "number" and type(b.k) == "number" then return a.k < b.k end
+        return a.s < b.s
+    end)
+    out[#out + 1] = "{\n"
+    for i, e in ipairs(keys) do
+        out[#out + 1] = inner .. strText(e.s) .. ": "
+        if not encPretty(v[e.k], out, depth + 1, inner) then return false end
+        out[#out + 1] = i < #keys and ",\n" or ("\n" .. pad .. "}")
+    end
+    return true
+end
+
+-- Returns the JSON text, or nil when v holds functions/userdata or nests too deep. pretty: encPretty layout.
+function U.encode(v, pretty)
     local out = {}
-    if not enc(v, out, 1) then return nil end
+    local ok
+    if pretty then ok = encPretty(v, out, 1, "") else ok = enc(v, out, 1) end
+    if not ok then return nil end
     return table.concat(out)
 end
 
@@ -185,11 +229,14 @@ local function utf8char(cp)
         128 + math.floor(cp / 64) % 64, 128 + cp % 64)
 end
 
--- Decoder state: p = position; every reader returns value, ok.
+-- Decoder state: p = position; every reader returns value, ok. far = the furthest token start reached, which is
+-- where a failed parse stopped (U.decode turns it into a line number).
 local D = {}
+local far = 1
 
 local function skip(s, p)
     local _, e = string.find(s, "^[ \t\r\n]*", p)
+    if e + 1 > far then far = e + 1 end
     return e + 1
 end
 
@@ -277,11 +324,16 @@ function D.value(s, p, depth)
     return n, p + #num
 end
 
--- Returns value or nil, "BAD_JSON" | "TOO_LARGE". maxBytes defaults to LIMIT.JSON_BYTES.
+-- Returns value, or nil, "BAD_JSON" | "TOO_LARGE" (BAD_JSON also gives the line where parsing stopped).
+-- maxBytes defaults to LIMIT.JSON_BYTES.
 function U.decode(s, maxBytes)
     if type(s) ~= "string" then return nil, "BAD_JSON" end
     if #s > (maxBytes or C.LIMIT.JSON_BYTES) then return nil, "TOO_LARGE" end
+    far = 1
     local v, p = D.value(s, 1, 1)
-    if p == nil or skip(s, p) <= #s then return nil, "BAD_JSON" end
+    if p == nil or skip(s, p) <= #s then
+        local _, breaks = string.gsub(string.sub(s, 1, far), "\n", "")
+        return nil, "BAD_JSON", breaks + 1
+    end
     return v
 end

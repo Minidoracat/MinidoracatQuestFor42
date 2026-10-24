@@ -264,7 +264,7 @@ The server needs Minidoracat Economy (multiplayer only). The Exchange page on th
 [*] [b]Mid-save[/b]: fine; on an existing save each account's old progress is imported the first time it appears, see the FAQ.
 [/list]
 === ⚙️ Sandbox options and defaults
-The sandbox page "Minidoracat Quests & Achievements" has three options; everything else is set in the in-game admin panel.
+The sandbox page "Minidoracat Quests & Achievements" has three options; everything else is set in the in-game admin panel or directly in config.json on the server (see "Settings file config.json").
 [table]
 [tr][th]Option[/th][th]Default[/th][th]Notes[/th][/tr]
 [tr][td]Time zone (UTC offset, hours)[/td][td]8[/td][td]-12 to 14; time zone for the daily reset and times on screen[/td][/tr]
@@ -345,9 +345,35 @@ Open "Admin" on the left of the window; only roles listed in the "Admin roles" s
 [h3]History[/h3]
 [list]
 [*] [b]Undo[/b]: the last 20 changes; undo writes the old values back and counts as a change itself.
-[*] [b]Export[/b]: writes the current overrides to a JSON file on the server.
-[*] [b]Import[/b]: rename the file to import.json, put it in the same folder and press "Import..."; you see a preview before applying.
+[*] [b]Settings file state[/b]: below the list you see when config.json was last in sync; when the file has an error and was not applied, you see the line or the field.
 [/list]
+=== ⚙️ Settings file config.json
+The admin panel settings (except timed events and the season length) are also kept in a file on the server, so you can change them without joining the game. Location: Lua/MinidoracatQuest/<server name>/ in the server's user folder (a dedicated server uses ~/Zomboid by default, %USERPROFILE%\Zomboid on Windows).
+[table]
+[tr][th]File[/th][th]Use[/th][/tr]
+[tr][td]config.json[/td][td]The settings that differ from the defaults; edit this one[/td][/tr]
+[tr][td]defaults.json[/td][td]Read-only: every default value, written the same way as config.json, so you can copy a block over and change it; rewritten at each start[/td][/tr]
+[tr][td]status.json[/td][td]Read-only: the result of the last read or write (time, success, the line or field with the error)[/td][/tr]
+[/table]
+[list]
+[*] [b]Applies within about a minute[/b]: the server reads the file every 60 seconds; when the text changed it checks and applies it and records a change "Applied from config.json", which you can undo in the panel. Edits made while the server is down apply at the next start.
+[*] [b]Write only what you change[/b]: anything not written uses the default; removing a whole group (for example "exchange") puts that group back to the defaults. Lists such as tiers or the goal rotation are always written whole.
+[*] [b]An error stops the whole file[/b]: with broken JSON, a value out of range or a misspelt name, the current settings stay; status.json, the server console and the panel's History tab show the line where the JSON stopped or the field with the error (for example daily.pool.d_kill.target).
+[*] [b]Panel changes rewrite the file[/b]: after an apply or undo in the panel the server writes the settings in effect back to config.json, so manual edits it has not read yet are overwritten. A deleted file is written again.
+[*] [b]Restoring a world save[/b]: the server applies config.json at start, so the settings follow the file, not the older save.
+[/list]
+Example: the daily quest "Kill N zombies" (d_kill) gets a target of 30 to 60 and 20 points, the "Zombie Slayer" achievement (zombie_kills) gets doubled thresholds, and the exchange rate becomes 1 point for 2 Survivor Coins:
+[code]{
+  "achievements": {
+    "zombie_kills": { "tiers": [200, 2000, 10000, 40000] }
+  },
+  "daily": {
+    "pool": {
+      "d_kill": { "target": [30, 60], "pts": 20 }
+    }
+  },
+  "exchange": { "rate": 2 }
+}[/code]
 === ⚙️ Season settings and payout
 {{img:09-admin-season-en.jpg}}
 [h3]Changing the season length[/h3]
@@ -384,13 +410,13 @@ Open "Admin" on the left of the window; only roles listed in the "Admin roles" s
 [tr][td]Each account's stats, quests, points, achievements, titles, preferences, tracked items, exchange queue and last 10 exchanges[/td][td]Global ModData account tables MinidoracatQuest_A00-A15 (16 tables)[/td][/tr]
 [tr][td]Account to Steam account bindings[/td][td]Zomboid/Lua/MinidoracatQuest/<server name>/identity.txt[/td][/tr]
 [tr][td]Daily event log (one line per event)[/td][td]Same folder, events-YYYYMMDD.json, one per day[/td][/tr]
-[tr][td]Exported / imported settings[/td][td]Same folder, export-<date-time>.json / import.json[/td][/tr]
+[tr][td]The admin panel settings file, every default value, the result of the last read[/td][td]Same folder, config.json, defaults.json, status.json[/td][/tr]
 [tr][td]Audit log[/td][td]*_MinidoracatQuest.txt in Zomboid/Logs[/td][/tr]
 [/table]
 [list]
 [*] [b]17 Global ModData tables[/b]: backed up and rolled back with the world save; they hold no Steam accounts or private data.
 [*] [b]Event logs[/b]: a new uncompressed file every day; this mod only writes them, never reads them. Lua cannot delete files, so archive or delete old ones yourself.
-[*] [b]Backups[/b]: back up the world save together with Lua/MinidoracatQuest/<server name>/. Without identity.txt, names on a Steam server are bound again only when each player comes back online.
+[*] [b]Backups[/b]: back up the world save together with Lua/MinidoracatQuest/<server name>/. Without identity.txt, names on a Steam server are bound again only when each player comes back online. When you restore only the world save, the settings still follow config.json in that folder.
 [/list]
 === ⚙️ For mod authors
 Other mods can add stats, achievements, daily quests and Professions leaderboards on the server through MinidoracatQuest.v1. For a full example and field limits, see "給其他 MOD 的 API" (API for other mods) in the GitHub README:

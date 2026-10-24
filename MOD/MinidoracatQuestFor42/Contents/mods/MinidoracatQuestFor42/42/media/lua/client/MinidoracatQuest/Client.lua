@@ -20,7 +20,7 @@ Q.Client = C
 
 C.TIMEOUT_MS = 10000        -- result / admin reply
 C.BOARD_TIMEOUT_MS = 5000   -- board page error state (spec 12.4)
-C.BOARD_GAP_MS = 2100       -- server board cooldown is 2 s and drops silently
+C.BOARD_GAP_MS = 600        -- server board cooldown is 0.5 s and drops silently
 C.RECORDS_TIMEOUT_MS = 5000
 C.RECORDS_TTL_MS = 30000    -- achievements page reuses records this fresh
 C.HELLO_RETRY_MS = 10000

@@ -31,7 +31,7 @@ Daily and weekly quests, achievements, season leaderboards and titles; pair it w
 [*] [b]Achievements and titles[/b]: about 110 achievements in four tiers; high-tier unlocks are announced server-wide
 [*] [b]Leaderboards and seasons[/b]: 8 leaderboard categories, with rewards and titles by rank when a season ends
 [*] [b]Point exchange[/b]: with the Economy mod, turn points into Survivor Coins
-[*] [b]Admin panel[/b]: thresholds, quests, seasons and exchange are all tuned in game, and every change can be undone
+[*] [b]Admin panel[/b]: thresholds, quests, seasons and exchange are all tuned in game, and every change can be undone; the same settings can also be edited in a file on the server without joining
 [*] [b]For other mods[/b]: an API to add your own stats, achievements and daily quests
 [/list]
 📖 [b]How to play, admin panel, sandbox options and FAQ:[/b] [url={QUEST_GUIDE_EN}]Quests & Achievements Mod Guide: Quests, Achievements, Leaderboards & Admin Panel[/url]

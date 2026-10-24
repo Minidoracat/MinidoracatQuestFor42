@@ -300,6 +300,7 @@ end
 function S.onInitGlobalModData()
     Q.Store.init()
     Q.Identity.load()
+    Q.Config.fileBoot()
     S.ready = true
     S.lastMinute = getTimestampMs()
 end
@@ -321,6 +322,7 @@ function S.onTick()
     if not S.ready then return end
     local now = getTimestampMs()
     Q.Identity.tick(now)
+    Q.Config.fileTick(now)
     Q.Sync.tick(now)
     Q.EventLog.tick(now)
     if S.lastMinute == nil or now - S.lastMinute >= 60000 then
@@ -441,7 +443,8 @@ end })
 
 S.defineAdmin("cfg.get", { kind = "query", run = function()
     local root = Q.Store.root()
-    return true, { overrides = Q.Config.overrides(), rev = root.config.rev, history = Q.Config.historyRows() }
+    return true, { overrides = Q.Config.overrides(), rev = root.config.rev, history = Q.Config.historyRows(),
+        file = Q.Config.file.status }
 end })
 
 S.defineAdmin("cfg.preview", { kind = "query", fields = { changes = "json" }, run = function(ctx)
@@ -460,18 +463,6 @@ S.defineAdmin("cfg.undo", { kind = "mutation", fields = { historyId = "int" }, r
     local ok, id, rev = Q.Config.undo(ctx.args.historyId, ctx.user)
     if not ok then return false, id end
     return true, { historyId = id, rev = rev }
-end })
-
-S.defineAdmin("cfg.export", { kind = "mutation", run = function()
-    local ok, file = Q.Config.export()
-    if not ok then return false, file end
-    return true, { file = file }
-end })
-
-S.defineAdmin("cfg.import", { kind = "query", run = function()
-    local ok, changes, rows = Q.Config.import()
-    if not ok then return false, changes, { detail = rows } end
-    return true, { changes = changes, rows = rows }
 end })
 
 S.defineAdmin("acct.view", { kind = "query", fields = { user = "str" }, run = function(ctx)

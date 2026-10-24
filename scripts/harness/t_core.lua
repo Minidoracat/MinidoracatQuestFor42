@@ -114,14 +114,57 @@ return function(T)
             .. '{"op":"set","path":"custom.c1","value":{"name":"Doc","cat":"job","stat":"t.count","tiers":[1,5],"pts":[10,20],"titles":{"2":"Legend"}}}]' })
     T.check(r and r.ok and #Q.Config.get().goal.rotation == 1, "list values replace the default list")
     T.check(Q.Config.get().custom.c1.titles[2] == "Legend", "json integer keys come back as numbers")
-    r = T.cmd(admin, "admin", { op = "cfg.export" })
-    T.check(r and r.ok and T.files["MinidoracatQuest/servertest/" .. r.file] ~= nil, "export writes a private file")
-    T.files["MinidoracatQuest/servertest/import.json"] = { lines = { '{"exchange":{"perDay":7}}' } }
-    r = T.cmd(admin, "admin", { op = "cfg.import" })
-    local paths = {}
-    for _, ch in ipairs(r and r.changes or {}) do paths[ch.path] = ch.op end
-    T.check(r and r.ok and paths.exchange == "set" and paths.goal == "del" and paths.custom == "del", "import builds set/del changes")
-    T.check(Q.Config.get().exchange.perDay == 42, "import is only a preview")
+
+    T.section("config.json: mirror, edit, errors, undo, restart")
+    local DIR = "MinidoracatQuest/servertest/"
+    local function fileTree(name)
+        local f = T.files[DIR .. name]
+        return f and Q.Util.decode(table.concat(f.lines, "\n"), 1000000) or nil
+    end
+    local function edit(lines)
+        T.files[DIR .. "config.json"] = lines and { lines = lines } or nil
+        T.advance(Q.Config.POLL_MS)
+        T.tick(1)
+    end
+    local mirrored = fileTree("config.json")
+    T.check(mirrored and mirrored.exchange.perDay == 42 and mirrored.custom.c1.name == "Doc" and #mirrored.goal.rotation == 1,
+        "every panel apply rewrites config.json with the settings in effect")
+    local defaults = fileTree("defaults.json")
+    T.check(defaults and defaults.daily.pool.d_kill.target ~= nil and defaults.achievements.zombie_kills.tiers[1] == 100
+        and defaults.season == nil, "defaults.json lists every default value, config paths only")
+    edit({ "{", '  "exchange": { "perDay": 7 }', "}" })
+    local hist7 = Q.Config.historyRows()
+    local fileHid = hist7[#hist7].id
+    T.check(Q.Config.get().exchange.perDay == 7 and Q.Config.get().custom.c1 == nil and #Q.Config.get().goal.rotation > 1,
+        "an edited config.json applies on the next poll; families it leaves out go back to the defaults")
+    T.check(hist7[#hist7].actor == "config.json" and hist7[#hist7].summary == "config.json" and hist7[#hist7].undoable ~= false,
+        "a file apply is a history entry that can be undone")
+    T.check(Q.Config.file.status.ok == true and fileTree("status.json").ok == true, "status.json says it applied")
+    edit({ "{", '  "exchange": { "perDay": 9, }', "}" })
+    local fst = Q.Config.file.status
+    T.check(fst.ok == false and fst.why == "json" and fst.line == 2 and Q.Config.get().exchange.perDay == 7
+        and fileTree("status.json").line == 2, "broken JSON: nothing applied, the line goes to status.json")
+    edit({ '{ "daily": { "pool": { "d_kill": { "target": [5, 1] } } } }' })
+    fst = Q.Config.file.status
+    T.check(fst.ok == false and fst.path == "daily.pool.d_kill.target" and fst.why == "target"
+        and Q.Config.get().exchange.perDay == 7, "invalid value: the key path is reported and no family is applied")
+    r = T.cmd(admin, "admin", { op = "cfg.undo", historyId = fileHid })
+    T.check(r and r.ok and Q.Config.get().exchange.perDay == 42 and fileTree("config.json").exchange.perDay == 42
+        and Q.Config.file.status.ok == true, "undoing a file apply restores the settings and rewrites config.json")
+    edit(nil)
+    T.check(fileTree("config.json") and fileTree("config.json").custom.c1.name == "Doc", "a deleted config.json is written again")
+    T.failWrites = true
+    r = T.cmd(admin, "admin", { op = "cfg.apply", changes = '[{"op":"set","path":"exchange.min","value":11}]', summary = "w" })
+    T.failWrites = false
+    T.check(r and r.ok and Q.Config.get().exchange.min == 11 and Q.Config.file.status.why == "write",
+        "a panel change still applies when config.json cannot be written; the status says so")
+    T.files[DIR .. "config.json"] = { lines = { '\239\187\191{ "exchange": { "perDay": 3 } }' } }
+    local revBefore = Q.Store.root().config.rev
+    Q = boot({ keepGmd = true, keepFiles = true, sandbox = { AdminRoles = "admin;owner" } })
+    T.check(Q.Config.get().exchange.perDay == 3 and Q.Store.root().config.rev == revBefore + 1,
+        "at start a config.json edited while the server was down applies (a leading BOM is fine)")
+    Q = boot({ keepGmd = true, keepFiles = true, sandbox = { AdminRoles = "admin;owner" } })
+    T.check(Q.Store.root().config.rev == revBefore + 1, "a start with an unchanged config.json changes nothing")
 
     T.section("identity")
     local Q2 = boot({ steam = true })

@@ -264,7 +264,7 @@ https://steamcommunity.com/sharedfiles/filedetails/?id=WORKSHOP_ID
 [*] [b]中途加入[/b]：可以，舊存檔裝上後每個帳號第一次出現時匯入舊進度，見「常見問題」。
 [/list]
 === ⚙️ 沙盒選項與預設值
-沙盒分頁「Minidoracat 任務與成就」只有三項，其餘都在遊戲內的管理面板改。
+沙盒分頁「Minidoracat 任務與成就」只有三項，其餘都在遊戲內的管理面板改，也可以直接改伺服器上的 config.json（見「設定檔 config.json」）。
 [table]
 [tr][th]選項[/th][th]預設[/th][th]說明[/th][/tr]
 [tr][td]時區（UTC 偏移小時）[/td][td]8[/td][td]-12～14，換日與畫面時間用的時區[/td][/tr]
@@ -345,9 +345,35 @@ https://steamcommunity.com/sharedfiles/filedetails/?id=WORKSHOP_ID
 [h3]變更紀錄[/h3]
 [list]
 [*] [b]復原[/b]：最近 20 筆變更，復原會把舊值寫回，復原本身也算一筆。
-[*] [b]匯出[/b]：把目前的覆寫設定寫成伺服器上的 JSON 檔。
-[*] [b]匯入[/b]：把檔案改名為 import.json 放進同一個資料夾，按「匯入」，套用前先預覽。
+[*] [b]設定檔狀態[/b]：下方寫著 config.json 最近一次同步的時間；檔案有錯沒套用時，寫出第幾行或哪個欄位。
 [/list]
+=== ⚙️ 設定檔 config.json
+管理面板的設定（限時活動與賽季長度除外）也存成伺服器上的檔案，不進遊戲也能改。位置：伺服器使用者目錄下的 Lua/MinidoracatQuest/<伺服器名>/（專用伺服器預設 ~/Zomboid，Windows 為 %USERPROFILE%\Zomboid）。
+[table]
+[tr][th]檔案[/th][th]用途[/th][/tr]
+[tr][td]config.json[/td][td]和預設不同的設定，服主可以編輯[/td][/tr]
+[tr][td]defaults.json[/td][td]唯讀：所有預設值，寫法和 config.json 相同，可以整段複製過去改；每次開服重寫[/td][/tr]
+[tr][td]status.json[/td][td]唯讀：最近一次讀檔或寫檔的結果（時間、是否成功、錯在第幾行或哪個欄位）[/td][/tr]
+[/table]
+[list]
+[*] [b]約一分鐘內生效[/b]：伺服器每 60 秒讀一次，內容變了就檢查並套用，記一筆「從 config.json 套用」的變更紀錄，可以在面板復原。伺服器停著時改的，下次開服套用。
+[*] [b]只寫要改的值[/b]：沒寫的值都用預設；整組拿掉（例如刪掉 "exchange"）就是那一組回到預設。門檻、輪替這類清單一次寫整串。
+[*] [b]有錯整份不套用[/b]：JSON 格式錯，或有值超出範圍、名稱打錯時，目前的設定不變；status.json、伺服器 console 與面板「變更紀錄」頁寫出 JSON 停在第幾行，或出錯的欄位（例如 daily.pool.d_kill.target）。
+[*] [b]面板改了會改寫檔案[/b]：在面板套用或復原後，伺服器把目前的設定寫回 config.json，還沒被讀到的手動修改會被蓋掉。檔案被刪掉時也會重新寫出。
+[*] [b]還原世界存檔時[/b]：開服會套用 config.json，設定以檔案為準，不會跟著存檔回到舊值。
+[/list]
+範例：每日任務「擊殺 N 隻殭屍」（d_kill）的目標改成 30～60 隻、給 20 分，「殭屍終結者」成就（zombie_kills）的門檻加倍，兌換匯率改成 1 積分換 2 倖存幣：
+[code]{
+  "achievements": {
+    "zombie_kills": { "tiers": [200, 2000, 10000, 40000] }
+  },
+  "daily": {
+    "pool": {
+      "d_kill": { "target": [30, 60], "pts": 20 }
+    }
+  },
+  "exchange": { "rate": 2 }
+}[/code]
 === ⚙️ 賽季設定與結算
 {{img:09-admin-season-zh.jpg}}
 [h3]改賽季長度[/h3]
@@ -384,13 +410,13 @@ https://steamcommunity.com/sharedfiles/filedetails/?id=WORKSHOP_ID
 [tr][td]每個帳號的統計、任務、積分、成就、稱號、偏好、追蹤項目、兌換排隊與最近 10 筆兌換紀錄[/td][td]Global ModData 帳號表 MinidoracatQuest_A00～A15（16 張）[/td][/tr]
 [tr][td]帳號與 Steam 帳號的綁定[/td][td]Zomboid/Lua/MinidoracatQuest/<伺服器名>/identity.txt[/td][/tr]
 [tr][td]每日事件記錄（一行一筆）[/td][td]同資料夾 events-YYYYMMDD.json，每天一個[/td][/tr]
-[tr][td]匯出／匯入的設定[/td][td]同資料夾 export-<日期時間>.json／import.json[/td][/tr]
+[tr][td]管理面板的設定檔、所有預設值、最近一次讀檔結果[/td][td]同資料夾 config.json、defaults.json、status.json[/td][/tr]
 [tr][td]稽核記錄[/td][td]Zomboid/Logs 裡的 *_MinidoracatQuest.txt[/td][/tr]
 [/table]
 [list]
 [*] [b]Global ModData 17 張表[/b]：跟著世界存檔備份與回滾，不放 Steam 帳號與私人資料。
 [*] [b]事件記錄檔[/b]：每天新增一個、不壓縮，本 MOD 只寫不讀。Lua 不能刪檔，舊檔請自行封存或刪除。
-[*] [b]備份[/b]：世界存檔和 Lua/MinidoracatQuest/<伺服器名>/ 要一起備份。少了 identity.txt 時，Steam 伺服器上已綁定的名字要等本人重新上線才會再綁定。
+[*] [b]備份[/b]：世界存檔和 Lua/MinidoracatQuest/<伺服器名>/ 要一起備份。少了 identity.txt 時，Steam 伺服器上已綁定的名字要等本人重新上線才會再綁定。只還原世界存檔時，設定仍以這個資料夾的 config.json 為準。
 [/list]
 === ⚙️ 給 MOD 作者
 其他 MOD 可以在伺服器端用 MinidoracatQuest.v1 加統計、成就、每日任務與「職業」類排行榜。完整範例與欄位限制見 GitHub README 的「給其他 MOD 的 API」：

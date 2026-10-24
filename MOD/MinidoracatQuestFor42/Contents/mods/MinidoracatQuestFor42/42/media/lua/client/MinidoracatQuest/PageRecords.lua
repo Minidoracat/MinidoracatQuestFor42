@@ -1,7 +1,6 @@
 -- MinidoracatQuest/PageRecords.lua: my records (spec 16): title picker (unlocked titles), points card (balance,
---   season, all-time; the exchange button only when state.exchange.available), the exchange history (up to 10
---   rows from state.exchange.hist, only when there is one), and the statistics table (season / this life /
---   all-time) from the records query, with loading and timeout states.
+--   season, all-time) and the statistics table (season / this life / all-time) from the records query, with
+--   loading and timeout states. Exchanging and its history have their own page (PageExchange, user 2026-10-24).
 
 if isServer() then return end
 
@@ -70,32 +69,15 @@ local function titleRow(b, page, x, y, w, s)
 end
 
 -- ===== points card =====
-function P.onExchange() if MinidoracatQuest.ExchangeDialog then MinidoracatQuest.ExchangeDialog.open() end end
-
 local function pointsCard(b, page, x, y, w, s)
     local pts = type(s.points) == "table" and s.points or {}
-    local ex = type(s.exchange) == "table" and s.exchange or {}
-    local can = ex.available == true and ex.enabled ~= false
     local pad = 10
     local mh, lh = D.fontH(UIFont.Medium), D.fontH()
-    local btn = nil
-    if can then
-        btn = page.pool:button("exchange", page.UI, page.theme, getText("IGUI_MQ_UI_ExchangeOpen"), page, P.onExchange,
-            "primary")
-    end
-    local sub = getText("IGUI_MQ_UI_PointsSub", D.num(pts.season or 0), D.num(pts.total or 0))
-    local note = can and getText("IGUI_MQ_UI_PointsNoteEx") or getText("IGUI_MQ_UI_PointsNote")
-    -- a wide button (FR "Échanger contre des pièces de survivant...") goes under the text instead of beside it,
-    -- so the notes keep the card's width (they wrapped to 8 lines and split words, quest-ui-fr-1023g)
-    local below = btn ~= nil and btn.width > w * 0.35
-    local inner = w - 2 * pad - ((btn and not below) and btn.width + 10 or 0)
-    local subLines = D.wrap(page.UI, sub, inner, UIFont.Small)
-    local noteLines = D.wrap(page.UI, note, inner, UIFont.Small)
-    local queued = math.floor(tonumber(ex.queued) or 0)
-    local queuedLines = queued > 0 and D.wrap(page.UI, getText("IGUI_MQ_UI_ExQueuedNote", D.num(queued)), inner,
-        UIFont.Small) or {}
-    local h = pad + lh + 2 + mh + 4 + (#subLines + #noteLines + #queuedLines) * (lh + 2) + pad
-        + (below and btn.height + 6 or 0)
+    local inner = w - 2 * pad
+    local subLines = D.wrap(page.UI, getText("IGUI_MQ_UI_PointsSub", D.num(pts.season or 0), D.num(pts.total or 0)),
+        inner, UIFont.Small)
+    local noteLines = D.wrap(page.UI, getText("IGUI_MQ_UI_PointsNote"), inner, UIFont.Small)
+    local h = pad + lh + 2 + mh + 4 + (#subLines + #noteLines) * (lh + 2) + pad
     b:card(x, y, w, h, D.EXTRA.gold)
     local cy = y + pad
     b:text(x + pad, cy, getText("IGUI_MQ_UI_Balance"), "textMuted")
@@ -110,47 +92,7 @@ local function pointsCard(b, page, x, y, w, s)
         b:text(x + pad, cy, l, "textFaint")
         cy = cy + lh + 2
     end
-    for _, l in ipairs(queuedLines) do
-        b:text(x + pad, cy, l, "warning")
-        cy = cy + lh + 2
-    end
-    if btn and below then
-        btn:setX(x + pad)
-        btn:setY(cy + 4)
-    elseif btn then
-        btn:setX(x + w - pad - btn.width)
-        btn:setY(y + math.floor((h - btn.height) / 2))
-    end
     return y + h + GAP
-end
-
--- ===== exchange history: queued rows first, then the finished ones, newest first (Exchange.stateFor) =====
-local EX_STATE = { paid = { "IGUI_MQ_UI_ExStatePaid", "success" }, queued = { "IGUI_MQ_UI_ExQueued", "warning" },
-    refunded = { "IGUI_MQ_UI_ExStateRefunded", "errorText" } }
-
-local function exHistory(b, x, y, w, s)
-    local hist = type(s.exchange) == "table" and s.exchange.hist or nil
-    if type(hist) ~= "table" or #hist == 0 then return y end
-    y = b:header(x, y, x + w, getText("IGUI_MQ_UI_ExHistory"))
-    local rows, timeW, stateW = {}, 0, 0
-    for _, h in ipairs(hist) do
-        local st = EX_STATE[h.state] or EX_STATE.paid
-        local r = { D.dateTime(h.at or 0), getText("IGUI_MQ_UI_ExArrow", D.num(h.amount or 0), D.num(h.coins or 0)),
-            getText(st[1]), st[2] }
-        timeW, stateW = math.max(timeW, D.textW(r[1])), math.max(stateW, D.textW(r[3]))
-        rows[#rows + 1] = r
-    end
-    local rh = D.fontH() + 8
-    local midX = x + 8 + timeW + 16
-    local midW = x + w - 8 - stateW - 16 - midX
-    for i, r in ipairs(rows) do
-        if i % 2 == 0 then b:rect(x, y, w, rh, "hover") end
-        b:text(x + 8, y + 4, r[1], "textMuted")
-        b:fitText(midX, y + 4, r[2], midW, "text")
-        b:textRight(x + w - 8, y + 4, r[3], r[4])
-        y = y + rh
-    end
-    return y + GAP
 end
 
 -- ===== table =====
@@ -237,7 +179,6 @@ function P.layout(page)
     end
     y = titleRow(b, page, x, y, w, s)
     y = pointsCard(b, page, x, y, w, s)
-    y = exHistory(b, x, y, w, s)
     y = statsTable(b, page, x, y, w, s)
     D.finish(page, y)
 end

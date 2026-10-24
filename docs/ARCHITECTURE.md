@@ -401,7 +401,7 @@ boards[i] = { id = "kills", cat = "combat", stat = "zombie.kills", periods = { "
   newbie = { steps = { … 5 個 bool }, pts } | nil,
   achv = { [achId] = tier }, titles = { titleId… }, title, prefs = { … }, anon,
   season = { no, startMs, endsAt, state },
-  exchange = { available, enabled, rate, perDay, used, min, queued, hist },   -- hist：排隊中的（新的在前，at＝申請時間）接著 ex.log，合計最多 10 筆；我的紀錄頁的「兌換紀錄」
+  exchange = { available, enabled, rate, perDay, used, min, queued, hist },   -- hist：排隊中的（新的在前，at＝申請時間）接著 ex.log，合計最多 10 筆；兌換頁的「兌換紀錄」
   events = { { name, theme, mult, endsAt } },
   unseen,
   pins = { … }, trk = { [achId] = { t, v } } }     -- 追蹤面板（§5.6）
@@ -423,8 +423,8 @@ boards[i] = { id = "kills", cat = "combat", stat = "zombie.kills", periods = { "
 
 - 接 UI 框架：`require "MinidoracatUI/V1"`，`MIN_REV = 22`，逐項探 `CAPABILITIES`（`window`、`controls`、`navList`、`scrollPanel`、`table`、`virtualList`、`tileGrid`、`toast`、`dock`、`dialog`、`dropdown`、`textWrap`）。缺框架或版本不足時只用 `HaloTextHelper` 顯示通知、視窗不開，不 error。
 - Dock：`{ id = "quest", order = 70, icon = "media/ui/MinidoracatQuest/dock_trophy.png", iconKey = …, bind = "MinidoracatQuest_Toggle", getBadge = unseen }`。
-- 視窗：左側 NavList（每日任務、每週任務、成就、排行榜、我的紀錄；分隔後：設定、管理（只有 `state.admin`）），右側內容；不透明視窗。預設大小＝內容寬（螢幕寬一半，夾在 640～1000 px）＋NavList 寬、高為螢幕高 82 %（460～1000 px），都不超過螢幕減 40 px（`Window.defaultSize`）；玩家拖過的大小由 ISLayoutManager 記住，大小和預設不同時標題列出現「重設大小」，按下回到預設大小並置中。
-- 頁面資料來源：每日／每週／成就／我的紀錄（積分卡）用 `state`；我的紀錄表格送 `records`；排行榜送 `board`（狀態機 loading → ready／empty／error，5 秒逾時）；設定頁送 `prefs`／`title`／`anon`。
+- 視窗：左側 NavList（每日任務、每週任務、成就、排行榜、我的紀錄、兌換（只在 `state.exchange` 可兌換或 `hist` 有資料時，spec 的 `shown`）；分隔後：設定、管理（只有 `state.admin`）），右側內容；不透明視窗。列出的頁面一變（`Window.syncNav` 比對列出的頁面 id）就重建 NavList，目前那頁不再列出時回到每日任務。預設大小＝內容寬（螢幕寬一半，夾在 640～1000 px）＋NavList 寬、高為螢幕高 82 %（460～1000 px），都不超過螢幕減 40 px（`Window.defaultSize`）；玩家拖過的大小由 ISLayoutManager 記住，大小和預設不同時標題列出現「重設大小」，按下回到預設大小並置中。
+- 頁面資料來源：每日／每週／成就／我的紀錄（積分卡）／兌換用 `state`；我的紀錄表格送 `records`；排行榜送 `board`（狀態機 loading → ready／empty／error，5 秒逾時）；設定頁送 `prefs`／`title`／`anon`。兌換頁的「兌換倖存幣...」開兌換視窗（`ExchangeDialog`），使用者 2026-10-24 要求兌換與兌換紀錄從我的紀錄分出來。
 - 開視窗送 `watch {on=true}`，關視窗送 `{on=false}`；打開每日頁或成就頁時送 `seen`。
 - 追蹤面板（`Hud.lua`）：`ISPanel` 衍生、放在最底層（`backMost`：每次 UI 更新引擎都把它移到最底，`UIManager.java:562-568`），所以每個視窗都蓋在它上面，包括比它早建立的物品欄與上次沒關的角色視窗，拖曳時 `ISPanel` 的 `bringToTop` 也一樣；用頁面同一套 canvas 指令繪製（`Draw.renderOps`），資料一變才重排，`render` 只走指令列。預設在原版左側欄右邊（`getPlayerData(0).equipped` 的右緣＋12），會碰到原版物品欄的標題列時（物品欄看得到、左右重疊、物品欄的 y 在面板標題列底線之上）改放在物品欄標題列下面 6 px；拖過的位置與收合狀態用 `ISLayoutManager` 記在 `layout.ini`（拖完或收合就寫）。顯示條件：MOD 選項開、有追蹤項目、角色活著、沒按 V（`ISUIHandler.allUIVisible`）、Esc 選單沒開；任務視窗開著也照樣顯示（使用者 2026-10-24：按「追蹤」要馬上看到），視窗蓋在它上面。每 500 ms 與資料變動時檢查，介面被藏起來時不自己出現。`hello` 時面板開著就送 `track {on=true}`，選項切換時送 on／off。卡片上的「追蹤」chip 送 `pin`；滿 5 個時其他 chip 停用並以 tooltip 說明。
 - 稱號（`Titles.lua`）：`titles` 推送存成 `byUser`。聊天：檔案載入時包住 `ISChat.addLineInChat`（原版在 `OnGameStart` 才把它掛到 `OnAddMessage`，`ISChat.lua:1176`），作者戴著稱號時把訊息換成代理，`getTextWithPrefix()` 在 `[作者]` 後面插入 ` <SPACE> <PUSHRGB:…> 「稱號」 <POPRGB> `（稱號裡的 `<`、`>` 先轉成 `&lt;`、`&gt;`），其他方法轉給原訊息。頭上：每 500 ms 從 `getOnlinePlayers()` 挑 40 格內、有稱號、活著、不在車上的玩家；`OnPreUIDraw` 每幀照原版規則（`IsoGameCharacter.renderlast`／`updateUserName`）檢查後在名字上方一行畫字（黑色陰影＋金色）。兩者都只在多人、伺服器開關 `titles.head`／`titles.chat` 與玩家 MOD 選項都開時生效。

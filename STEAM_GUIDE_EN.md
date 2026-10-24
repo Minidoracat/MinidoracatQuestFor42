@@ -13,7 +13,7 @@ Daily and weekly quests, achievements, season leaderboards and titles; pair it w
 [*] [b]Check today's quests[/b]: the Daily quests page lists today's 4 quests; they advance as you play.
 [*] [b]Earn points[/b]: completing quests, unlocking achievements and keeping a streak all give points.
 [*] [b]See your rank[/b]: the Leaderboards page shows Season and All-time ranks.
-[*] [b]Exchange[/b]: on servers with the Economy mod, turn points into Survivor Coins on the My records page.
+[*] [b]Exchange[/b]: on servers with the Economy mod, turn points into Survivor Coins on the Exchange page.
 [/olist]
 [h3]Requirements[/h3]
 [list]
@@ -226,11 +226,11 @@ Daily and weekly quests, achievements, season leaderboards and titles; pair it w
 [/list]
 [h3]Titles[/h3]
 [list]
-[*] [b]Pick a title[/b]: the title menu on the points card; choose "No title" to remove it.
+[*] [b]Pick a title[/b]: the title menu at the top of the page; choose "No title" to remove it.
 [/list]
 === 🧰 Exchanging for Survivor Coins
 {{img:06-exchange-en.jpg}}
-The server needs Minidoracat Economy (multiplayer only). On the My records page, press "Exchange for survivor coins...".
+The server needs Minidoracat Economy (multiplayer only). The Exchange page on the left of the window (listed while the server can exchange or you have exchange history) shows your balance, how much you can still exchange today and the rate; press "Exchange for survivor coins...".
 [list]
 [*] [b]Rate[/b]: 1 point = 1 Survivor Coin by default, set by the host.
 [*] [b]Limits[/b]: by default up to 100 points per player per day, at least 10 per exchange; "All available" fills in the smaller of your balance and today's remaining limit.
@@ -239,7 +239,7 @@ The server needs Minidoracat Economy (multiplayer only). On the My records page,
 [*] [b]Refunded[/b]: if your economy account cannot receive coins, the points come back and you are asked to contact an admin.
 [*] [b]No reply[/b]: press "Ask again" to check the result; asking again never exchanges twice.
 [*] [b]Imported achievements[/b]: points from achievements imported mid-save never reach your balance and cannot be exchanged.
-[*] [b]Exchange history[/b]: once you have exchanged, My records lists the last 10 under the points card (time, points to coins, Queued / Credited / Points returned). In the Economy admin ledger the reason reads "Quest points exchange".
+[*] [b]Exchange history[/b]: once you have exchanged, the Exchange page lists the last 10 below the balance card (time, points to coins, Queued / Credited / Points returned). In the Economy admin ledger the reason reads "Quest points exchange".
 [/list]
 === 🧰 Settings
 {{img:07-settings-en.jpg}}

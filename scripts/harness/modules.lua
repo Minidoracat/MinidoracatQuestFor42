@@ -34,6 +34,7 @@ return {
     { dir = "client", name = "MinidoracatQuest/PageAchievements" },
     { dir = "client", name = "MinidoracatQuest/PageBoards" },
     { dir = "client", name = "MinidoracatQuest/PageRecords" },
+    { dir = "client", name = "MinidoracatQuest/PageExchange" },
     { dir = "client", name = "MinidoracatQuest/PageSettings" },
     { dir = "client", name = "MinidoracatQuest/ExchangeDialog" },
     { dir = "client", name = "MinidoracatQuest/AdminModel" },

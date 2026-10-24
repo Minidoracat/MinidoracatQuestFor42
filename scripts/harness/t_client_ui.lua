@@ -196,7 +196,7 @@ return function(T)
     check(W.resetBtn:isVisible(), "a resized window shows Reset size")
     W.resetBtn.onClick(W.resetBtn.target, W.resetBtn)
     check(W.win.width == dw and W.win.height == dh and not W.resetBtn:isVisible(), "Reset size restores the default and hides itself")
-    local ids = { "daily", "weekly", "achievements", "boards", "records", "settings" }
+    local ids = { "daily", "weekly", "achievements", "boards", "records", "exchange", "settings" }
     for _, id in ipairs(ids) do W.select(id) end
     check(#errors == 0, "no-state layouts ran clean " .. tostring(errors[1]))
     local cat = MQ.Catalog
@@ -241,6 +241,25 @@ return function(T)
     check(draws > 100, "canvas issued draw calls (" .. draws .. ")")
     local nav = W.nav.groups
     check(nav ~= nil and #nav[2].items >= 2, "admin row shown in the second nav group for admins")
+    local function navHas(id)
+        for _, g in ipairs(W.nav.groups) do
+            for _, it in ipairs(g.items) do if it.id == id then return true end end
+        end
+        return false
+    end
+    check(navHas("exchange"), "Exchange is in the nav while exchange is available")
+    local ex0 = C.state.exchange
+    C.state.exchange = { available = false, hist = ex0.hist }
+    W.onData()
+    check(navHas("exchange"), "Exchange stays in the nav while exchange is off but there is history")
+    C.state.exchange = { available = false }
+    W.select("exchange")
+    W.onData()
+    check(not navHas("exchange") and W.current == "daily",
+        "with exchange off and no history the Exchange entry leaves the nav and the window leaves its page")
+    C.state.exchange = ex0
+    W.onData()
+    check(navHas("exchange"), "Exchange comes back when exchange is available again")
 
     T.section("client UI: leaderboard focus walks rank 1 -> 50 -> my row")
     local long = "Lena_Wanderer_of_Muldraugh_and_the_Whole_County"

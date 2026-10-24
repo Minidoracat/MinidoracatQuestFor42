@@ -75,6 +75,15 @@ end
 -- ===== nav =====
 local function isAdmin() return C.state ~= nil and C.state.admin == true end
 
+-- a page is in the nav unless it is admin-only for a non-admin or its spec.shown() says no (Exchange)
+local function listed(s) return (not s.admin or isAdmin()) and (s.shown == nil or s.shown()) end
+
+local function navKey()
+    local ids = {}
+    for _, s in ipairs(W.specs) do if listed(s) then ids[#ids + 1] = s.id end end
+    return table.concat(ids, ",")
+end
+
 function W.navWidth()
     local w = 0
     for _, s in ipairs(W.specs) do w = math.max(w, D.textW(getText(s.label))) end
@@ -97,7 +106,7 @@ end
 function W.navGroups()
     local main, tail = {}, {}
     for _, s in ipairs(W.specs) do
-        if not s.admin or isAdmin() then
+        if listed(s) then
             local item = { id = s.id, label = getText(s.label), icon = s.icon, order = s.order or 100 }
             insertByOrder(s.group == "tail" and tail or main, item, item.order)
         end
@@ -157,7 +166,7 @@ function W.build(UI)
     W.nav = UI.NavList.new({ x = 0, y = top + 6, width = W.navW, groups = W.navGroups(), selected = W.current,
         theme = theme, target = W, onSelect = function(_, id) MinidoracatQuest.Window.select(id) end })
     win:addChild(W.nav)
-    W.navAdmin = isAdmin()
+    W.navKey = navKey()
     W.divider = ISPanel:new(W.navW, top, 1, h - top)
     W.divider:initialise()
     W.divider.backgroundColor = { r = 0.4, g = 0.4, b = 0.4, a = 1 }
@@ -282,8 +291,9 @@ end
 
 function W.syncNav()
     if W.nav == nil then return end
-    if W.navDirty or W.navAdmin ~= isAdmin() then
-        W.navDirty, W.navAdmin = false, isAdmin()
+    local key = navKey()
+    if W.navDirty or W.navKey ~= key then
+        W.navDirty, W.navKey = false, key
         W.navW = W.navWidth()
         W.nav:setWidth(W.navW)
         W.divider:setX(W.navW)
@@ -291,7 +301,7 @@ function W.syncNav()
         W.nav:setSelected(W.current, true)
         W.layout()
         local spec = W.spec(W.current)
-        if spec ~= nil and spec.admin and not isAdmin() then W.select("daily") end
+        if spec ~= nil and not listed(spec) then W.select("daily") end
     end
 end
 

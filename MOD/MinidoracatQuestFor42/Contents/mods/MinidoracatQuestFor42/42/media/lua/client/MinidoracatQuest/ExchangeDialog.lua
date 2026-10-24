@@ -2,7 +2,7 @@
 --   Balance, today's remaining allowance, amount field with 50 / 100 / all-in quick picks, live coins at the
 --   server's rate, balance after, then the result: paid (green), queued (orange, paid after the next reset),
 --   refunded (red). No reply in 10 s: the same request (same requestId) can be asked again; the server replays
---   the original result instead of exchanging twice. Opened only from My records when state.exchange.available.
+--   the original result instead of exchanging twice. Opened only from the Exchange page when state.exchange.available.
 
 if isServer() then return end
 

@@ -19,7 +19,7 @@ Daily and weekly quests, achievements, season leaderboards and titles; pair it w
 [*] Click the trophy icon on the family toolbar to open Quests & Achievements
 [*] Check today's quests on the Daily quests page; they advance as you play
 [*] Complete quests and unlock achievements to earn points, then see your rank on the Leaderboards page
-[*] On servers with the Economy mod, exchange points for Survivor Coins on the My records page
+[*] On servers with the Economy mod, exchange points for Survivor Coins on the Exchange page
 [/olist]
 
 [h2]✨ Features[/h2]

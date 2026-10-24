@@ -27,10 +27,11 @@ Daily and weekly quests, achievements, season leaderboards and titles; pair it w
 [*] [b]Split screen[/b]: players 2-4 do not earn progress.
 [*] [b]Adding it mid-save[/b]: zombie kills, days survived and skill levels are imported; see the FAQ.
 [/list]
-[h3]Other ways to open the window[/h3]
+[h3]Opening and sizing the window[/h3]
 [list]
 [*] [b]Hotkey[/b]: unbound by default. Set "Open / close Quests & Achievements" under "Minidoracat Quests & Achievements" in Options > Key Bindings.
 [*] [b]Number on the toolbar icon[/b]: completions and unlocks you have not seen yet; it clears when you open the Daily quests or Achievements page.
+[*] [b]Window size[/b]: drag the bottom-right corner and the game remembers it; when the size differs from the default, "Reset size" in the title bar brings it back.
 [/list]
 === 🧰 Daily quests
 {{img:01-daily-en.jpg}}
@@ -286,6 +287,7 @@ Open "Admin" on the left of the window; only roles listed in the "Admin roles" s
 [*] [b]Batch edits[/b]: tick several achievements to multiply thresholds or points, or add a tier.
 [*] [b]Single edit[/b]: threshold, points and title for each tier, up to 10 tiers.
 [*] [b]Custom achievements[/b]: add one from an existing stat (name, category, thresholds, points), or delete it.
+[*] [b]Hidden achievements[/b]: pick the Hidden category; each row lists what unlocks it and the hint players see.
 [/list]
 [h3]Quests[/h3]
 [list]

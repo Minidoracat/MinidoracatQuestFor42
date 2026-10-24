@@ -95,13 +95,6 @@ end
 -- ===== toasts (spec 17) =====
 local function pts(n) return getText("IGUI_MQ_UI_PlusPoints", D.num(n)) end
 
-local function questTarget(list, tid)
-    for _, q in ipairs(type(list) == "table" and list or {}) do
-        if q.tid == tid then return q end
-    end
-    return { tid = tid, target = 0 }
-end
-
 -- returns title, message, border color; nil = do not show
 function E.toastText(t)
     local k = t.kind
@@ -119,10 +112,10 @@ function E.toastText(t)
         return getText("IGUI_MQ_UI_ToastAchvMany", tostring(t.n or #names)),
             getText("IGUI_MQ_UI_ToastAchvManyBody", table.concat(names, getText("IGUI_MQ_UI_ListSep"))), D.EXTRA.gold
     elseif k == "quest" or k == "week" then
-        local list = C.state and C.state[k == "quest" and "day" or "week"]
-        local q = questTarget(list and list.quests, t.tid)
+        -- the toast carries tid and target: with the window closed the cached list is the login snapshot
         return getText(k == "quest" and "IGUI_MQ_UI_ToastQuest" or "IGUI_MQ_UI_ToastWeek"),
-            getText("IGUI_MQ_UI_ToastDescPts", D.questName(q), pts(t.pts or 0)), D.EXTRA.success
+            getText("IGUI_MQ_UI_ToastDescPts", D.questName({ tid = t.tid, target = t.target }), pts(t.pts or 0)),
+            D.EXTRA.success
     elseif k == "goal" then
         return getText("IGUI_MQ_UI_ToastGoal"), getText("IGUI_MQ_UI_ToastDescPts", D.statName(t.stat), pts(t.pts or 0)),
             D.EXTRA.gold

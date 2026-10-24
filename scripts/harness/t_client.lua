@@ -190,7 +190,10 @@ return function(T)
         return s
     end
     local ok, head = pcall(E.toastText, { kind = "broadcast", a = "mei", id = a2.id, tier = 3 })
+    local okQ, _, qbody = pcall(E.toastText, { kind = "quest", tid = "d_kill", target = 37, pts = 15 })
     getText = gt
+    check(okQ and type(qbody) == "string" and string.find(qbody, "|37", 1, true) ~= nil,
+        "a quest toast shows the target it carries (the cached list is stale while the window is closed)")
     check(ok and type(head) == "string" and string.find(head, "IGUI_MQ_UI_AnonReal|mei", 1, true) ~= nil,
         "the admins' copy names the anonymous achiever")
     check(E.toastText({ kind = "achvMany", ids = { a2.id, "c:mykills" }, n = 5 }) ~= nil

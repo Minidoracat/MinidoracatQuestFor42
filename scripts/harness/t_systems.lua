@@ -117,6 +117,16 @@ return function(T)
         local t1, t2 = acc.day.quests[1].theme, acc.day.quests[2].theme
         T.check((t1 == "farm" or t1 == "cook") and (t2 == "farm" or t2 == "cook"), "next day: 2 slots from prefs")
         T.check(acc.day.swaps == 1, "swaps reset each day")
+        -- a delta only carries progress: across the reset an open window gets the new list as a full state
+        local Qq = Q.Quests
+        Qq.lastTick, Qq.tickDay, Qq.tickWeek = 0, Qq.keys(T.now)
+        Q.Sync.watch("alice", true)
+        Q.Sync.dirtyMap.alice = nil
+        T.now = Q.Clock.nextResetMs(T.now) + 60000
+        Qq.tick(T.now)
+        T.check(Q.Sync.dirtyMap.alice and Q.Sync.dirtyMap.alice.all and acc.day.key == Qq.keys(T.now),
+            "the daily reset moves an open window to the new quests with a full state")
+        Q.Sync.watch("alice", false)
     end)
 
     section("progress, streak, grace, weekly", function()

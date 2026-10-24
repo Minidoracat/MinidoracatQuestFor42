@@ -105,13 +105,46 @@ function W.navGroups()
     return { { items = main }, { items = tail } }
 end
 
+-- default size: content half the screen width (640..1000 px) beside the nav and 82 % of the screen height
+-- (460..1000 px). The content width does not depend on the nav labels (FR / DE nav is ~240 px: admin tables
+-- and the points card were squeezed at a fixed 760 px window, quest-ui-fr-1023g). A size the player dragged
+-- to is kept by ISLayoutManager until "Reset size".
+function W.defaultSize()
+    local core = getCore()
+    local sw, sh = core:getScreenWidth(), core:getScreenHeight()
+    local content = math.max(640, math.min(1000, math.floor(sw * 0.5)))
+    local h = math.max(460, math.min(1000, math.floor(sh * 0.82)))
+    return math.min(content + W.navWidth(), sw - 40), math.min(h, sh - 40)
+end
+
+-- the "Reset size" chip sits left of the close button and shows only while the size is not the default
+function W.placeReset()
+    local b, win = W.resetBtn, W.win
+    if b == nil or win == nil then return end
+    local dw, dh = W.defaultSize()
+    b:setVisible(win.width ~= dw or win.height ~= dh)
+    local th = win:titleBarHeight()
+    b:setX(win.width - th - 6 - b.width)
+    b:setY(math.floor((th - b.height) / 2))
+end
+
+function W.resetSize()
+    local win = W.win
+    if win == nil then return end
+    local w, h = W.defaultSize()
+    local core = getCore()
+    win:setWidth(w)
+    win:setHeight(h)
+    win:setX(math.floor((core:getScreenWidth() - w) / 2))
+    win:setY(math.floor((core:getScreenHeight() - h) / 2))
+    W.layout()
+end
+
 function W.build(UI)
     local theme = D.theme(UI)
     local core = getCore()
     local sw, sh = core:getScreenWidth(), core:getScreenHeight()
-    -- the content keeps 640 px whatever the nav labels need (FR / DE nav is ~240 px: admin tables and the
-    -- points card were squeezed at a fixed 760 px window, quest-ui-fr-1023g)
-    local w, h = math.min(640 + W.navWidth(), sw - 40), math.min(640, sh - 40)
+    local w, h = W.defaultSize()
     local win = UI.Window.new({ x = math.floor((sw - w) / 2), y = math.floor((sh - h) / 2), width = w, height = h,
         title = getText("IGUI_MQ_Name"), icon = "markerCrown", theme = theme, resizable = true,
         minWidth = math.min(640, w), minHeight = math.min(460, h), opaque = D.has(UI, "opaqueWindow") or nil,
@@ -130,10 +163,14 @@ function W.build(UI)
     W.divider.backgroundColor = { r = 0.4, g = 0.4, b = 0.4, a = 1 }
     W.divider.borderColor = { r = 0, g = 0, b = 0, a = 0 }
     win:addChild(W.divider)
+    W.resetBtn = UI.Button.new({ x = 0, y = 0, height = win:titleBarHeight() - 8, title = getText("IGUI_MQ_UI_ResetSize"),
+        style = "chip", theme = theme, target = W, onClick = function() MinidoracatQuest.Window.resetSize() end })
+    win:addChild(W.resetBtn)
     win:addToUIManager()
     if ISLayoutManager and ISLayoutManager.RegisterWindow then
         pcall(ISLayoutManager.RegisterWindow, "MinidoracatQuestWindow", UI.Window, win)
     end
+    W.placeReset()
 end
 
 local function contentRect()
@@ -204,6 +241,7 @@ function W.open(id)
     C.send("watch", { on = true })
     if C.state == nil and not C.helloWaiting then C.hello() end
     W.syncNav()
+    W.placeReset()   -- the default follows the screen size and the nav width (admin entry)
     W.select(id or W.current)
     return true
 end
@@ -239,6 +277,7 @@ function W.layout()
         D.resizePage(page)
         call(page, "onResize")
     end
+    W.placeReset()
 end
 
 function W.syncNav()

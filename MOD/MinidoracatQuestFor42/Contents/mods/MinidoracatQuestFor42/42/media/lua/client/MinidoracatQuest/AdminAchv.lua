@@ -410,6 +410,12 @@ function P_.layout(P, pg, F)
                 more:setY(row:getY())
                 box:setY(row:getY() + math.floor((row.height - box.height) / 2))
             end
+            -- hidden achievements: players only see the hint, so the admin table spells out what unlocks them
+            if a.hidden and not a.custom then
+                F:text("hw" .. i, getText("IGUI_MQ_Admin_HiddenWhat",
+                    getText("IGUI_MQ_AchDesc_" .. a.id, A.num(a.tiers[1] or 0)), getText("IGUI_MQ_AchHint_" .. a.id)),
+                    "textMuted")
+            end
         end
     end
     if i == 0 then F:text("empty", getText("IGUI_MQ_Admin_NoAch"), "textMuted") end

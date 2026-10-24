@@ -283,13 +283,14 @@ function Q.ensure(acc, user, now)
         Q.rollStreak(acc, user, now, cfg)
         genDay(acc, user, day, now, cfg)
         changed = true
-        MQ.Sync.dirty(user, "day")
+        -- a new list (tid / target) is not in a delta, which only carries progress: an open window gets a full state
+        MQ.Sync.dirty(user, "all")
     end
     if not acc.week or acc.week.key ~= week then
         Q.goalFor(week, now, cfg)
         genWeek(acc, user, week, now, cfg)
         changed = true
-        MQ.Sync.dirty(user, "week")
+        MQ.Sync.dirty(user, "all")
     end
     local s = streakOf(acc)
     if s.graceWeek ~= week and s.graceUsed then s.graceUsed = false end
@@ -330,7 +331,7 @@ local function complete(acc, user, q, kind, now, cfg)
     MQ.Balance.done(q.tid, q.startMs, now)
     local week = kind == "week"
     MQ.EventLog.write(week and "week_done" or "quest_done", user, { tid = q.tid, pts = pts })
-    MQ.Sync.toast(user, { kind = week and "week" or "quest", tid = q.tid, pts = pts })
+    MQ.Sync.toast(user, { kind = week and "week" or "quest", tid = q.tid, target = q.target, pts = pts })
     if week then
         Q.feed(user, Q.STAT.weekly, 1)
         return
@@ -537,6 +538,11 @@ function Q.tick(now)
         MQ.Store.each(function(_, acc)
             if (acc.seenMs or now) < now - INACTIVE_MS then acc.day, acc.week = nil, nil end
         end)
+        -- open windows switch to the new day now, not at the player's next stat event
+        for user in pairs(MQ.Sync.watchers) do
+            local acc = MQ.Store.account(user, false)
+            if acc then Q.ensure(acc, user, now) end
+        end
     end
     Q.tickDay, Q.tickWeek = day, week
     Q.watchEvents(now)

@@ -104,6 +104,7 @@ return function(T)
     fake.Window = { new = function(o)
         local w = control(o, 400, 400)
         function w:contentTop() return 24 end
+        function w:titleBarHeight() return 24 end
         function w:close() self.visible = false if self.onClose then self.onClose(self) end end
         return w
     end }
@@ -184,6 +185,15 @@ return function(T)
     local sawWatch = false
     for _, s in ipairs(T.clientSent) do if s.command == "watch" and s.args.on == true then sawWatch = true end end
     check(sawWatch, "opening sends watch on")
+    local dw, dh = W.defaultSize()
+    check(dw > 640 + W.navWidth() and dh > 640 and W.win.width == dw and W.win.height == dh and not W.resetBtn:isVisible(),
+        "opens larger than before at the default size, Reset size hidden")
+    W.win:setWidth(dw - 100)
+    W.win:setHeight(dh - 80)
+    W.layout()
+    check(W.resetBtn:isVisible(), "a resized window shows Reset size")
+    W.resetBtn.onClick(W.resetBtn.target, W.resetBtn)
+    check(W.win.width == dw and W.win.height == dh and not W.resetBtn:isVisible(), "Reset size restores the default and hides itself")
     local ids = { "daily", "weekly", "achievements", "boards", "records", "settings" }
     for _, id in ipairs(ids) do W.select(id) end
     check(#errors == 0, "no-state layouts ran clean " .. tostring(errors[1]))

@@ -348,7 +348,7 @@ Open "Admin" on the left of the window; only roles listed in the "Admin roles" s
 [*] [b]Settings file state[/b]: below the list you see when config.json was last in sync; when the file has an error and was not applied, you see the line or the field.
 [/list]
 === ⚙️ Settings file config.json
-The admin panel settings (except timed events and the season length) are also kept in a file on the server, so you can change them without joining the game. Location: Lua/MinidoracatQuest/<server name>/ in the server's user folder (a dedicated server uses ~/Zomboid by default, %USERPROFILE%\Zomboid on Windows); in single player it is Zomboid/Lua/MinidoracatQuest/sp_<save name>/ on your own computer, one per save.
+The admin panel settings (except timed events and the season length) are also kept in a file on the server, so you can change them without joining the game. Location: Lua/MinidoracatQuest/<server name>/ in the server's user folder (a dedicated server uses ~/Zomboid by default, %USERPROFILE%\Zomboid on Windows); in single player it is Zomboid/Lua/MinidoracatQuest/sp_<save name>/ on your own computer, one per save. The console prints this folder at start (settings files: …).
 [table]
 [tr][th]File[/th][th]Use[/th][/tr]
 [tr][td]config.json[/td][td]The settings that differ from the defaults; edit this one[/td][/tr]

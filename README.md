@@ -107,7 +107,7 @@ Project Zomboid Build 42 MOD，中文名「任務與成就」。單人與多人�
 
 ## 設定檔 config.json
 
-管理面板的設定（限時活動與賽季長度除外）也存成伺服器上的檔案，不進遊戲也能改。位置：伺服器使用者目錄下的 `Lua/MinidoracatQuest/<伺服器名>/`（專用伺服器預設 `~/Zomboid`，Windows 為 `%USERPROFILE%\Zomboid`，可用 `-cachedir` 改）；單人遊戲是 `Zomboid/Lua/MinidoracatQuest/sp_<存檔名>/`，每個存檔各一份（`Zomboid/Lua` 是整台電腦共用的）。
+管理面板的設定（限時活動與賽季長度除外）也存成伺服器上的檔案，不進遊戲也能改。位置：伺服器使用者目錄下的 `Lua/MinidoracatQuest/<伺服器名>/`（專用伺服器預設 `~/Zomboid`，Windows 為 `%USERPROFILE%\Zomboid`，可用 `-cachedir` 改）；單人遊戲是 `Zomboid/Lua/MinidoracatQuest/sp_<存檔名>/`，每個存檔各一份（`Zomboid/Lua` 是整台電腦共用的）。開服時 console 會印一行 `[MinidoracatQuestFor42] settings files: Zomboid/Lua/MinidoracatQuest/<資料夾>/`。
 
 | 檔案 | 用途 |
 |---|---|

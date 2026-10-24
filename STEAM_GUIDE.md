@@ -348,7 +348,7 @@ https://steamcommunity.com/sharedfiles/filedetails/?id=WORKSHOP_ID
 [*] [b]設定檔狀態[/b]：下方寫著 config.json 最近一次同步的時間；檔案有錯沒套用時，寫出第幾行或哪個欄位。
 [/list]
 === ⚙️ 設定檔 config.json
-管理面板的設定（限時活動與賽季長度除外）也存成伺服器上的檔案，不進遊戲也能改。位置：伺服器使用者目錄下的 Lua/MinidoracatQuest/<伺服器名>/（專用伺服器預設 ~/Zomboid，Windows 為 %USERPROFILE%\Zomboid）；單人遊戲是自己電腦的 Zomboid/Lua/MinidoracatQuest/sp_<存檔名>/，每個存檔各一份。
+管理面板的設定（限時活動與賽季長度除外）也存成伺服器上的檔案，不進遊戲也能改。位置：伺服器使用者目錄下的 Lua/MinidoracatQuest/<伺服器名>/（專用伺服器預設 ~/Zomboid，Windows 為 %USERPROFILE%\Zomboid）；單人遊戲是自己電腦的 Zomboid/Lua/MinidoracatQuest/sp_<存檔名>/，每個存檔各一份。開服時 console 會印出這個資料夾（settings files: …）。
 [table]
 [tr][th]檔案[/th][th]用途[/th][/tr]
 [tr][td]config.json[/td][td]和預設不同的設定，服主可以編輯[/td][/tr]

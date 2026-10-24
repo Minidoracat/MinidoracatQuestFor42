@@ -553,6 +553,7 @@ end
 function Cf.fileBoot()
     Cf.file = { nextPoll = getTimestampMs() + Cf.POLL_MS }
     if not Q.Store.ready() or Q.Store.readOnly then return end
+    U.log("settings files: Zomboid/Lua/" .. Q.Store.path(""))   -- the folder owners look for (sp_<save> in single player)
     local defaults, all = {}, Cf.defaults()
     for k in pairs(Cf.SCHEMA) do defaults[k] = all[k] end
     writeText(Cf.DEFAULTS_FILE, U.encode(defaults, true))

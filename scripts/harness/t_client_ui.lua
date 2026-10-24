@@ -331,6 +331,21 @@ return function(T)
     local Hd = MQ.Hud
     function El:setAlwaysOnTop(v) self.onTop = v end
     getPlayerScreenLeft, getPlayerScreenTop, getPlayerData = function() return 0 end, function() return 0 end, function() end
+    local inv = { shown = true, x = 200 }
+    function inv:isVisible() return self.shown end
+    function inv:getX() return self.x end
+    function inv:getRight() return self.x + 640 end
+    function inv:getY() return 0 end
+    function inv:titleBarHeight() return 17 end
+    getPlayerData = function() return { playerInventory = inv } end
+    local _, yUnder = Hd.defaultXY()
+    inv.shown = false
+    local _, yFree = Hd.defaultXY()
+    inv.shown, inv.x = true, 900
+    local _, yAside = Hd.defaultXY()
+    check(yUnder == 23 and yFree == 10 and yAside == 10,
+        "the panel starts below the vanilla inventory's title bar only when it would run under it")
+    getPlayerData = function() end
     push("delta", { pins = { "d1", "w1" } })
     local hp = Hd.panel
     check(hp ~= nil and hp:isVisible() and #hp.rows == 2 and hp.onTop == false and #errors == 0,

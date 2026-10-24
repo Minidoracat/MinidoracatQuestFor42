@@ -69,7 +69,15 @@ function H.defaultXY()
     local data = getPlayerData and getPlayerData(0) or nil
     local eq = data and data.equipped or nil
     local x = eq ~= nil and eq.getRight ~= nil and (eq:getRight() + 12) or (getPlayerScreenLeft(0) + 70)
-    return x, getPlayerScreenTop(0) + 10
+    local y = getPlayerScreenTop(0) + 10
+    -- the vanilla inventory starts as a title bar across the top (ISPlayerDataObject: x = w / 2 - w / 3, y = 0):
+    -- when the panel would run under that bar, it starts below it
+    local inv = data and data.playerInventory or nil
+    if inv ~= nil and inv:isVisible() and inv:getX() < x + H.width() and inv:getRight() > x
+        and inv:getY() < y + H.titleH() then
+        y = math.max(y, inv:getY() + inv:titleBarHeight() + 6)
+    end
+    return x, y
 end
 
 function H.clamp(p)

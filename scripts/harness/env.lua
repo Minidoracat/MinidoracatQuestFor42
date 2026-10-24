@@ -169,7 +169,9 @@ function getFileReader(path, createIfNull)
 end
 function cacheFileExists(path) return T.files[path] ~= nil end
 
-function getServerName() return "servertest" end
+function getServerName() return T.mode == "server" and "servertest" or "" end   -- LuaManager.java:4099-4105
+T.world = "Riverside test"
+function getWorld() return { getWorld = function() return T.world end } end    -- Core.gameSaveWorld
 T.steam = false
 function getSteamModeActive() return T.steam end
 

@@ -197,6 +197,20 @@ return function(T)
     T.check(#sent == before + 1 and changes[1].path == "daily.pool." .. tid .. ".target" and changes[1].value[1] == 3, "valid edit previewed")
     A.onConfirmCancel(P)
     A.onDiscard(P)
+    -- typed values used to stay on the page: a Preview on another tab missed them and the next resync reverted them
+    local tpath = "daily.pool." .. tid .. ".target"
+    pool("quests")["f:" .. tpath .. ".1"]:setText("2")
+    A.select(P, "season")
+    T.check(P.current == "season" and AM.draftCount(P.S.draft) == 1 and P.S.draft.by[tpath][1] == 2,
+        "leaving a tab folds its typed values into the draft")
+    A.select(P, "quests")
+    pool("quests")["f:" .. tpath .. ".1"]:setText("0")
+    A.select(P, "season")
+    T.check(P.current == "quests" and pool("quests")["f:" .. tpath .. ".1"].invalid ~= nil, "a tab with an invalid value stays open")
+    pool("quests")["f:" .. tpath .. ".1"]:setText("2")
+    A.onPreview(P)
+    A.onDiscard(P)
+    T.check(P.confirm == nil and AM.draftCount(P.S.draft) == 0, "discarding closes the confirm view, so Apply cannot send the discarded changes")
 
     T.section("admin ui: season length, exclusion, payout")
     A.select(P, "season")

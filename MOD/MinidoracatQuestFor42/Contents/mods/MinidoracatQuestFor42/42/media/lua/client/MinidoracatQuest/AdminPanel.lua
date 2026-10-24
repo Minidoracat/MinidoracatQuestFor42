@@ -583,8 +583,9 @@ function A.onPreview(P)
     A.previewChanges(P, changes, P.draftSummary or A.count("IGUI_MQ_Admin_SummaryN", #changes), { fromDraft = true })
 end
 
+-- also closes the confirm view: its Apply sends the changes it was opened with, the discarded ones too
 function A.onDiscard(P)
-    P.S.draft, P.draftSummary = AM.newDraft(), nil
+    P.S.draft, P.draftSummary, P.confirm = AM.newDraft(), nil, nil
     A.resync(P)
     A.say(P, nil)
 end
@@ -731,8 +732,11 @@ function A.resync(P)
     A.layout(P)
 end
 
+-- server values again; the draft stays, and so do valid values typed on this tab (folded in like on a tab switch)
 function A.onReload(P)
-    P.msg = nil
+    local values = A.collect(P, P.pages[P.current])
+    if values then AM.formToDraft(P.S, values) end
+    P.msg, P.confirm = nil, nil
     A.loadConfig(P)
     for id, pg in pairs(P.pages) do
         pg.loaded = false
@@ -771,6 +775,18 @@ end
 
 function A.select(P, id)
     if P.pages[id] == nil then id = A.TABS[1] end
+    local cur = P.pages[P.current]
+    if cur and id ~= P.current then
+        -- typed values reach the draft only through Preview: fold them in before leaving the tab, or a Preview on
+        -- another tab misses them and the next resync puts the server values back
+        local values = A.collect(P, cur)
+        if values == nil then
+            if P.tabs then P.tabs:setSelected(P.current, true) end
+            if P.pick then P.pick:setSelected(P.current, true) end
+            return A.say(P, getText("IGUI_MQ_Admin_FixErrors"), "errorText")
+        end
+        AM.formToDraft(P.S, values)
+    end
     if P.confirm and id ~= P.current then P.confirm = nil end
     if P.UI.Dropdown and P.UI.Dropdown.close then P.UI.Dropdown.close(P.root) end
     P.current = id

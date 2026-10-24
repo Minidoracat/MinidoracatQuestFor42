@@ -115,7 +115,8 @@ return function(T)
 
         nextDay(Q, acc, "alice")
         local t1, t2 = acc.day.quests[1].theme, acc.day.quests[2].theme
-        T.check((t1 == "farm" or t1 == "cook") and (t2 == "farm" or t2 == "cook"), "next day: 2 slots from prefs")
+        T.check((t1 == "farm" or t1 == "cook") and (t2 == "farm" or t2 == "cook"), "next day: 2 slots from prefs "
+            .. acc.day.quests[1].tid .. "," .. acc.day.quests[2].tid .. "," .. acc.day.quests[3].tid .. " shared " .. acc.day.quests[4].tid)
         T.check(acc.day.swaps == 1, "swaps reset each day")
         -- a delta only carries progress: across the reset an open window gets the new list as a full state
         local Qq = Q.Quests
@@ -127,6 +128,22 @@ return function(T)
         T.check(Q.Sync.dirtyMap.alice and Q.Sync.dirtyMap.alice.all and acc.day.key == Qq.keys(T.now),
             "the daily reset moves an open window to the new quests with a full state")
         Q.Sync.watch("alice", false)
+
+        -- slots 1 and 2 stay in the preferred themes when one runs dry: cooking has two stats and the shared quest
+        -- takes one, so a second cooking slot must go to farming (it went to any theme before 2026-10-25)
+        Q.Store.root().shared = { day = Q.Clock.dayKey(T.now), done = 0, tid = "d_cook", stat = "cook.count",
+            theme = "cook", target = 5, pts = 20 }
+        local off = 0
+        for n = 1, 100 do
+            local a = Q.Store.account("pref" .. n, true)
+            a.prefs, a.day = { "cook", "farm" }, nil
+            Q.Quests.ensure(a, "pref" .. n, T.now)
+            for s = 1, 2 do
+                local th = a.day.quests[s] and a.day.quests[s].theme
+                if th ~= "cook" and th ~= "farm" then off = off + 1 end
+            end
+        end
+        T.check(off == 0, "a preferred theme that runs dry hands its slot to the other preferred theme (" .. off .. " off)")
     end)
 
     section("progress, streak, grace, weekly", function()

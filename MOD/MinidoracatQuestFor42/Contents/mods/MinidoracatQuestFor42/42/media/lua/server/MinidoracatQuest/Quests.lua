@@ -102,10 +102,19 @@ local function rollTarget(t, o, rng, mult)
     return v
 end
 
-local function pickT(list, theme, rng, used)
+-- alts: themes the slot may use when its own theme has nothing left (the other preferred themes, or the slot's
+-- group), before any theme. Without it a preferred slot whose theme the shared quest used up went to a random theme.
+local function pickT(list, theme, rng, used, alts)
     local c = {}
     for _, t in ipairs(list) do
         if t.theme == theme and not used[t.stat] then c[#c + 1] = t end
+    end
+    if #c == 0 and alts then
+        local ok = {}
+        for _, th in ipairs(alts) do ok[th] = true end
+        for _, t in ipairs(list) do
+            if ok[t.theme] and not used[t.stat] then c[#c + 1] = t end
+        end
     end
     if #c == 0 then
         for _, t in ipairs(list) do
@@ -135,6 +144,12 @@ function Q.slots(prefs, rng)
         return { U.pick(prefs, rng), U.pick(prefs, rng), U.pick(MQ.Contract.THEMES, rng) }
     end
     return { U.pick(Q.GROUPS[1], rng), U.pick(Q.GROUPS[2], rng), U.pick(Q.GROUPS[3], rng) }
+end
+
+-- the themes slot i may fall back to (see pickT); nil = any theme
+local function slotAlts(prefs, i)
+    if prefs and #prefs > 0 then return i <= 2 and prefs or nil end
+    return Q.GROUPS[i]
 end
 
 -- ---------- shared quest (seeded by the day only) ----------
@@ -170,7 +185,7 @@ local function genDay(acc, user, day, now, cfg)
     local sh = Q.sharedToday(day, cfg)
     if sh.stat then used[sh.stat] = true end
     for i, theme in ipairs(Q.slots(acc.prefs, rng)) do
-        local t = pickT(list, theme, rng, used)
+        local t = pickT(list, theme, rng, used, slotAlts(acc.prefs, i))
         if t then
             used[t.stat] = true
             quests[i] = newQuest(t, rollTarget(t, cfg.daily.pool and cfg.daily.pool[t.tid], rng, mult), dailyPts(cfg, t), now)
@@ -192,7 +207,8 @@ local function genWeek(acc, user, week, now, cfg)
     local rng = MQ.Util.rng(MQ.Util.hash(user .. "|" .. week))
     local used, quests = {}, {}
     for i = 1, cfg.weekly.count or 3 do
-        local t = pickT(list, MQ.Util.pick(Q.GROUPS[(i - 1) % 3 + 1], rng), rng, used)
+        local g = Q.GROUPS[(i - 1) % 3 + 1]
+        local t = pickT(list, MQ.Util.pick(g, rng), rng, used, g)
         if not t then break end
         used[t.stat] = true
         local o = cfg.weekly.pool and cfg.weekly.pool[t.tid]
@@ -491,7 +507,7 @@ function Q.swap(acc, user, slot)
         if d.quests[i] then used[d.quests[i].stat] = true end
     end
     local rng = MQ.Util.rng(MQ.Util.hash(user .. "|" .. d.key .. "|swap|" .. tostring(d.swaps)))
-    local t = pickT(Q.dailyPool(cfg), q.theme, rng, used)
+    local t = pickT(Q.dailyPool(cfg), q.theme, rng, used, slotAlts(acc.prefs, slot))
     if not t then return false, code("NOT_FOUND") end
     q.state = "swapped"
     d.quests[slot] = newQuest(t, rollTarget(t, cfg.daily.pool and cfg.daily.pool[t.tid], rng, diffMult(cfg)), dailyPts(cfg, t), now)

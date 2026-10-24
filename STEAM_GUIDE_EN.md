@@ -38,7 +38,7 @@ Daily and weekly quests, achievements, season leaderboards and titles; pair it w
 [h3]Today's 4 quests[/h3]
 [list]
 [*] [b]3 personal quests[/b]: drawn from 11 themes, never two on the same stat in one day.
-[*] [b]1 server-wide quest[/b]: one a day with the same target for everyone; the page shows how many players finished it today.
+[*] [b]1 server-wide quest[/b]: one a day with the same target for everyone; the page shows how many players finished it today. Experience quests are never the server-wide quest: XP is multiplied by profession bonuses, so matching professions are much faster.
 [*] [b]Progress[/b]: counts from the moment the quest appears; earlier play does not count.
 [*] [b]Reset[/b]: at the daily reset; unfinished quests expire. The top of the page shows the time left.
 [/list]
@@ -50,12 +50,12 @@ Daily and weekly quests, achievements, season leaderboards and titles; pair it w
 [tr][td]Server-wide quest[/td][td]20[/td][/tr]
 [/table]
 [list]
-[*] [b]Themes do not change points[/b]: every preferred theme pays the same; only rare quests pay a little more.
+[*] [b]Rare themes pay more[/b]: Tailoring, Animal Care, Fishing & Trapping and Foraging dailies take more setup and pay 5 more by default; each card shows its points.
 [/list]
 [h3]Swaps and preferences[/h3]
 [list]
 [*] [b]Swap quest[/b]: swap 1 personal quest per day; the server-wide quest cannot be swapped.
-[*] [b]Preferred themes[/b]: pick up to 3 themes under Settings; each day 2 quests come from your themes and 1 from all themes.
+[*] [b]Preferred themes[/b]: pick up to 3 themes under Settings; each day 2 quests come from your themes and 1 from all themes. When a preferred theme has no quest left for the day, that slot draws from your other preferred themes.
 [*] [b]No preferences[/b]: the three slots draw one each from Combat, Production (Building, Crafting, Cooking, Tailoring, Mechanics & Electrical) and Outdoors (Farming, Animal Care, Fishing & Trapping, Foraging, Exploration).
 [*] [b]When it applies[/b]: change preferences as often as you like; if today's quests already exist, the change applies from the next reset.
 [/list]
@@ -93,7 +93,7 @@ Daily and weekly quests, achievements, season leaderboards and titles; pair it w
 [list]
 [*] [b]How many[/b]: 3 a week, 60 points each.
 [*] [b]Reset[/b]: at the daily reset time on Monday.
-[*] [b]Themes[/b]: one slot each from Combat, Production and Outdoors; preferences are not used.
+[*] [b]Themes[/b]: one slot each from Combat, Production and Outdoors; preferences are not used. All 11 themes have weekly quests.
 [/list]
 [h3]This week's server goal[/h3]
 [list]
@@ -348,7 +348,7 @@ Open "Admin" on the left of the window; only roles listed in the "Admin roles" s
 [*] [b]Settings file state[/b]: below the list you see when config.json was last in sync; when the file has an error and was not applied, you see the line or the field.
 [/list]
 === ⚙️ Settings file config.json
-The admin panel settings (except timed events and the season length) are also kept in a file on the server, so you can change them without joining the game. Location: Lua/MinidoracatQuest/<server name>/ in the server's user folder (a dedicated server uses ~/Zomboid by default, %USERPROFILE%\Zomboid on Windows).
+The admin panel settings (except timed events and the season length) are also kept in a file on the server, so you can change them without joining the game. Location: Lua/MinidoracatQuest/<server name>/ in the server's user folder (a dedicated server uses ~/Zomboid by default, %USERPROFILE%\Zomboid on Windows); in single player it is Zomboid/Lua/MinidoracatQuest/sp_<save name>/ on your own computer, one per save.
 [table]
 [tr][th]File[/th][th]Use[/th][/tr]
 [tr][td]config.json[/td][td]The settings that differ from the defaults; edit this one[/td][/tr]

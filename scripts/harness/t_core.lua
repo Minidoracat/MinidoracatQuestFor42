@@ -167,6 +167,14 @@ return function(T)
         "at start a config.json edited while the server was down applies (a leading BOM is fine)")
     Q = boot({ keepGmd = true, keepFiles = true, sandbox = { AdminRoles = "admin;owner" } })
     T.check(Q.Store.root().config.rev == revBefore + 1, "a start with an unchanged config.json changes nothing")
+    local mode = T.mode
+    T.mode = "sp"
+    local spA = Q.Store.path("config.json")
+    T.world = "Other save"
+    local spB = Q.Store.path("config.json")
+    T.world, T.mode = "Riverside test", mode
+    T.check(spA == "MinidoracatQuest/sp_Riverside_test/config.json" and spB ~= spA,
+        "single player keeps config.json per save (Zomboid/Lua is shared by every save on the machine)")
 
     T.section("identity")
     local Q2 = boot({ steam = true })

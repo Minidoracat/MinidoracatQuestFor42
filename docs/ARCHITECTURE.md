@@ -192,7 +192,7 @@ DEFAULTS = {
 
 ### 3.5 私有檔
 
-- 位置 `Lua/MinidoracatQuest/<serverKey>/`，`serverKey`＝`getServerName()` 把 `[%w_-]` 以外換成 `_`。
+- 位置 `Lua/MinidoracatQuest/<serverKey>/`。`serverKey`：專用伺服器是 `getServerName()`；單人是 `sp_<getWorld():getWorld()>`（單人的 `getServerName()` 是空字串，`LuaManager.java:4099-4105`，而 `Zomboid/Lua` 整台電腦共用，家族 pitfalls「`Zomboid/Lua` 整台機器共用」）；`[%w_-]` 以外換成 `_`，取不到時用 `default`。
 - `identity.txt`：身分綁定表，照 Safehouse `Registry.lua` 的 append-only＋讀回確認。
 - `events-YYYYMMDD.json`：§1 C14。行格式 `{"t":<ms>,"k":"<kind>","u":"<user>",…}`，kind：`quest_done`、`week_done`、`goal_paid`、`streak`、`achv`、`points`、`exchange`、`season`、`admin`、`over`、`revoke`、`hide`。
 - `config.json`：管理員覆寫（和 `root.config.overrides` 同一棵樹，排序、縮排兩格）。開服與每 60 秒（`Config.POLL_MS`，掛在 `Server.onTick`，沒人在線也跑）讀一次；文字變了就解析、驗證，整份可用才套用：每個和目前不同的頂層組 `set`、檔案沒寫的組 `del`，記一筆操作者與摘要都是 `config.json` 的變更紀錄（可以復原），稽核與事件記錄寫 `admin`／`cfg.file`。解析失敗或驗證不過時整份不套用，`Config.file.status` 記下 `why`、`line`（JSON 停在第幾行）或 `path`（完整欄位路徑）。面板的套用與復原都會把覆寫寫回這個檔（`source = "panel"`）；檔案不見時重新寫出。前導的 BOM 會略過。
@@ -244,8 +244,9 @@ newbie    = { { stat = "zombie.kills", target = 5 }, { stat = "craft.count", tar
 ```
 
 - 名稱鍵 `IGUI_MQ_Q_<tid>`（`%1`＝目標）。積分由設定決定（§3.4），不寫在樣板。
-- 同一天的個人任務不重複統計；全服任務只用日期當種子，從 `daily` 裡 `shared ~= false` 的樣板抽，目標取區間中位數。
-- 每個主題至少 3 個每日樣板。
+- 同一天的個人任務不重複統計；全服任務只用日期當種子，從 `daily` 裡 `shared ~= false` 的樣板抽，目標取區間中位數。`xp.*` 樣板一律 `shared = false`：經驗是乘過職業加成的值（沒有加成 ×0.25、加成 3 級 ×1.66），同一個目標對非對口職業約難 6.6 倍。
+- 選樣板時先找格子的主題；那個主題沒有不重複統計的樣板時，先從格子的備選主題找（偏好格：其他偏好主題；沒偏好的每日格與每週格：同一組），最後才是全部主題（`Quests.lua` 的 `pickT`、`slotAlts`）。
+- 每個主題至少 3 個每日樣板、至少 1 個每週樣板（harness `t_catalog` 檢查）。
 
 ### 4.5 榜單
 

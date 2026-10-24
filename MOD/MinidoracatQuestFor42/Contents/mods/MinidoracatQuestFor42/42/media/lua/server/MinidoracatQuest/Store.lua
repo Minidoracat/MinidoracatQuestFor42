@@ -159,9 +159,14 @@ St.isEmpty = isEmpty
 -- Ported from Safehouse Registry.lua (serverKey, writeLines, readLines). getFileWriter swallows write errors
 -- (PrintWriter), so callers that must be sure read the file back. Lua cannot delete or rename files.
 
+-- the server name on a dedicated server; sp_<save name> in single player, where getServerName() is ""
+-- (LuaManager.java:4099-4105) and Zomboid/Lua is shared by every save on the machine (pitfalls.md; the same folder
+-- rule as VehicleManager Export.lua and MiniMapWatch Config.lua)
 function St.serverKey()
-    local name = getServerName and getServerName() or nil
-    if type(name) ~= "string" or name == "" then name = "default" end
+    local name
+    if isServer() then name = getServerName and getServerName() or nil
+    elseif getWorld and getWorld() then name = "sp_" .. tostring(getWorld():getWorld()) end
+    if type(name) ~= "string" or name == "" or name == "sp_" then name = "default" end
     return (string.gsub(name, "[^%w_%-]", "_"))
 end
 

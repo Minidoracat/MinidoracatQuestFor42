@@ -139,7 +139,17 @@ return function(T)
         T.check(d ~= nil and d.pts == (t.rare and 20 or 15), "daily pool default " .. t.tid)
     end
     for _, th in ipairs(Cat.themes) do T.check((themeCount[th] or 0) >= 3, "theme has >= 3 daily templates " .. th) end
-    for _, t in ipairs(Cat.weekly) do T.check(Cat.DEFAULTS.weekly.pool[t.tid] ~= nil, "weekly pool default " .. t.tid) end
+    local weekTheme = {}
+    for _, t in ipairs(Cat.weekly) do
+        weekTheme[t.theme] = true
+        T.check(Cat.DEFAULTS.weekly.pool[t.tid] ~= nil, "weekly pool default " .. t.tid)
+    end
+    -- genWeek picks a theme first; a theme with no weekly template fell back to any template (sewing, animal care)
+    for _, th in ipairs(Cat.themes) do T.check(weekTheme[th] == true, "theme has a weekly template " .. th) end
+    -- xp.* counts XP after the profession multiplier: one shared target would favour one profession
+    for _, t in ipairs(Cat.daily) do
+        if string.sub(t.stat, 1, 3) == "xp." then T.check(t.shared == false, "xp daily stays out of the shared pick " .. t.tid) end
+    end
     T.check(#Cat.newbie == 5, "5 newbie steps")
     for _, s in ipairs(Cat.newbie) do T.check(stats[s.stat] ~= nil, "newbie stat " .. s.stat) end
     for _, s in ipairs(Cat.DEFAULTS.goal.rotation) do

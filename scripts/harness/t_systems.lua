@@ -304,7 +304,7 @@ return function(T)
     section("exchange", function()
         local credits, results = {}, {}
         local fake = { v1 = { API_MAJOR = 1, API_REVISION = 1, registerSource = function(spec)
-            T.check(spec.modId == "MinidoracatQuestFor42" and spec.reasonCodes[1] == "exchange", "registerSource spec")
+            T.check(spec.modId == "MinidoracatQuestFor42" and spec.reasonCodes[1] == "mq_exchange", "registerSource spec")
             return { credit = function(u, cur, n, opts)
                 credits[#credits + 1] = { u = u, cur = cur, n = n, rid = opts.requestId, reason = opts.reasonCode }
                 return table.remove(results, 1) or { ok = true }
@@ -327,7 +327,7 @@ return function(T)
         T.check(r and r.code == "NOT_ENOUGH_POINTS", "over balance refused")
         r = cmd(a, "exchange", { amount = 40 }, 3100)
         T.check(r and r.ok and r.state == "paid" and r.coins == 40 and acc.points.balance == 460, "paid exchange")
-        T.check(credits[1] and credits[1].rid == "ex:alice:1" and credits[1].cur == "survivor" and credits[1].reason == "exchange",
+        T.check(credits[1] and credits[1].rid == "ex:alice:1" and credits[1].cur == "survivor" and credits[1].reason == "mq_exchange",
             "credit requestId and reason")
         r = cmd(a, "exchange", { amount = 10 }, 300)
         T.check(r == nil, "exchange cooldown drops the request")
@@ -335,6 +335,9 @@ return function(T)
         results[1] = { ok = false, error = "cap_exceeded" }
         r = cmd(a, "exchange", { amount = 30 }, 3100)
         T.check(r and r.ok and r.state == "queued" and acc.points.balance == 430 and #acc.ex.queue == 1, "cap -> queued, points held")
+        local h = Q.Exchange.stateFor(acc, "alice", T.now).hist
+        T.check(#h == 2 and h[1].state == "queued" and h[1].amount == 30 and h[2].state == "paid" and h[2].amount == 40,
+            "history: the queued exchange first, then the paid one")
         local n = #credits
         T.tick(20)
         T.check(#credits == n, "no retry before the hour")
@@ -350,6 +353,9 @@ return function(T)
         local refused = false
         for _, it in ipairs(Q.Store.root().audit.items) do if it.kind == "exchange_refused" then refused = true end end
         T.check(refused, "refusal audited")
+        h = Q.Exchange.stateFor(acc, "alice", T.now).hist
+        T.check(#h == 3 and h[1].state == "refunded" and h[1].amount == 20 and h[2].state == "paid" and h[2].amount == 30
+            and h[2].at > h[3].at, "history: newest first, the retried exchange counted as paid when it was paid")
         r = cmd(a, "exchange", { amount = 40 }, 3100)
         T.check(r and r.code == "EXCHANGE_DAY_LIMIT", "quota counts paid + queued")
         r = admin(a, "ex.status")
@@ -378,6 +384,11 @@ return function(T)
         fake.v1.sourceStatus = nil
         local st = Q.Exchange.stateFor(acc, "alice", T.now)
         T.check(st.available and st.used == 70, "state.exchange")
+        for i = 1, 12 do acc.ex.log[i] = acc.ex.log[i] or { at = 0, amount = 10, coins = 10, state = "paid" } end
+        acc.ex.day = nil   -- a new day: quota free again
+        r = cmd(a, "exchange", { amount = 10 }, 3100)
+        T.check(r and r.state == "paid" and #acc.ex.log == Q.Exchange.LOG and acc.ex.log[1].amount == 10
+            and acc.ex.log[2].state == "refunded", "history keeps the newest " .. Q.Exchange.LOG)
 
         Q = boot()
         local c = T.player{ name = "carol" }

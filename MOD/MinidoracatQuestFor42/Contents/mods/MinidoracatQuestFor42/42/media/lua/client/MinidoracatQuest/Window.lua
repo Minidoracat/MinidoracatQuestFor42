@@ -243,7 +243,6 @@ function W.open(id)
     W.syncNav()
     W.placeReset()   -- the default follows the screen size and the nav width (admin entry)
     W.select(id or W.current)
-    if Q.Hud ~= nil then Q.Hud.sync() end   -- the tracker panel steps aside while the window is open
     return true
 end
 
@@ -262,7 +261,6 @@ function W.onClosed()
         if W.UI.Dropdown and W.UI.Dropdown.close then pcall(W.UI.Dropdown.close, W.win) end
         call(page, "onHide")
     end
-    if Q.Hud ~= nil then Q.Hud.sync() end
 end
 
 -- window resized: every built page gets the new size; the visible one relayouts on the next tick

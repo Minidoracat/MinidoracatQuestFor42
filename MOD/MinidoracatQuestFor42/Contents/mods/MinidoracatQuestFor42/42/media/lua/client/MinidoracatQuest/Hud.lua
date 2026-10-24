@@ -1,8 +1,9 @@
 -- MinidoracatQuest/Hud.lua: the tracker panel (design round 7: a floating panel, only what the player pinned).
 --   Up to LIMIT.MAX_PINS pinned quests / achievements with their progress, top left beside the vanilla sidebar.
 --   Drag to move; the arrow collapses it to the title row (both go to layout.ini); hovering a row shows an x that
---   unpins it. Hidden while nothing is pinned, the main window is open, the player is dead, the Esc menu is up or
---   V hid the UI. It never shows itself while the UI is hidden: the vanilla V / Esc toggle restores what it hid.
+--   unpins it. Hidden while nothing is pinned, the player is dead, the Esc menu is up or V hid the UI; it stays while
+--   the main window is open, so a Track press shows up at once (user 2026-10-24), and windows draw over it (backMost).
+--   It never shows itself while the UI is hidden: the vanilla V / Esc toggle restores what it hid.
 --   Data: state.pins and state.trk, kept fresh by the server while the panel is on ("track"; Sync.lua).
 --   Texts and widths are laid out when the data changes; render only walks the op list (Draw canvas).
 
@@ -229,7 +230,10 @@ function H.build()
     p.moveWithMouse = true
     p.background = false
     p:addToUIManager()
-    p:setAlwaysOnTop(false)   -- windows opened later cover it
+    -- a passive overlay under every window, also the ones built before it (inventory, a character window left open):
+    -- the engine moves back-most elements to the bottom on every update, after a drag's bringToTop too
+    -- (UIManager.java:562-568)
+    p:backMost()
     p:setVisible(false)
     H.panel = p
     if ISLayoutManager and ISLayoutManager.RegisterWindow then
@@ -247,7 +251,7 @@ local function uiHidden()
 end
 
 function H.wanted()
-    if not H.show or C.state == nil or #C.pins() == 0 or W.visible() or uiHidden() then return false end
+    if not H.show or C.state == nil or #C.pins() == 0 or uiHidden() then return false end
     local p = getSpecificPlayer(0)
     return p ~= nil and not p:isDead()
 end

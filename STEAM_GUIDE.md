@@ -158,7 +158,7 @@ https://steamcommunity.com/sharedfiles/filedetails/?id=WORKSHOP_ID
 [*] [b]移動與收合[/b]：拖曳面板移動，遊戲會記住位置；按標題列右邊的箭頭收成一行。
 [*] [b]取消追蹤[/b]：滑鼠移到某一列，按右邊出現的 ×。
 [*] [b]自動移出[/b]：每日任務在換日、每週任務在換週時移出；換掉的任務、升到最高級的成就也會移出。
-[*] [b]什麼時候讓開[/b]：打開任務視窗、按 V 隱藏介面、按 Esc 或角色死亡時，面板暫時不顯示。
+[*] [b]什麼時候讓開[/b]：按 V 隱藏介面、按 Esc 或角色死亡時，面板暫時不顯示。打開任務視窗時面板照樣顯示，按「追蹤」馬上看得到；任務視窗和其他視窗都蓋在面板上面。
 [*] [b]關掉[/b]：「選項 > MODS > 任務與成就」取消「顯示追蹤面板」。
 [/list]
 === 🧰 排行榜與賽季
@@ -239,6 +239,7 @@ https://steamcommunity.com/sharedfiles/filedetails/?id=WORKSHOP_ID
 [*] [b]退回[/b]：你的經濟帳戶不能收款時，積分退回並請你聯絡管理員。
 [*] [b]沒有回應[/b]：按「再問一次」查詢結果，再問不會換兩次。
 [*] [b]匯入的成就[/b]：中途加入時匯入的成就積分不進餘額，不能兌換。
+[*] [b]兌換紀錄[/b]：換過之後，「我的紀錄」積分卡下面列出最近 10 筆（時間、積分換多少倖存幣、已排隊／已入帳／積分已退回）。服主在經濟管理台的金流明細看到的原因是「任務積分兌換」。
 [/list]
 === 🧰 設定
 {{img:07-settings-zh.jpg}}
@@ -380,7 +381,7 @@ https://steamcommunity.com/sharedfiles/filedetails/?id=WORKSHOP_ID
 [table]
 [tr][th]內容[/th][th]位置[/th][/tr]
 [tr][td]設定覆寫、賽季、全服任務與共同目標、限時活動、稽核（最近 500 筆）[/td][td]世界存檔的 Global ModData 共用表 MinidoracatQuest[/td][/tr]
-[tr][td]每個帳號的統計、任務、積分、成就、稱號、偏好、追蹤項目、兌換排隊[/td][td]Global ModData 帳號表 MinidoracatQuest_A00～A15（16 張）[/td][/tr]
+[tr][td]每個帳號的統計、任務、積分、成就、稱號、偏好、追蹤項目、兌換排隊與最近 10 筆兌換紀錄[/td][td]Global ModData 帳號表 MinidoracatQuest_A00～A15（16 張）[/td][/tr]
 [tr][td]帳號與 Steam 帳號的綁定[/td][td]Zomboid/Lua/MinidoracatQuest/<伺服器名>/identity.txt[/td][/tr]
 [tr][td]每日事件記錄（一行一筆）[/td][td]同資料夾 events-YYYYMMDD.json，每天一個[/td][/tr]
 [tr][td]匯出／匯入的設定[/td][td]同資料夾 export-<日期時間>.json／import.json[/td][/tr]

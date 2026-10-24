@@ -24,6 +24,11 @@ X.RETRY = { cap_exceeded = true, rate_limited = true, not_ready = true }
 X.RETRY_MS = 3600000
 X.PER_TICK = 10                       -- Economy allows 20 calls per source per tick
 X.KEEP_DAYS = 7
+X.LOG = 10                            -- finished exchanges kept per player for my records (acc.ex.log, newest first)
+-- Economy's ledger shows a source's reason code through IGUI_MinidoracatEconomy_Reason_<code> when some mod ships
+-- that key (ECWidgets U.reasonText); ours is in this mod's Translate files. The mq_ prefix keeps it apart from
+-- other sources' codes, which share that key space.
+X.REASON = "mq_exchange"
 
 local function code(name) return MQ.Contract.CODE[name] end
 
@@ -32,7 +37,7 @@ function X.init()
     local E = MinidoracatEconomy and MinidoracatEconomy.v1
     if not isServer() or not (E and E.API_MAJOR == 1 and type(E.registerSource) == "function") then return end
     local ok, src = pcall(E.registerSource, { modId = MQ.Contract.MOD_ID, nameKey = "IGUI_MQ_Name",
-        displayName = { EN = "Quests & Achievements" }, currencies = { "survivor" }, reasonCodes = { "exchange" } })
+        displayName = { EN = "Quests & Achievements" }, currencies = { "survivor" }, reasonCodes = { X.REASON } })
     if ok and type(src) == "table" and type(src.credit) == "function" then
         X.src = src
         MQ.Util.log("Economy exchange source registered")
@@ -69,13 +74,17 @@ local function finish(acc, user, row, state, now)
     row.state = state
     MQ.EventLog.write("exchange", user, { seq = row.seq, amount = row.amount, coins = row.coins, state = state })
     if state == "paid" then bookCoins(row.coins, now) end
+    local log = acc.ex.log or {}
+    table.insert(log, 1, { at = now, amount = row.amount, coins = row.coins, state = state })
+    while #log > X.LOG do table.remove(log) end
+    acc.ex.log = log
 end
 
 -- Credit one held row: "paid" | "queued" | "refunded" (the caller removes it from the queue).
 function X.send(acc, user, row, now)
     row.tries = (row.tries or 0) + 1
     local ok, res = pcall(X.src.credit, user, "survivor", row.coins,
-        { requestId = "ex:" .. user .. ":" .. row.seq, reasonCode = "exchange" })
+        { requestId = "ex:" .. user .. ":" .. row.seq, reasonCode = X.REASON })
     if not ok then res = nil end
     if type(res) == "table" and res.ok then
         finish(acc, user, row, "paid", now)
@@ -147,6 +156,7 @@ local function retryUser(user, budget, now)
             else
                 MQ.Sync.toast(user, { kind = "exchange", state = state, coins = row.coins })
                 MQ.Sync.dirty(user, "points")
+                MQ.Sync.dirty(user, "exchange")   -- queued total and history (a full state for an open window)
             end
         else
             if row.round ~= X.round then more = true end
@@ -216,10 +226,20 @@ end
 function X.stateFor(acc, user, now)
     local cfg = MQ.Config.get().exchange
     local used = acc.ex.day == MQ.Clock.dayKey(now) and acc.ex.used or 0
-    local queued = 0
-    for _, row in ipairs(acc.ex.queue or {}) do queued = queued + row.amount end
+    local queued, hist = 0, {}
+    -- history: the rows still queued (newest first, at = when asked), then the finished ones (at = when they ended)
+    local q = acc.ex.queue or {}
+    for i = #q, 1, -1 do
+        local row = q[i]
+        queued = queued + row.amount
+        if #hist < X.LOG then hist[#hist + 1] = { at = row.at, amount = row.amount, coins = row.coins, state = "queued" } end
+    end
+    for _, row in ipairs(acc.ex.log or {}) do
+        if #hist >= X.LOG then break end
+        hist[#hist + 1] = row
+    end
     return { available = X.available(), enabled = cfg.enabled, rate = cfg.rate, perDay = cfg.perDay, used = used,
-        min = cfg.min, queued = queued }
+        min = cfg.min, queued = queued, hist = hist }
 end
 
 MQ.Server.define("exchange", { kind = "mutation", fields = { amount = "int" }, cooldownMs = 3000,

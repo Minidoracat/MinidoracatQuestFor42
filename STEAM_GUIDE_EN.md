@@ -158,7 +158,7 @@ Daily and weekly quests, achievements, season leaderboards and titles; pair it w
 [*] [b]Move and fold[/b]: drag the panel to move it and the game remembers where; the arrow in its title row folds it to one line.
 [*] [b]Untrack[/b]: point at a row and press the × that appears on its right.
 [*] [b]Removed on its own[/b]: daily quests at the daily reset, weekly quests at the weekly reset, a swapped quest, and an achievement that reached its top tier.
-[*] [b]When it steps aside[/b]: while the quest window is open, the UI is hidden with V, the Esc menu is up, or your character is dead.
+[*] [b]When it steps aside[/b]: while the UI is hidden with V, the Esc menu is up, or your character is dead. It stays while the quest window is open, so a Track press shows up at once; the quest window and every other window draw over it.
 [*] [b]Turn it off[/b]: untick "Show the tracker panel" in Options > MODS > Quests & Achievements.
 [/list]
 === 🧰 Leaderboards and seasons
@@ -239,6 +239,7 @@ The server needs Minidoracat Economy (multiplayer only). On the My records page,
 [*] [b]Refunded[/b]: if your economy account cannot receive coins, the points come back and you are asked to contact an admin.
 [*] [b]No reply[/b]: press "Ask again" to check the result; asking again never exchanges twice.
 [*] [b]Imported achievements[/b]: points from achievements imported mid-save never reach your balance and cannot be exchanged.
+[*] [b]Exchange history[/b]: once you have exchanged, My records lists the last 10 under the points card (time, points to coins, Queued / Credited / Points returned). In the Economy admin ledger the reason reads "Quest points exchange".
 [/list]
 === 🧰 Settings
 {{img:07-settings-en.jpg}}
@@ -380,7 +381,7 @@ Open "Admin" on the left of the window; only roles listed in the "Admin roles" s
 [table]
 [tr][th]Contents[/th][th]Location[/th][/tr]
 [tr][td]Setting overrides, seasons, server-wide quest and server goal, timed events, audit (last 500)[/td][td]Global ModData shared table MinidoracatQuest in the world save[/td][/tr]
-[tr][td]Each account's stats, quests, points, achievements, titles, preferences, tracked items, exchange queue[/td][td]Global ModData account tables MinidoracatQuest_A00-A15 (16 tables)[/td][/tr]
+[tr][td]Each account's stats, quests, points, achievements, titles, preferences, tracked items, exchange queue and last 10 exchanges[/td][td]Global ModData account tables MinidoracatQuest_A00-A15 (16 tables)[/td][/tr]
 [tr][td]Account to Steam account bindings[/td][td]Zomboid/Lua/MinidoracatQuest/<server name>/identity.txt[/td][/tr]
 [tr][td]Daily event log (one line per event)[/td][td]Same folder, events-YYYYMMDD.json, one per day[/td][/tr]
 [tr][td]Exported / imported settings[/td][td]Same folder, export-<date-time>.json / import.json[/td][/tr]

@@ -1,6 +1,7 @@
 -- MinidoracatQuest/PageRecords.lua: my records (spec 16): title picker (unlocked titles), points card (balance,
---   season, all-time; the exchange button only when state.exchange.available), and the statistics table
---   (season / this life / all-time) from the records query, with loading and timeout states.
+--   season, all-time; the exchange button only when state.exchange.available), the exchange history (up to 10
+--   rows from state.exchange.hist, only when there is one), and the statistics table (season / this life /
+--   all-time) from the records query, with loading and timeout states.
 
 if isServer() then return end
 
@@ -123,6 +124,35 @@ local function pointsCard(b, page, x, y, w, s)
     return y + h + GAP
 end
 
+-- ===== exchange history: queued rows first, then the finished ones, newest first (Exchange.stateFor) =====
+local EX_STATE = { paid = { "IGUI_MQ_UI_ExStatePaid", "success" }, queued = { "IGUI_MQ_UI_ExQueued", "warning" },
+    refunded = { "IGUI_MQ_UI_ExStateRefunded", "errorText" } }
+
+local function exHistory(b, x, y, w, s)
+    local hist = type(s.exchange) == "table" and s.exchange.hist or nil
+    if type(hist) ~= "table" or #hist == 0 then return y end
+    y = b:header(x, y, x + w, getText("IGUI_MQ_UI_ExHistory"))
+    local rows, timeW, stateW = {}, 0, 0
+    for _, h in ipairs(hist) do
+        local st = EX_STATE[h.state] or EX_STATE.paid
+        local r = { D.dateTime(h.at or 0), getText("IGUI_MQ_UI_ExArrow", D.num(h.amount or 0), D.num(h.coins or 0)),
+            getText(st[1]), st[2] }
+        timeW, stateW = math.max(timeW, D.textW(r[1])), math.max(stateW, D.textW(r[3]))
+        rows[#rows + 1] = r
+    end
+    local rh = D.fontH() + 8
+    local midX = x + 8 + timeW + 16
+    local midW = x + w - 8 - stateW - 16 - midX
+    for i, r in ipairs(rows) do
+        if i % 2 == 0 then b:rect(x, y, w, rh, "hover") end
+        b:text(x + 8, y + 4, r[1], "textMuted")
+        b:fitText(midX, y + 4, r[2], midW, "text")
+        b:textRight(x + w - 8, y + 4, r[3], r[4])
+        y = y + rh
+    end
+    return y + GAP
+end
+
 -- ===== table =====
 function P.value(stat, v)
     if v == nil then return "-" end
@@ -207,6 +237,7 @@ function P.layout(page)
     end
     y = titleRow(b, page, x, y, w, s)
     y = pointsCard(b, page, x, y, w, s)
+    y = exHistory(b, x, y, w, s)
     y = statsTable(b, page, x, y, w, s)
     D.finish(page, y)
 end

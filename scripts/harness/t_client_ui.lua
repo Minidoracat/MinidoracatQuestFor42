@@ -27,6 +27,7 @@ return function(T)
     function El:addToUIManager() end
     function El:removeFromUIManager() end
     function El:bringToTop() end
+    function El:backMost() end
     function El:getYScroll() return 0 end
     function El:setYScroll() end
     function El:isMouseOver() return true end
@@ -217,7 +218,10 @@ return function(T)
         newbie = { steps = { true, true, false, false, false }, pts = 100, startMs = now - 3600000 },
         achv = { [a2.id] = 2 }, titles = { "newbie", "s3_top1" }, title = "newbie", prefs = { "combat", "farm" }, anon = false,
         season = { no = 3, startMs = now - 86400000, endsAt = now + 12 * 86400000, state = "review", reviewNo = 2 },
-        exchange = { available = true, enabled = true, rate = 1, perDay = 100, used = 0, min = 10, queued = 20 },
+        exchange = { available = true, enabled = true, rate = 1, perDay = 100, used = 0, min = 10, queued = 20,
+            hist = { { at = now - 60000, amount = 20, coins = 20, state = "queued" },
+                { at = now - 3600000, amount = 40, coins = 40, state = "paid" },
+                { at = now - 7200000, amount = 30, coins = 30, state = "refunded" } } },
         events = { { id = 1, name = "Halloween", theme = "combat", mult = 2, endsAt = now + 2 * 86400000 } } })
     push("records", { rows = { { stat = a2.stat, season = 3, life = 2, total = 9 }, { stat = "zombie.kills", season = 1, life = 1, total = 2 } },
         points = { season = 640, total = 1240, balance = 840 } })
@@ -329,7 +333,6 @@ return function(T)
 
     T.section("client UI: tracker panel")
     local Hd = MQ.Hud
-    function El:setAlwaysOnTop(v) self.onTop = v end
     getPlayerScreenLeft, getPlayerScreenTop, getPlayerData = function() return 0 end, function() return 0 end, function() end
     local inv = { shown = true, x = 200 }
     function inv:isVisible() return self.shown end
@@ -348,8 +351,8 @@ return function(T)
     getPlayerData = function() end
     push("delta", { pins = { "d1", "w1" } })
     local hp = Hd.panel
-    check(hp ~= nil and hp:isVisible() and #hp.rows == 2 and hp.onTop == false and #errors == 0,
-        "pins with the window closed: the panel shows a row for each, under later windows")
+    check(hp ~= nil and hp:isVisible() and #hp.rows == 2 and #errors == 0,
+        "pins with the window closed: the panel shows a row for each")
     hp:render()
     local h1 = hp.hits[1]
     Hd.onMouseDown(hp, h1.xx + 2, h1.y0 + 2)
@@ -361,16 +364,16 @@ return function(T)
     Hd.onMouseDown(hp, hp.width - 10, 4)
     check(not hp.collapsed and hp.height == fullH, "and opens it again")
     W.open("daily")
-    check(not hp:isVisible(), "the main window hides the panel")
+    check(hp:isVisible(), "the panel stays while the main window is open")
     W.close()
-    check(hp:isVisible(), "closing the window brings it back")
     ISUIHandler = { allUIVisible = false }
     Hd.sync()
     check(not hp:isVisible(), "hidden while V hides the UI")
     ISUIHandler = nil
-    push("delta", { pins = { "d1", "d2", "d3", "d4", "w1" } })
     W.open("daily")
+    push("delta", { pins = { "d1", "d2", "d3", "d4", "w1" } })
     W.onTick()
+    check(hp:isVisible() and #hp.rows == 5, "a pin made with the window open shows in the panel at once")
     local dchip = W.pages.daily.pool.items.q1pin
     W.select("achievements")
     W.onTick()

@@ -4,6 +4,12 @@
   "UI_MinidoracatQuest_ShowDock_tooltip": "O botão Missões e Conquistas na barra da família de mods. Quando oculto, o atalho (Atribuição de teclas > [MinidoracatQuest]) ainda abre a janela.",
   "UI_MinidoracatQuest_ShowBroadcast": "Mostrar avisos de desbloqueio do servidor",
   "UI_MinidoracatQuest_ShowBroadcast_tooltip": "Avisos quando outro jogador desbloqueia um patamar alto de conquista.",
+  "UI_MinidoracatQuest_ShowHud": "Mostrar o painel de acompanhamento",
+  "UI_MinidoracatQuest_ShowHud_tooltip": "No canto superior esquerdo: o progresso das missões e conquistas marcadas com \"Acompanhar\" em um cartão. Arraste para mover.",
+  "UI_MinidoracatQuest_ShowHeadTitles": "Mostrar títulos acima das cabeças",
+  "UI_MinidoracatQuest_ShowHeadTitles_tooltip": "O título que cada jogador usa, uma linha acima do nome. Fica oculto quando o servidor oculta os nomes. Desativar também poupa o desenho neste computador.",
+  "UI_MinidoracatQuest_ShowChatTitles": "Mostrar títulos no chat",
+  "UI_MinidoracatQuest_ShowChatTitles_tooltip": "O título do autor depois do nome nas linhas do chat.",
   "UI_optionscreen_binding_MinidoracatQuest": "Minidoracat Missões e Conquistas",
   "UI_optionscreen_binding_MinidoracatQuest_Toggle": "Abrir / fechar Missões e Conquistas"
 }

@@ -4,6 +4,12 @@
   "UI_MinidoracatQuest_ShowDock_tooltip": "The Quests & Achievements button on the family toolbar. When hidden, the hotkey (Key Bindings > [MinidoracatQuest]) still opens the window.",
   "UI_MinidoracatQuest_ShowBroadcast": "Show server-wide unlock notices",
   "UI_MinidoracatQuest_ShowBroadcast_tooltip": "Notices when another player unlocks a high achievement tier.",
+  "UI_MinidoracatQuest_ShowHud": "Show the tracker panel",
+  "UI_MinidoracatQuest_ShowHud_tooltip": "Top left: the progress of the quests and achievements you marked with \"Track\" on a card. Drag it to move it.",
+  "UI_MinidoracatQuest_ShowHeadTitles": "Show titles above heads",
+  "UI_MinidoracatQuest_ShowHeadTitles_tooltip": "The title each player wears, one line above the name. Hidden when the server hides names. Turning it off also saves this computer the drawing.",
+  "UI_MinidoracatQuest_ShowChatTitles": "Show titles in chat",
+  "UI_MinidoracatQuest_ShowChatTitles_tooltip": "The author's title after the name in chat lines.",
   "UI_optionscreen_binding_MinidoracatQuest": "Minidoracat Quests & Achievements",
   "UI_optionscreen_binding_MinidoracatQuest_Toggle": "Open / close Quests & Achievements"
 }

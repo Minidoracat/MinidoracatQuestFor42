@@ -79,6 +79,13 @@ local function card(b, page, x, y, w, a, m)
     local badgeW = badge and D.chipW(badge) or 0
     local life = (a.scope == "life") and getText("IGUI_MQ_UI_LifeOnly") or nil
     local lifeW = life and (D.chipW(life) + 6) or 0
+    -- pin chip: an achievement with a tier left (hidden ones stay secret); a pinned one always, to unpin it
+    local pinId = "a:" .. a.id
+    local pinBtn = nil
+    if C.isPinned(pinId) or (not m.maxed and not a.hidden and #a.tiers > 0) then
+        pinBtn = D.pinChip(page, "pin:" .. a.id, pinId)
+    end
+    local pinW = pinBtn and (pinBtn.width + 6) or 0
     local line
     if m.hiddenLocked then
         line = getText("IGUI_MQ_UI_Hint", D.achHint(a))
@@ -108,9 +115,13 @@ local function card(b, page, x, y, w, a, m)
         end
     end
     local cy = y + pad
-    local nameW = b:fitText(tx, cy + 3, name, tw - badgeW - lifeW - 8, m.hiddenLocked and "textMuted" or "text")
+    local nameW = b:fitText(tx, cy + 3, name, tw - badgeW - lifeW - pinW - 8, m.hiddenLocked and "textMuted" or "text")
     if life then b:chip(tx + nameW + 6, cy, life, "warning") end
     if badge then b:chip(x + w - pad - badgeW, cy, badge, tierCol, true) end
+    if pinBtn then
+        pinBtn:setX(x + w - pad - badgeW - (badge and 6 or 0) - pinBtn.width)
+        pinBtn:setY(cy + math.floor((D.chipH() - pinBtn.height) / 2))
+    end
     cy = cy + D.chipH() + 4
     for _, l in ipairs(lines) do
         b:text(tx, cy, l, m.maxed and D.EXTRA.success or "textMuted")

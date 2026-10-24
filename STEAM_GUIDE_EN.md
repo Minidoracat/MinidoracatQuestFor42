@@ -145,7 +145,21 @@ Daily and weekly quests, achievements, season leaderboards and titles; pair it w
 [h3]Titles[/h3]
 [list]
 [*] [b]Earned from[/b]: top achievement tiers, hidden achievements, a 30-day streak, newcomer quests and season rewards.
-[*] [b]Use one[/b]: pick one on the My records page to show next to your name on leaderboards (one at a time, or none). A server-wide notice names the title that unlock earned.
+[*] [b]Use one[/b]: pick one on the My records page (one at a time, or none). A server-wide notice names the title that unlock earned.
+[*] [b]Where it shows[/b]: next to your name on leaderboards, one line above your name over your head, and after your name in chat (gold, multiplayer only).
+[*] [b]When the head title is hidden[/b]: it follows the vanilla name rules: hidden when the server does not show names, when the player is invisible or disguised, or out of sight; when the server shows names only on mouse-over, the title also shows only when you point at that player. It steps aside while the player speaks or sits in a vehicle. Your own title follows the vanilla option Options > Multiplayer > Show your username.
+[*] [b]Turn them off[/b]: Options > MODS > Quests & Achievements has separate ticks for head and chat titles; the host can also turn each off for everyone in the admin panel.
+[/list]
+=== 🧰 Tracker panel
+{{img:12-tracker-en.jpg}}
+[list]
+[*] [b]Add[/b]: press "Track" on a daily or weekly quest card or an achievement card (press again to stop), up to 5; with 5 tracked the other cards' "Track" turns gray.
+[*] [b]What it shows[/b]: at the top left, next to the vanilla sidebar: quests show progress/target, achievements the next tier's target, a done quest gets a check mark and the points it paid.
+[*] [b]Move and fold[/b]: drag the panel to move it and the game remembers where; the arrow in its title row folds it to one line.
+[*] [b]Untrack[/b]: point at a row and press the × that appears on its right.
+[*] [b]Removed on its own[/b]: daily quests at the daily reset, weekly quests at the weekly reset, a swapped quest, and an achievement that reached its top tier.
+[*] [b]When it steps aside[/b]: while the quest window is open, the UI is hidden with V, the Esc menu is up, or your character is dead.
+[*] [b]Turn it off[/b]: untick "Show the tracker panel" in Options > MODS > Quests & Achievements.
 [/list]
 === 🧰 Leaderboards and seasons
 {{img:04-leaderboard-en.jpg}}
@@ -166,7 +180,7 @@ Daily and weekly quests, achievements, season leaderboards and titles; pair it w
 [*] [b]Each page[/b]: the top 50, plus your rank, how it changed and how much more you need for the next rank.
 [*] [b]Updates[/b]: Season boards every 5 minutes, All-time boards every 30 minutes; the page shows the last update.
 [*] [b]Not ranked[/b]: accounts offline for 180 days (data is kept) and accounts an admin removed from the leaderboards.
-[*] [b]Anonymous[/b]: turn it on under Settings; you are still ranked, others see "Anonymous survivor", admins see "Name (anonymous)".
+[*] [b]Anonymous[/b]: turn it on under Settings; you are still ranked, others see "Anonymous survivor" and no title, admins see "Name (anonymous)".
 [/list]
 [h3]Seasons[/h3]
 [list]
@@ -231,12 +245,15 @@ The server needs Minidoracat Economy (multiplayer only). On the My records page,
 [h3]Settings in the window[/h3]
 [list]
 [*] [b]Quest preferences[/b]: pick up to 3 themes and press Apply; rules under "Daily quests".
-[*] [b]Appear anonymous on leaderboards[/b]: you are still ranked, others see "Anonymous survivor", and server-wide notices do not name you; admins can still see who you are. Only applies to this mod's leaderboards.
+[*] [b]Appear anonymous on leaderboards[/b]: you are still ranked, others see "Anonymous survivor", and server-wide notices do not name you; admins can still see who you are. Only applies to this mod's leaderboards and notices: your title over your head and in chat still shows.
 [/list]
 [h3]Mod options (Options > MODS > Quests & Achievements)[/h3]
 [list]
 [*] [b]Show the toolbar entry[/b]: when hidden, the hotkey still opens the window.
 [*] [b]Show server-wide unlock notices[/b]: when off, other players' unlocks are not shown.
+[*] [b]Show the tracker panel[/b]: the tracker panel at the top left.
+[*] [b]Show titles above heads[/b]: other players' (and your own) head titles; turning it off also saves this computer the drawing.
+[*] [b]Show titles in chat[/b]: the title after the name in chat lines.
 [/list]
 === ⚙️ Installation and load order
 [list]
@@ -296,6 +313,7 @@ Open "Admin" on the left of the window; only roles listed in the "Admin roles" s
 [*] [b]Server goal[/b]: on/off, reward, growth over last week, rotation, minimum, maximum and minimum contribution per stat.
 [*] [b]Streak rewards[/b]: quests needed per day, grace days per week, milestones.
 [*] [b]Newcomer quests and server-wide notices[/b]: on/off, reward, starting tier, notices per player per minute.
+[*] [b]Title display[/b]: one server-wide switch each for head and chat titles; off means nobody sees them.
 [/list]
 [h3]Exchange & events[/h3]
 {{img:11-admin-exchange-en.jpg}}
@@ -362,7 +380,7 @@ Open "Admin" on the left of the window; only roles listed in the "Admin roles" s
 [table]
 [tr][th]Contents[/th][th]Location[/th][/tr]
 [tr][td]Setting overrides, seasons, server-wide quest and server goal, timed events, audit (last 500)[/td][td]Global ModData shared table MinidoracatQuest in the world save[/td][/tr]
-[tr][td]Each account's stats, quests, points, achievements, titles, preferences, exchange queue[/td][td]Global ModData account tables MinidoracatQuest_A00-A15 (16 tables)[/td][/tr]
+[tr][td]Each account's stats, quests, points, achievements, titles, preferences, tracked items, exchange queue[/td][td]Global ModData account tables MinidoracatQuest_A00-A15 (16 tables)[/td][/tr]
 [tr][td]Account to Steam account bindings[/td][td]Zomboid/Lua/MinidoracatQuest/<server name>/identity.txt[/td][/tr]
 [tr][td]Daily event log (one line per event)[/td][td]Same folder, events-YYYYMMDD.json, one per day[/td][/tr]
 [tr][td]Exported / imported settings[/td][td]Same folder, export-<date-time>.json / import.json[/td][/tr]
@@ -391,7 +409,9 @@ https://github.com/Minidoracat/MinidoracatQuestFor42#給其他-mod-的-api
 [*] [b]Distance is a straight line per minute[/b]: detours and back-and-forth count less; only the driver earns driving distance, not passengers; a jump too large for one minute (teleport) is ignored.
 [*] [b]Per-minute limits[/b]: each stat has a per-minute limit; anything above it does not count and is logged as an anomaly for admins.
 [*] [b]Exchange is multiplayer only[/b]: the Economy mod supports dedicated servers only.
-[*] [b]Split screen[/b]: players 2-4 do not earn progress.
+[*] [b]Split screen[/b]: players 2-4 do not earn progress; the tracker panel and head titles are for player 1 only.
+[*] [b]Head titles approximate the vanilla rules[/b]: players in a vehicle get none. When the server shows names only on mouse-over (the vanilla default), the mod checks the floor square under the mouse and the squares around it, plus the player's body; vanilla uses the object under the mouse, so pointing at a wall or a tall object can differ by one square.
+[*] [b]Chat titles[/b]: only lines that arrive while the author wears a title get one; a title changed or taken off later does not always update lines already shown. A mod that rewrites the whole vanilla chat window may keep them from appearing.
 [*] [b]Mid-save import is partial[/b]: only kills, days survived and skill levels; crafting, distance, fishing and the rest count from when the mod is added.
 [*] [b]Player identity[/b]: on Steam servers a name is bound to its Steam account the first time it comes online; switching Steam accounts makes you a different player, and there is no way to unbind yet. No-Steam servers cannot stop someone respawning under another player's name; a modified client may take a name that has not come online to be bound yet.
 [*] [b]Event logs keep growing[/b]: see "Data and backups".
@@ -429,7 +449,8 @@ https://github.com/Minidoracat/MinidoracatQuestFor42#給其他-mod-的-api
 [/list]
 [h3]I am anonymous. Can others still see me?[/h3]
 [list]
-[*] Other players do not see your name on this mod's leaderboards or in server-wide notices; admins do. A modified client can also read the save data; see "Known limitations".
+[*] Other players do not see your name or title on this mod's leaderboards or in server-wide notices; admins do. A modified client can also read the save data; see "Known limitations".
+[*] Your title over your head and in chat still shows; an anonymous leaderboard row has no title, so nobody can match your title to your rank.
 [/list]
 [h3]How do I become an admin?[/h3]
 [list]

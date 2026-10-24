@@ -180,6 +180,7 @@ Cf.SCHEMA = {
     rewards = { top1 = ptsV, top3 = ptsV, top10 = ptsV, participation = ptsV, participationMin = ptsV, firstTitles = bool },
     exchange = { enabled = bool, rate = num(0.01, 1000), perDay = int(0, 1e6), min = int(1, 1e6) },
     broadcast = { enabled = bool, minTier = int(1, 10), perMinute = int(0, 60) },
+    titles = { head = bool, chat = bool },
     boards = { inactiveDays = int(7, 365), rebuildSeasonMs = int(60000, 86400000), rebuildTotalMs = int(60000, 86400000) },
     towns = { custom = townsCustom, disabled = townsDisabled },
     ceilings = ceilingsMap,

@@ -27,6 +27,7 @@ C.LIMIT = {
     HISTORY = 20, AUDIT_RING = 500, SEASONS_KEPT = 12,
     DELTA_MS = 1000, TOAST_MERGE_MS = 2000, BROADCAST_MS = 60000,
     MAX_PREFS = 3, ANOMALY_ROWS = 200,
+    MAX_PINS = 5,                             -- quests / achievements on the tracker panel
 }
 
 -- Result codes; the client shows IGUI_MQ_Code_<CODE>.
@@ -34,7 +35,7 @@ C.CODE = {}
 for _, k in ipairs({ "OK", "PROTOCOL_MISMATCH", "BAD_ARGS", "IDENTITY_UNVERIFIED", "NOT_READY", "FORBIDDEN",
     "RATE_LIMITED", "NO_SWAPS", "BAD_SLOT", "BAD_THEME", "TOO_MANY_PREFS", "TITLE_LOCKED", "EXCHANGE_OFF",
     "EXCHANGE_MIN", "EXCHANGE_DAY_LIMIT", "NOT_ENOUGH_POINTS", "ECONOMY_MISSING", "BAD_BOARD", "BAD_CONFIG",
-    "BAD_SEASON_LENGTH", "TOO_SOON", "NOT_FOUND", "FILE_ERROR", "INTERNAL" }) do
+    "BAD_SEASON_LENGTH", "TOO_SOON", "NOT_FOUND", "FILE_ERROR", "INTERNAL", "TOO_MANY_PINS" }) do
     C.CODE[k] = k
 end
 

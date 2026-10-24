@@ -4,6 +4,12 @@
   "UI_MinidoracatQuest_ShowDock_tooltip": "Le bouton Quêtes et succès de la barre de la famille de mods. S'il est masqué, le raccourci (Configuration des touches > [MinidoracatQuest]) ouvre toujours la fenêtre.",
   "UI_MinidoracatQuest_ShowBroadcast": "Afficher les annonces de déblocage du serveur",
   "UI_MinidoracatQuest_ShowBroadcast_tooltip": "Annonces lorsqu'un autre joueur débloque un palier de succès élevé.",
+  "UI_MinidoracatQuest_ShowHud": "Afficher le panneau de suivi",
+  "UI_MinidoracatQuest_ShowHud_tooltip": "En haut à gauche : la progression des quêtes et succès marqués avec « Suivre » sur une carte. Faites-le glisser pour le déplacer.",
+  "UI_MinidoracatQuest_ShowHeadTitles": "Afficher les titres au-dessus des têtes",
+  "UI_MinidoracatQuest_ShowHeadTitles_tooltip": "Le titre porté par chaque joueur, une ligne au-dessus de son nom. Masqué quand le serveur cache les noms. Le désactiver épargne aussi le dessin à cet ordinateur.",
+  "UI_MinidoracatQuest_ShowChatTitles": "Afficher les titres dans le chat",
+  "UI_MinidoracatQuest_ShowChatTitles_tooltip": "Le titre de l'auteur après son nom dans les lignes du chat.",
   "UI_optionscreen_binding_MinidoracatQuest": "Minidoracat Quêtes et succès",
   "UI_optionscreen_binding_MinidoracatQuest_Toggle": "Ouvrir / fermer Quêtes et succès"
 }

@@ -538,10 +538,16 @@ return function(T)
         local at0 = Q.Boards.cache["points:season"].at
         Q.Store.account("carol").titles.e2e_title = true
         T.check(cmd(c, "title", { id = "e2e_title" }).ok == true, "title set")
+        local told = T.lastOf(b, "titles")
+        T.check(told and told.u == "carol" and told.t == "e2e_title", "wearing a title tells every online player")
         T.check(carolRow().t == "e2e_title", "new title on the next board reply")
         T.check(cmd(c, "anon", { on = true }).ok == true, "anon on")
         local row = carolRow()
-        T.check(row.n == nil and row.t == "e2e_title", "anonymous on the next board reply")
+        T.check(row.n == nil and row.t == "e2e_title", "anonymous on the next board reply (admins still see the title)")
+        cmd(b, "board", { board = "points", period = "season" }, 2100)
+        local brow = T.lastOf(b, "board").rows[Q.Boards.cache["points:season"].rank.carol]
+        T.check(brow.n == nil and brow.a == nil and brow.t == nil,
+            "an anonymous row shows players no title (the same title over the head would name them)")
         T.check(Q.Boards.cache["points:season"].at == at0, "no rebuild was needed for the profile change")
         cmd(c, "anon", { on = false })
         T.check(carolRow().n == "carol", "name back on the next board reply")
@@ -570,6 +576,86 @@ return function(T)
         T.check(s and s.nextMs > T.now and s.nextMs <= T.now + 60000, "next rebuild follows the new interval")
         T.check(Q.Config.undo(hid, "alice") == true and Q.Boards.state["points:total"].dirty == true
             and Q.Boards.state["points:total"].nextMs == 0, "undo of a boards change reschedules too")
+    end)
+
+    -- ===================== Tracker pins, worn titles =====================
+    section("tracker pins and worn titles", function()
+        local Q = boot()
+        local a = T.player{ name = "alice", admin = true }
+        local b = T.player{ name = "bob" }
+        cmd(a, "hello")
+        cmd(b, "hello")
+        local acc = Q.Store.account("bob")
+        local zk = Q.Achievements.get("zombie_kills")
+        local r = cmd(b, "pin", { id = "d1", on = true })
+        T.check(r and r.ok and acc.pins[1] == "d1" and T.lastOf(b, "state").pins[1] == "d1",
+            "an active daily slot pins; the reply state carries the pins")
+        local r1, r2 = cmd(b, "pin", { id = "d9", on = true }), cmd(b, "pin", { id = "a:no_such", on = true })
+        T.check(r1.code == "BAD_ARGS" and r2.code == "BAD_ARGS" and #acc.pins == 1, "a missing slot or achievement is refused")
+        local hidden = nil
+        for _, d in ipairs(Q.Achievements.list()) do if d.hidden and hidden == nil then hidden = d end end
+        r = hidden and cmd(b, "pin", { id = "a:" .. hidden.id, on = true })
+        T.check(r and r.code == "BAD_ARGS", "a hidden achievement cannot be pinned (the panel would show its goal)")
+        for _, id in ipairs({ "d2", "d3", "w1", "a:zombie_kills" }) do cmd(b, "pin", { id = id, on = true }) end
+        r = cmd(b, "pin", { id = "w2", on = true })
+        T.check(#acc.pins == 5 and r.code == "TOO_MANY_PINS", "five pins at most")
+        r = cmd(b, "pin", { id = "d1", on = true })
+        T.check(r.ok and #acc.pins == 5, "pinning a pinned item again keeps one entry")
+        r = cmd(b, "pin", { id = "d3", on = false })
+        T.check(r.ok and #acc.pins == 4 and not has(acc.pins, "d3"), "unpinning frees a place")
+
+        -- window closed, panel on: deltas carry what is pinned; panel off: only the badge
+        cmd(b, "track", { on = true })
+        T.advance(1000)
+        T.tick(1)
+        T.clearOutbox(b)
+        T.check(finish(Q, "bob", acc.day.quests[1]), "pinned quest finished")
+        push(Q, "bob", zk.stat, 3)
+        T.tick(1)
+        local d = T.lastOf(b, "delta")
+        local val = ((zk.scope == "life" and acc.life or acc.total) or {})[zk.stat]
+        T.check(d and d.day and d.day[1].state == "done" and d.trk and d.trk.zombie_kills.v == val and d.goal == nil
+            and d.points == nil, "tracker on: pinned quest and achievement progress arrive, window-only parts do not")
+        cmd(b, "track", { on = false })
+        T.advance(1000)
+        T.tick(1)
+        T.clearOutbox(b)
+        push(Q, "bob", zk.stat, 1)
+        T.tick(1)
+        d = T.lastOf(b, "delta")
+        T.check(d == nil or (d.trk == nil and d.day == nil), "tracker off: no progress deltas")
+        cmd(b, "track", { on = true })
+
+        r = cmd(b, "swap", { slot = 2 })
+        T.check(r and r.ok and not has(acc.pins, "d2"), "swapping a pinned quest drops its pin")
+        push(Q, "bob", zk.stat, zk.tiers[#zk.tiers])
+        T.check(acc.achv.zombie_kills == #zk.tiers and not has(acc.pins, "a:zombie_kills"),
+            "an achievement pin goes when its last tier unlocks")
+        T.now = Q.Clock.nextResetMs(T.now) + 60000
+        Q.Quests.ensure(acc, "bob", T.now)
+        T.check(#acc.pins == 1 and acc.pins[1] == "w1", "the daily reset drops the daily pins; weekly ones stay")
+        T.now = Q.Clock.weekResetMs(T.now) + 60000
+        Q.Quests.ensure(acc, "bob", T.now)
+        T.check(#acc.pins == 0, "the weekly reset drops the weekly pins")
+
+        -- worn titles: the map at login, every change to everyone
+        local worn = nil
+        for t = 1, #zk.tiers do worn = zk.titles[t] or worn end
+        T.check(worn ~= nil and acc.titles[worn] == true and cmd(b, "title", { id = worn }).ok, "bob wears a zombie_kills title")
+        local c = T.player{ name = "carol" }
+        cmd(c, "hello")
+        local first = T.sentTo(c, "titles")[1]
+        T.check(first and first.full and first.map.bob == worn and T.lastOf(a, "titles").u == "carol",
+            "logging in brings the worn titles of everyone online; the others get the newcomer's entry")
+        r = admin(a, "achv.revoke", { user = "bob", achId = "zombie_kills", tier = 0, reason = "test" })
+        local told = T.lastOf(c, "titles")
+        T.check(r and r.ok and acc.title == nil and told.u == "bob" and told.t == nil, "a revoked title comes off for everyone")
+        T.clearOutbox()
+        T.advance(60000)
+        Q.Sync.broadcastToast({ kind = "broadcast", id = "zombie_kills", tier = 3, titleId = worn }, "bob")
+        local plain, named = T.lastOf(c, "toast"), T.lastOf(a, "toast")
+        T.check(plain and plain.titleId == nil and plain.a == nil and named and named.a == "bob" and named.titleId == worn,
+            "an anonymous unlock notice names no title to players (the title would name them)")
     end)
 
     -- ===================== Balance =====================

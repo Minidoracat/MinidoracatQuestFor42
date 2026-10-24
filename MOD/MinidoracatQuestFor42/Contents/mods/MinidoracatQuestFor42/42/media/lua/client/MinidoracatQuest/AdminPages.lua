@@ -1,6 +1,6 @@
 -- MinidoracatQuest/AdminPages.lua: admin tabs other than achievements and history (spec 9.4, 11.2-11.4, 13.5-13.8).
--- quests (daily/weekly pools, shared goal, streak, newbie, broadcast), season (length preview/apply, review,
--- rewards), exchange & events, players (anomalies, account view, revoke, hide), balance, towns.
+-- quests (daily/weekly pools, shared goal, streak, newbie, broadcast, title display), season (length preview/apply,
+-- review, rewards), exchange & events, players (anomalies, account view, revoke, hide), balance, towns.
 -- Config edits go through the draft (AdminPanel); season/events/revoke/hide use their own ops (ARCHITECTURE.md 6.2).
 
 require "MinidoracatQuest/AdminPanel"
@@ -134,6 +134,9 @@ local function layoutQuests(P, pg, F)
     F:gap()
     F:head("hb", getText("IGUI_MQ_Admin_BroadcastHead"))
     form(P, pg, F, { { "broadcast.enabled", "bool" }, { "broadcast.minTier", "minTier" }, { "broadcast.perMinute", "perMinute" } })
+    F:gap()
+    F:head("ht", getText("IGUI_MQ_Admin_TitlesHead"))
+    form(P, pg, F, { { "titles.head", "bool" }, { "titles.chat", "bool" } })
 end
 
 -- milestone days strictly increasing

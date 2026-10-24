@@ -4,6 +4,12 @@
   "UI_MinidoracatQuest_ShowDock_tooltip": "Przycisk Zadania i osiągnięcia na pasku narzędzi rodziny modów. Gdy jest ukryty, okno nadal otwiera skrót klawiszowy (Przypisanie klawiszy > [MinidoracatQuest]).",
   "UI_MinidoracatQuest_ShowBroadcast": "Pokaż ogłoszenia o odblokowaniach na serwerze",
   "UI_MinidoracatQuest_ShowBroadcast_tooltip": "Ogłoszenia, gdy inny gracz odblokuje wysoki poziom osiągnięcia.",
+  "UI_MinidoracatQuest_ShowHud": "Pokaż panel śledzenia",
+  "UI_MinidoracatQuest_ShowHud_tooltip": "W lewym górnym rogu: postęp zadań i osiągnięć oznaczonych na karcie przyciskiem \"Śledź\". Przeciągnij, aby przesunąć.",
+  "UI_MinidoracatQuest_ShowHeadTitles": "Pokaż tytuły nad głowami",
+  "UI_MinidoracatQuest_ShowHeadTitles_tooltip": "Tytuł noszony przez gracza, jedną linijkę nad jego nazwą. Ukryty, gdy serwer ukrywa nazwy. Wyłączenie oszczędza też rysowanie na tym komputerze.",
+  "UI_MinidoracatQuest_ShowChatTitles": "Pokaż tytuły na czacie",
+  "UI_MinidoracatQuest_ShowChatTitles_tooltip": "Tytuł autora po jego nazwie w wierszach czatu.",
   "UI_optionscreen_binding_MinidoracatQuest": "Minidoracat: Zadania i osiągnięcia",
   "UI_optionscreen_binding_MinidoracatQuest_Toggle": "Otwórz/zamknij Zadania i osiągnięcia"
 }

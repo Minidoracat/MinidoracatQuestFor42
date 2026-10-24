@@ -208,6 +208,128 @@ return function(T)
     local l = PS.toggle(PS.toggle(PS.toggle({}, "combat"), "farm"), "cook")
     check(#PS.toggle(l, "mech") == 3 and #PS.toggle(l, "farm") == 2, "preferences capped at 3, toggle removes")
 
+    T.section("client: tracker rows, worn titles")
+    local Hd, Ti = MQ.Hud, MQ.Titles
+    local zk = C.defs().achById.zombie_kills
+    local ts = { pins = { "d1", "w1", "a:zombie_kills", "d2", "d9" }, trk = { zombie_kills = { t = 1, v = 120 } },
+        achv = { zombie_kills = 0 },
+        day = { quests = { { tid = "d_kill", prog = 5, target = 20, state = "active", pts = 15 },
+            { tid = "d_craft", prog = 5, target = 5, state = "done", pts = 15, ptsNow = 30 } } },
+        week = { quests = { { tid = "w_kill", prog = 3, target = 150, state = "active" } } } }
+    local rows = Hd.rows(ts, C.defs())
+    check(#rows == 4 and rows[1].id == "d1" and rows[1].prog == 5 and rows[1].target == 20 and rows[2].id == "w1"
+        and rows[4].id == "d2", "tracker: one row per pin in pin order; a pin naming nothing is skipped")
+    check(rows[3].prog == 120 and rows[3].target == zk.tiers[2], "tracker: an achievement counts toward its next tier")
+    check(rows[4].done and rows[4].pts == 30, "tracker: a done quest shows what it paid")
+    ts.trk.zombie_kills.t = #zk.tiers
+    check(#Hd.rows(ts, C.defs()) == 3, "tracker: a maxed achievement has no row")
+
+    local gt2 = getText
+    getText = function(key, a)
+        if key == "IGUI_MQ_UI_ChatTitle" then return "(" .. tostring(a) .. ")" end
+        return gt2(key, a)
+    end
+    local function mark(id)   -- D.titleText is the display name (the harness has no translations)
+        local name = string.gsub(string.gsub(D.titleText(id), "<", "&lt;"), ">", "&gt;")
+        return " <SPACE> <PUSHRGB:0.91,0.76,0.35> (" .. name .. ") <POPRGB> "
+    end
+    push("titles", { full = true, map = { bob = "<b>boss" } })
+    local line = "<RGB:1,1,1>[12:00][Local][bob]: hi [bob]: x"
+    local out = Ti.decorateLine(line, "bob")
+    check(out == "<RGB:1,1,1>[12:00][Local][bob]" .. mark("<b>boss") .. ": hi [bob]: x" and not string.find(out, "<b>", 1, true),
+        "chat: the title follows the author, escaped so it cannot open a rich-text command")
+    check(Ti.decorateLine("[Local][carol]: hi", "carol") == "[Local][carol]: hi", "chat: an author without a title stays")
+    push("titles", { u = "bob", t = "hero" })
+    local msg = { text = "hi", getAuthor = function() return "bob" end, setText = function(self, t) self.text = t end,
+        getTextWithPrefix = function(self) return "[Local][bob]: " .. self.text end }
+    local px = Ti.wrap(msg)
+    px:setText("* * *")
+    check(px ~= msg and px:getAuthor() == "bob" and msg.text == "* * *"
+        and px:getTextWithPrefix() == "[Local][bob]" .. mark("hero") .. ": * * *" and px.noSuch == nil,
+        "chat: a titled author's message is wrapped; ISChat's other calls reach the real message")
+    push("catalog", { rev = 90, overrides = { titles = { chat = false } } })
+    check(Ti.wrap(msg) == msg and px:getTextWithPrefix() == "[Local][bob]: * * *",
+        "chat: the server switch off: no wrapper, and kept lines drop the title on the next refresh")
+    push("catalog", { rev = 91, overrides = {} })
+    E.showChatTitles = false
+    check(Ti.wrap(msg) == msg, "chat: the MOD option off: no wrapper")
+    E.showChatTitles = true
+    push("titles", { u = "bob" })
+    check(Ti.byUser.bob == nil and Ti.wrap(msg) == msg, "chat: a title taken off is gone")
+    getText = gt2
+
+    -- over the head: the vanilla name rules decide whose title is drawn
+    local keep = { "getCore", "getTextManager", "getServerOptions", "Core", "isoToScreenX", "isoToScreenY", "getMouseX",
+        "getMouseY", "screenToIsoX", "screenToIsoY", "UIFont" }
+    local kept = {}
+    for _, n in ipairs(keep) do kept[n] = _G[n] end
+    local opt, showSelf, drawn = { DisplayUserName = true }, true, {}
+    getServerOptions = function() return { getBoolean = function(_, k) return opt[k] end } end
+    getCore = function() return { isShowYourUsername = function() return showSelf end, getZoom = function() return 1 end } end
+    getTextManager = function()
+        return { getFontHeight = function() return 16 end,
+            DrawStringCentre = function(_, _, _, _, s, r) if r ~= 0 then drawn[#drawn + 1] = s end end }
+    end
+    Core = { getTileScale = function() return 2 end }
+    isoToScreenX = function(_, x) return x * 100 end
+    isoToScreenY = function(_, _, y) return y * 100 end
+    screenToIsoX = function(_, sx) return sx / 100 end
+    screenToIsoY = function(_, _, sy) return sy / 100 end
+    UIFont = UIFont or { Small = 1 }
+    local mouseX, mouseY = 0, 0
+    getMouseX, getMouseY = function() return mouseX end, function() return mouseY end
+    local function seeable(p)
+        p.speaking, p.invisible = false, false
+        function p:canSeeAll() return false end
+        function p:getVehicle() return nil end
+        function p:IsSpeaking() return self.speaking end
+        function p:hasTimedActions() return false end
+        function p:getHaloTimerCount() return 0 end
+        function p:isInvisible() return self.invisible end
+        function p:isDisguised() return false end
+        function p:getCurrentSquare() return { getCanSee = function() return true end } end
+        function p:checkCanSeeClient() return true end
+        function p:getUserNameHeight() return 16 end
+        return p
+    end
+    seeable(T.online[1])
+    local hb = seeable(T.player({ name = "bob" }))
+    local hc = seeable(T.player({ name = "carol", x = 10010 }))
+    push("titles", { full = true, map = { alice = "a_t", bob = "b_t", carol = "c_t" } })
+    local function frame()
+        drawn = {}
+        Ti.scan()
+        Ti.render()
+        table.sort(drawn)
+        return table.concat(drawn, ",")
+    end
+    local function want(...)
+        local l = {}
+        for i, id in ipairs({ ... }) do l[i] = D.titleText(id) end
+        table.sort(l)
+        return table.concat(l, ",")
+    end
+    check(frame() == want("a_t", "b_t", "c_t"), "head: every titled player in sight, yourself too (show your username)")
+    showSelf, hb.speaking, hc.invisible = false, true, true
+    check(frame() == "", "head: no own title without show-your-username; none while speaking or invisible")
+    showSelf, hb.speaking, hc.invisible = true, false, false
+    opt.DisplayUserName = false
+    check(frame() == "", "head: the server shows no names, so no titles either")
+    opt.DisplayUserName, opt.MouseOverToSeeDisplayName = true, true
+    check(frame() == want("a_t"), "head: names on mouse-over only: others stay hidden until hovered")
+    mouseX, mouseY = 10000 * 100, 10000 * 100 - 50
+    check(frame() == want("a_t", "b_t"), "head: the hovered player's title shows")
+    mouseX, mouseY = 10011 * 100 + 50, 10001 * 100 + 50
+    check(frame() == want("a_t", "c_t"), "head: the mouse on the floor one square from a player shows the title (vanilla 3 x 3)")
+    mouseX = 10012 * 100 + 50
+    check(frame() == want("a_t"), "head: two squares off the player is not a mouse-over")
+    E.showHeadTitles = false
+    check(frame() == "", "head: the MOD option off")
+    E.showHeadTitles = true
+    for _, n in ipairs(keep) do _G[n] = kept[n] end
+    T.disconnect(hb)
+    T.disconnect(hc)
+
     T.section("client: SP round trip through the server")
     MQ = T.boot({ sp = true })
     C = MQ.Client

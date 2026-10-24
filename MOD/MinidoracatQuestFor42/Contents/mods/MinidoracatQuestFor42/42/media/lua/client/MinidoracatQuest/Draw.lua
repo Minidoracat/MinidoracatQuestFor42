@@ -330,6 +330,7 @@ local function canvasRender(self)
         end
     end
 end
+D.renderOps = canvasRender   -- any element with UI / theme / ops / n / tips (the tracker panel draws with it)
 
 function D.newCanvas(UI, theme)
     if D.Canvas == nil then
@@ -482,6 +483,24 @@ function Pool:button(key, UI, theme, title, target, onClick, style, active)
     b:fitWidth()
     if style == "chip" then b:setActive(active == true) end
     return b
+end
+
+-- tracker pin chip on a quest or achievement card: "Track" / "Tracking" (active); a click toggles the pin.
+-- With LIMIT.MAX_PINS pinned the others turn gray and the hover hint says why (the server refuses them too).
+function D.pinChip(page, key, id)
+    local on = C.isPinned(id)
+    local full = not on and #C.pins() >= Q.Contract.LIMIT.MAX_PINS
+    local b = page.pool:button(key, page.UI, page.theme, getText(on and "IGUI_MQ_UI_Tracking" or "IGUI_MQ_UI_Track"),
+        page, D.onPinChip, "chip", on)
+    b.internal = id
+    b:setEnabled(not full)
+    b:setTooltip(full and D.codeText("TOO_MANY_PINS") or nil)
+    return b
+end
+
+function D.onPinChip(page, btn)
+    if C.isPending(page.pinRid) then return end
+    page.pinRid = C.setPin(btn.internal, not C.isPinned(btn.internal))
 end
 
 -- place a row of buttons from x, wrapping at maxX; returns the y below the last row

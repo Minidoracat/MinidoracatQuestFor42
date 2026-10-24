@@ -4,6 +4,12 @@
   "UI_MinidoracatQuest_ShowDock_tooltip": "家族工具栏上的「任务与成就」按钮。关掉后仍可用快捷键（按键设置 > [MinidoracatQuest]）打开。",
   "UI_MinidoracatQuest_ShowBroadcast": "显示全服解锁通知",
   "UI_MinidoracatQuest_ShowBroadcast_tooltip": "其他玩家解锁高等级成就时的通知。",
+  "UI_MinidoracatQuest_ShowHud": "显示追踪面板",
+  "UI_MinidoracatQuest_ShowHud_tooltip": "在画面左上显示你在卡片上按「追踪」的任务与成就进度。拖动可以移动面板。",
+  "UI_MinidoracatQuest_ShowHeadTitles": "显示头上的称号",
+  "UI_MinidoracatQuest_ShowHeadTitles_tooltip": "玩家佩戴的称号显示在名字上方一行；服务器不显示名字时也不显示。关掉也会省下这台电脑的绘制开销。",
+  "UI_MinidoracatQuest_ShowChatTitles": "在聊天中显示称号",
+  "UI_MinidoracatQuest_ShowChatTitles_tooltip": "聊天消息的名字后面加上发言者佩戴的称号。",
   "UI_optionscreen_binding_MinidoracatQuest": "Minidoracat 任务与成就",
   "UI_optionscreen_binding_MinidoracatQuest_Toggle": "任务与成就开关"
 }

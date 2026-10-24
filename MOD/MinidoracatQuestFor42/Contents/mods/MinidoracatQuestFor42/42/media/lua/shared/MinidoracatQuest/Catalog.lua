@@ -378,6 +378,7 @@ Cat.DEFAULTS = {
     rewards = { top1 = 600, top3 = 400, top10 = 200, participation = 100, participationMin = 250, firstTitles = true },
     exchange = { enabled = true, rate = 1, perDay = 100, min = 10 },
     broadcast = { enabled = true, minTier = 3, perMinute = 1 },
+    titles = { head = true, chat = true },   -- the worn title over heads and after the name in chat
     boards = { inactiveDays = 180, rebuildSeasonMs = 300000, rebuildTotalMs = 1800000 },
     towns = { custom = {}, disabled = {} },
     ceilings = {},

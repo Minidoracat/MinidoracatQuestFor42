@@ -282,6 +282,7 @@ function Q.ensure(acc, user, now)
         end
         Q.rollStreak(acc, user, now, cfg)
         genDay(acc, user, day, now, cfg)
+        MQ.Sync.unpin(acc, user, "d", true)   -- tracker pins name yesterday's slots
         changed = true
         -- a new list (tid / target) is not in a delta, which only carries progress: an open window gets a full state
         MQ.Sync.dirty(user, "all")
@@ -289,6 +290,7 @@ function Q.ensure(acc, user, now)
     if not acc.week or acc.week.key ~= week then
         Q.goalFor(week, now, cfg)
         genWeek(acc, user, week, now, cfg)
+        MQ.Sync.unpin(acc, user, "w", true)
         changed = true
         MQ.Sync.dirty(user, "all")
     end
@@ -495,6 +497,7 @@ function Q.swap(acc, user, slot)
     d.quests[slot] = newQuest(t, rollTarget(t, cfg.daily.pool and cfg.daily.pool[t.tid], rng, diffMult(cfg)), dailyPts(cfg, t), now)
     d.swaps = d.swaps - 1
     MQ.Balance.given(t.tid, now)
+    MQ.Sync.unpin(acc, user, "d" .. slot)   -- the pin was for the quest swapped out
     MQ.Sync.dirty(user, "day")
     return true
 end

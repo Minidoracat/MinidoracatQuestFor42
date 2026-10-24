@@ -308,10 +308,12 @@ function S.onServerStarted()
     Q.Net.up = true
 end
 
--- watchers that went offline stop receiving deltas
+-- watchers and trackers that went offline stop receiving deltas
 local function pruneWatchers()
-    for user in pairs(Q.Sync.watchers) do
-        if Q.Net.playerOf(user) == nil then Q.Sync.forget(user) end
+    for _, set in ipairs({ Q.Sync.watchers, Q.Sync.trackers }) do
+        for user in pairs(set) do
+            if Q.Net.playerOf(user) == nil then Q.Sync.forget(user) end
+        end
     end
 end
 
@@ -350,6 +352,8 @@ S.define("hello", { kind = "query", run = function(ctx)
     if Q.Import then safeCall("Import.baseline", Q.Import.baseline, acc, ctx.user, ctx.player) end
     Q.Net.send(ctx.player, "catalog", Q.Sync.catalog())
     Q.Net.send(ctx.player, "state", Q.Sync.state(ctx.user, acc))
+    Q.Net.send(ctx.player, "titles", { full = true, map = Q.Sync.titles() })
+    Q.Sync.titleChanged(ctx.user, acc)
     return true
 end })
 
@@ -363,9 +367,22 @@ S.define("watch", { kind = "query", fields = { on = "bool" }, run = function(ctx
     return true
 end })
 
+-- the tracker panel is on: pinned progress comes in deltas while the window is closed
+S.define("track", { kind = "query", fields = { on = "bool" }, run = function(ctx)
+    Q.Sync.track(ctx.user, ctx.args.on)
+    return true
+end })
+
 local function accountOf(ctx)
     return Q.Store.account(ctx.user, false)
 end
+
+-- id: "d1".."d4", "w1".."w3", "a:<achId>" (Sync.pinValid); the mutation reply pushes a fresh state with pins
+S.define("pin", { kind = "mutation", fields = { id = "text", on = "bool" }, run = function(ctx)
+    local acc = accountOf(ctx)
+    if acc == nil then return false, CODE.NOT_FOUND end
+    return Q.Sync.pin(acc, ctx.user, ctx.args.id, ctx.args.on)
+end })
 
 S.define("seen", { kind = "mutation", run = function(ctx)
     local acc = accountOf(ctx)
@@ -380,10 +397,12 @@ S.define("title", { kind = "mutation", fields = { id = "str?" }, run = function(
     local id = ctx.args.id
     if id == nil or id == "" then
         acc.title = nil
+        Q.Sync.titleChanged(ctx.user, acc)
         return true
     end
     if not (acc.titles and acc.titles[id] == true) then return false, CODE.TITLE_LOCKED end
     acc.title = id
+    Q.Sync.titleChanged(ctx.user, acc)
     if Q.Boards and Q.Boards.profileChanged then safeCall("Boards.profileChanged", Q.Boards.profileChanged, ctx.user) end
     return true
 end })

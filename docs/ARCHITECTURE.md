@@ -141,6 +141,7 @@ Account = {
   hidden = nil,                                 -- 管理員移出排行榜：{ reason, actor, at }
   ex = { day, used = 0, seq = 0, queue = {} },  -- queue: { { seq, amount, coins, state = "queued", at, tries } }
   unseen = 0,                                   -- Dock 徽章：還沒看過的完成與解鎖數
+  pins = {},                                    -- 追蹤面板：最多 LIMIT.MAX_PINS（5）個，"d1"～"d4" 今天的每日格、"w1"～"w3" 本週格、"a:<achId>"
   imported = false,
   anomalies = 0,                                -- 本季超量次數（結算名單標示用）
 }
@@ -299,9 +300,11 @@ boards[i] = { id = "kills", cat = "combat", stat = "zombie.kills", periods = { "
 
 - `Net.send(player, cmd, payload)`：MP 用 `sendServerCommand(player, MODULE, cmd, payload)`；SP 直呼 `MinidoracatQuest.Client.receive(cmd, payload)`。
 - `Net.toUser(user, cmd, payload)`：送給在線、身分通過的該帳號。`Net.broadcast(cmd, payload)`：送給所有身分通過的在線玩家。
-- `Sync.state(user, acc)` → `state` payload（§6.3）。`Sync.dirty(user, part)`：part ∈ `day`、`week`、`goal`、`points`、`achv`、`streak`、`newbie`、`all`。
-- `Sync.tick(now)`：對開著視窗（`watch`）的玩家每秒最多送一次 `delta`；`all` 改送完整 `state`。
-- `Sync.toast(user, t)`：t＝`{ kind, … }`（§6.3），2 秒內同一人的 `achv` 合併。`Sync.broadcastToast(t)`：全服通知，每位成就者每分鐘最多 1 則。
+- `Sync.state(user, acc)` → `state` payload（§6.3）。`Sync.dirty(user, part)`：part ∈ `day`、`week`、`goal`、`points`、`achv`、`streak`、`newbie`、`trk`、`pins`、`all`；`user = nil` 標給所有開著視窗或追蹤面板的人。
+- `Sync.tick(now)`：每秒最多一輪，一輪只走一次在線名單。開著視窗（`watch`）的人收 `delta`，`delta` 帶不了的部分改送完整 `state`；只開追蹤面板（`track`）的人只收追蹤中的進度：有追蹤那一格的 `day`／`week`、`trk`、`pins`（`all`、`events` 仍送完整 `state`）；兩者都沒有的人只收 `unseen`。
+- 追蹤：`Sync.track(user, on)`、`Sync.pin(acc, user, id, on)` → ok, code（加入時檢查 `Sync.pinValid`：今天／本週還在進行的格、還有下一級的非隱藏成就；滿 5 個回 `TOO_MANY_PINS`；拿掉一律成功）、`Sync.unpin(acc, user, id, prefix)`（換日 `"d"`、換週 `"w"` 用 prefix 一次清掉；`Quests.swap` 清掉那一格；`Achievements.unlock` 到最高級清掉該成就）。`Sync.trk(acc)` → `{ [achId] = { t, v } }`：追蹤中成就的已解鎖等級與數值（scope `life` 取這條命，其餘取累計）。`Stats.listen("track")` 只在變動的統計屬於追蹤中的成就時標 `trk`（`Sync.pinStats`，熱路徑只查表）。
+- 稱號：`Sync.titles()` → 在線玩家 `{ [user] = titleId }`；`Sync.titleChanged(user, acc)` 對所有人廣播 `titles { u, t }`（`hello`、`title` 指令、`Achievements.revoke` 拿掉戴著的稱號時）。
+- `Sync.toast(user, t)`：t＝`{ kind, … }`（§6.3），2 秒內同一人的 `achv` 合併。`Sync.broadcastToast(t, achiever)`：全服通知，每位成就者每分鐘最多 1 則；成就者匿名時，一般玩家收到的那份沒有 `titleId`（頭上與聊天的稱號會認出是誰），管理員那份帶 `a` 與 `titleId`。
 - `Sync.catalogChanged()`：設定改了以後對在線玩家廣播 `catalog`。
 
 ### 5.7 Server（Core）
@@ -338,19 +341,21 @@ boards[i] = { id = "kills", cat = "combat", stat = "zombie.kills", periods = { "
 
 | cmd | kind | 欄位 | 伺服器回應 |
 |---|---|---|---|
-| `hello` | query | — | `catalog`、`state` |
+| `hello` | query | — | `catalog`、`state`、`titles { full, map }`；其他人收到 `titles { u, t }` |
 | `watch` | query | `on: bool` | 開著視窗才收 `delta` |
+| `track` | query | `on: bool` | 追蹤面板開著：視窗關著也收追蹤中的進度 |
+| `pin` | mutation | `id: text`、`on: bool` | `result`＋`state`；`BAD_ARGS`（不能追蹤的項目）、`TOO_MANY_PINS` |
 | `seen` | mutation | — | `result`；`unseen` 歸零 |
 | `swap` | mutation | `slot: int`（1～3） | `result`＋`state` |
 | `prefs` | mutation | `themes: str`（逗號分隔，最多 3 個） | `result`＋`state` |
-| `title` | mutation | `id: str?`（空＝不用） | `result`＋`state` |
+| `title` | mutation | `id: str?`（空＝不用） | `result`＋`state`；所有人收到 `titles { u, t }` |
 | `anon` | mutation | `on: bool` | `result`＋`state` |
 | `board` | query | `board: str`、`period: str` | `board` |
 | `records` | query | — | `records` |
 | `exchange` | mutation | `amount: int` | `result`（含 `state`＝`paid`／`queued`／`refunded`、`coins`）＋`state` |
 | `admin` | 依 op | `op: str`＋該 op 的欄位 | `admin` |
 
-錯誤碼（`Contract.CODE`，客戶端用 `IGUI_MQ_Code_<CODE>`）：`OK`、`PROTOCOL_MISMATCH`、`BAD_ARGS`、`IDENTITY_UNVERIFIED`、`NOT_READY`、`FORBIDDEN`、`RATE_LIMITED`、`NO_SWAPS`、`BAD_SLOT`、`BAD_THEME`、`TOO_MANY_PREFS`、`TITLE_LOCKED`、`EXCHANGE_OFF`、`EXCHANGE_MIN`、`EXCHANGE_DAY_LIMIT`、`NOT_ENOUGH_POINTS`、`ECONOMY_MISSING`、`BAD_BOARD`、`BAD_CONFIG`、`BAD_SEASON_LENGTH`、`TOO_SOON`、`NOT_FOUND`、`FILE_ERROR`、`INTERNAL`。
+錯誤碼（`Contract.CODE`，客戶端用 `IGUI_MQ_Code_<CODE>`）：`OK`、`PROTOCOL_MISMATCH`、`BAD_ARGS`、`IDENTITY_UNVERIFIED`、`NOT_READY`、`FORBIDDEN`、`RATE_LIMITED`、`NO_SWAPS`、`BAD_SLOT`、`BAD_THEME`、`TOO_MANY_PREFS`、`TOO_MANY_PINS`、`TITLE_LOCKED`、`EXCHANGE_OFF`、`EXCHANGE_MIN`、`EXCHANGE_DAY_LIMIT`、`NOT_ENOUGH_POINTS`、`ECONOMY_MISSING`、`BAD_BOARD`、`BAD_CONFIG`、`BAD_SEASON_LENGTH`、`TOO_SOON`、`NOT_FOUND`、`FILE_ERROR`、`INTERNAL`。
 
 ### 6.2 管理 op（`admin = true`，mutation 都寫稽核與事件記錄）
 
@@ -378,7 +383,7 @@ boards[i] = { id = "kills", cat = "combat", stat = "zombie.kills", periods = { "
 | `balance.report` | — | `rows = { { tid, given, done, rate, medianMin, suggest } }` |
 | `towns.here` | — | 管理員目前座標與所在城鎮（加自訂城鎮用） |
 
-自訂成就、自訂城鎮、任務池、每週任務、共同目標、連續獎勵、兌換設定、廣播設定，都是 `cfg.preview`／`cfg.apply` 的路徑。
+自訂成就、自訂城鎮、任務池、每週任務、共同目標、連續獎勵、兌換設定、廣播設定、稱號顯示（`titles.head`、`titles.chat`），都是 `cfg.preview`／`cfg.apply` 的路徑。
 
 ### 6.3 伺服器 → 客戶端
 
@@ -398,12 +403,14 @@ boards[i] = { id = "kills", cat = "combat", stat = "zombie.kills", periods = { "
   season = { no, startMs, endsAt, state },
   exchange = { available, enabled, rate, perDay, used, min },
   events = { { name, theme, mult, endsAt } },
-  unseen }
+  unseen,
+  pins = { … }, trk = { [achId] = { t, v } } }     -- 追蹤面板（§5.6）
 ```
 
-- `delta`：`{ day = { [i] = { prog, state, ptsNow } }, week = { [i] = { prog, state, ptsNow } }, goal = { progress, reached }, points = { … }, unseen }`，只帶有變的欄位（`ptsNow` 只在完成時帶 `got`；活動開始或結束時 `Quests.watchEvents` 讓開著視窗的人收到完整 `state`）。
+- `delta`：`{ day = { [i] = { prog, state, ptsNow } }, week = { [i] = { prog, state, ptsNow } }, goal = { progress, reached }, points = { … }, unseen, trk = { … }, pins = { … } }`，只帶有變的欄位（`ptsNow` 只在完成時帶 `got`；活動開始或結束時 `Quests.watchEvents` 讓開著視窗的人收到完整 `state`）。只開追蹤面板的人不收 `goal`、`points`。
+- `titles`：`{ full = true, map = { [user] = titleId } }`（登入時，在線玩家）或 `{ u, t }`（一人換了稱號或剛登入；`t` 為 nil 表示不戴）。
 - `toast`：`{ kind = "achv", id, tier, pts }`、`{ kind = "achvMany", ids = { … 最多 3 }, n }`、`{ kind = "quest", tid, target, pts }`、`{ kind = "week", tid, target, pts }`（帶 `target`：視窗關著時客戶端的任務清單是登入時的快照，跨日後查不到新任務）、`{ kind = "goal", stat, pts }`、`{ kind = "streak", days, pts }`、`{ kind = "newbie", pts }`、`{ kind = "exchange", state, coins }`、`{ kind = "season", no, rank, pts }`、`{ kind = "broadcast", who, a, id, tier, titleId }`（`who` 為匿名時是 nil；`a` 是匿名者的帳號，只在送給管理員的那份，客戶端顯示「名字（匿名）」）。
-- `board`：`{ board, period, status = "ok", season = { no, endsAt }, rows = { { r, n, a, v, t, d } … ≤ 50 }, me = { r, v, d } | nil, count }`。`n` 是名字（匿名時 nil，客戶端顯示「匿名倖存者」），`a` 是匿名那一列的帳號（只送給管理員，客戶端顯示「名字（匿名）」），`t` 稱號 id，`d` 名次變化（正＝上升，nil＝新上榜）。
+- `board`：`{ board, period, status = "ok", season = { no, endsAt }, rows = { { r, n, a, v, t, d } … ≤ 50 }, me = { r, v, d } | nil, count }`。`n` 是名字（匿名時 nil，客戶端顯示「匿名倖存者」），`a` 是匿名那一列的帳號（只送給管理員，客戶端顯示「名字（匿名）」），`t` 稱號 id（匿名那一列只送給管理員：同一個稱號在頭上與聊天認得出是誰），`d` 名次變化（正＝上升，nil＝新上榜）。
 - `records`：`{ rows = { { stat, season, life, total } … }, points = { season, total, balance } }`。客戶端不列沒有定義的統計（pack 移除後留下的 id）。
 - `admin`：`{ op, ok, code, … }`。
 
@@ -419,6 +426,8 @@ boards[i] = { id = "kills", cat = "combat", stat = "zombie.kills", periods = { "
 - 視窗：左側 NavList（每日任務、每週任務、成就、排行榜、我的紀錄；分隔後：設定、管理（只有 `state.admin`）），右側內容；不透明視窗。預設大小＝內容寬（螢幕寬一半，夾在 640～1000 px）＋NavList 寬、高為螢幕高 82 %（460～1000 px），都不超過螢幕減 40 px（`Window.defaultSize`）；玩家拖過的大小由 ISLayoutManager 記住，大小和預設不同時標題列出現「重設大小」，按下回到預設大小並置中。
 - 頁面資料來源：每日／每週／成就／我的紀錄（積分卡）用 `state`；我的紀錄表格送 `records`；排行榜送 `board`（狀態機 loading → ready／empty／error，5 秒逾時）；設定頁送 `prefs`／`title`／`anon`。
 - 開視窗送 `watch {on=true}`，關視窗送 `{on=false}`；打開每日頁或成就頁時送 `seen`。
+- 追蹤面板（`Hud.lua`）：`ISPanel` 衍生、不置頂（之後開的視窗蓋在上面），用頁面同一套 canvas 指令繪製（`Draw.renderOps`），資料一變才重排，`render` 只走指令列。預設在原版左側欄右邊（`getPlayerData(0).equipped` 的右緣＋12），拖過的位置與收合狀態用 `ISLayoutManager` 記在 `layout.ini`（拖完或收合就寫）。顯示條件：MOD 選項開、有追蹤項目、任務視窗沒開、角色活著、沒按 V（`ISUIHandler.allUIVisible`）、Esc 選單沒開；每 500 ms 與資料、視窗開關時檢查，介面被藏起來時不自己出現。`hello` 時面板開著就送 `track {on=true}`，選項切換時送 on／off。卡片上的「追蹤」chip 送 `pin`；滿 5 個時其他 chip 停用並以 tooltip 說明。
+- 稱號（`Titles.lua`）：`titles` 推送存成 `byUser`。聊天：檔案載入時包住 `ISChat.addLineInChat`（原版在 `OnGameStart` 才把它掛到 `OnAddMessage`，`ISChat.lua:1176`），作者戴著稱號時把訊息換成代理，`getTextWithPrefix()` 在 `[作者]` 後面插入 ` <SPACE> <PUSHRGB:…> 「稱號」 <POPRGB> `（稱號裡的 `<`、`>` 先轉成 `&lt;`、`&gt;`），其他方法轉給原訊息。頭上：每 500 ms 從 `getOnlinePlayers()` 挑 40 格內、有稱號、活著、不在車上的玩家；`OnPreUIDraw` 每幀照原版規則（`IsoGameCharacter.renderlast`／`updateUserName`）檢查後在名字上方一行畫字（黑色陰影＋金色）。兩者都只在多人、伺服器開關 `titles.head`／`titles.chat` 與玩家 MOD 選項都開時生效。
 
 ## 8. facade `MinidoracatQuest.v1`（伺服器）
 
@@ -443,6 +452,7 @@ boards[i] = { id = "kills", cat = "combat", stat = "zombie.kills", periods = { "
 ## 11. 效能預算
 
 - 每 tick：榜單最多重排一個；`Sync.tick` 每秒最多送一次；`Exchange.tick` 每小時；輪詢每分鐘、每 tick 最多處理 8 位在線玩家。
+- 客戶端每幀：追蹤面板只走排好的繪製指令；頭上的稱號只處理每 500 ms 挑出的候選人（每人幾次引擎查詢與兩次 `DrawStringCentre`）。實測（2026-10-24 E2E `title-mp --define perf=1`，畫面上 1 位戴稱號的玩家、GameProfiler 開關各 5 段 15 秒）：重畫介面的那幾幀多約 0.05 ms，攤到每幀約 0.013 ms；整幀時間的差距小於段與段之間的雜訊。
 - 封包：`board` ≤ 約 4 KB；`state` ≤ 約 8 KB；`catalog` ≤ 64 KB（自訂成就多時分頁送）。所有清單都有列數上限。
 - `Stats.add` 是熱路徑：不建 table、不組字串（稽核路徑除外）。
 

@@ -17,7 +17,8 @@ local PAD, GAP = D.PAD, D.GAP
 local CARD_PAD = 10
 
 -- ===== quest card =====
--- o = { key, frame, tag, tagToken, foot = { text, token }, swap = { enabled, page } | nil, noSwapText }
+-- o = { key, frame, tag, tagToken, foot = { text, token }, swap = { enabled, page } | nil, noSwapText,
+--       pin = tracker id ("d1".."d4", "w1".."w3") }
 -- returns the y below the card
 function P.questCard(b, page, x, y, w, q, o)
     local lh = D.fontH()
@@ -40,7 +41,10 @@ function P.questCard(b, page, x, y, w, q, o)
         btn.internal = o.swap.slot
         btn:setEnabled(o.swap.enabled)
     end
-    local footH = math.max(lh, btn and btn.height or 0)
+    -- pin chip: active quests, and a pinned one after it is done (so it can be taken off the panel)
+    local pinBtn = nil
+    if o.pin ~= nil and (not done or C.isPinned(o.pin)) then pinBtn = D.pinChip(page, o.key .. "pin", o.pin) end
+    local footH = math.max(lh, btn and btn.height or 0, pinBtn and pinBtn.height or 0)
     local h = CARD_PAD + D.chipH() + 6 + #nameLines * (lh + 2) + 4 + 6 + 6 + footH + CARD_PAD
     b:card(x, y, w, h, o.frame or (done and D.EXTRA.success) or "border")
     local cy = y + CARD_PAD
@@ -68,13 +72,19 @@ function P.questCard(b, page, x, y, w, q, o)
     else
         b:text(x + CARD_PAD, textY, progText, "textMuted")
     end
+    local rightEdge = right
     if o.foot ~= nil then
-        b:textRight(right, textY, o.foot[1], o.foot[2])
+        rightEdge = right - b:textRight(right, textY, o.foot[1], o.foot[2]) - 8
     elseif btn ~= nil then
         btn:setX(right - btn.width)
         btn:setY(cy)
+        rightEdge = right - btn.width - 6
     elseif o.noSwapText ~= nil and not done then
-        b:textRight(right, textY, o.noSwapText, "textFaint")
+        rightEdge = right - b:textRight(right, textY, o.noSwapText, "textFaint") - 8
+    end
+    if pinBtn ~= nil then
+        pinBtn:setX(rightEdge - pinBtn.width)
+        pinBtn:setY(cy + math.floor((footH - pinBtn.height) / 2))
     end
     return y + h + GAP
 end
@@ -224,20 +234,20 @@ function P.layout(page)
     local quests = type(day.quests) == "table" and day.quests or {}
     local swaps = math.floor(tonumber(day.swaps) or 0)
     local pending = C.isPending(page.swapRid)
-    local shared = nil
+    local shared, sharedSlot = nil, nil
     for i, q in ipairs(quests) do
         if type(q) == "table" and q.state ~= "swapped" and q.state ~= "expired" then
             if q.shared then
-                shared = q
+                shared, sharedSlot = q, i
             else
-                y = P.questCard(b, page, x, y, w, q, { key = "q" .. i,
+                y = P.questCard(b, page, x, y, w, q, { key = "q" .. i, pin = "d" .. i,
                     swap = swaps > 0 and q.state == "active" and { slot = i, enabled = not pending } or nil,
                     noSwapText = getText("IGUI_MQ_UI_NoSwaps") })
             end
         end
     end
     if shared ~= nil then
-        y = P.questCard(b, page, x, y, w, shared, { key = "shared", frame = D.EXTRA.info,
+        y = P.questCard(b, page, x, y, w, shared, { key = "shared", pin = "d" .. sharedSlot, frame = D.EXTRA.info,
             tag = getText("IGUI_MQ_UI_Shared"), tagToken = D.EXTRA.info, barToken = D.EXTRA.info,
             foot = { getText("IGUI_MQ_UI_SharedDone", D.num(day.sharedDone or 0)), D.EXTRA.info } })
         y = b:para(x, y - 2, getText("IGUI_MQ_UI_SharedNote"), w, "textFaint") + GAP

@@ -40,4 +40,6 @@ return {
     { dir = "client", name = "MinidoracatQuest/AdminPanel" },
     { dir = "client", name = "MinidoracatQuest/AdminAchv" },
     { dir = "client", name = "MinidoracatQuest/AdminPages" },
+    { dir = "client", name = "MinidoracatQuest/Hud" },
+    { dir = "client", name = "MinidoracatQuest/Titles" },
 }

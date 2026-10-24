@@ -142,6 +142,7 @@ local function unlock(acc, user, d, from, to, quiet, cfg, now)
         end
     end
     acc.achv[d.id] = to
+    if to >= #d.tiers then MQ.Sync.unpin(acc, user, "a:" .. d.id) end   -- nothing left to track
     MQ.Sync.dirty(user, "achv")
     if quiet then
         local total = 0
@@ -193,6 +194,7 @@ function A.revoke(user, achId, toTier, reason, actor)
     if not d or cur == 0 then return false, code("NOT_FOUND") end
     if type(toTier) ~= "number" or toTier < 0 or toTier >= cur then return false, code("BAD_ARGS") end
     local lost = 0
+    local worn = acc.title
     for t = toTier + 1, cur do
         lost = lost + (d.pts[t] or 0)
         local title = d.titles[t]
@@ -201,6 +203,7 @@ function A.revoke(user, achId, toTier, reason, actor)
             if acc.title == title then acc.title = nil end
         end
     end
+    if acc.title ~= worn then MQ.Sync.titleChanged(user, acc) end
     local p = acc.points
     p.season = math.max(0, p.season - lost)
     p.total = math.max(0, p.total - lost)

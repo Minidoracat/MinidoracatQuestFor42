@@ -169,7 +169,8 @@ function B.tick(now)
     end
 end
 
--- -> payload | nil, code. admin: an anonymous row also carries the real name in `a` (only admins get it)
+-- -> payload | nil, code. admin: an anonymous row also carries the real name in `a` (only admins get it).
+-- An anonymous row has no title for the others: the same title over a head or in chat would tell who it is.
 function B.page(boardId, period, user, admin)
     local def = type(boardId) == "string" and B.def(boardId) or nil
     if not def or not B.hasPeriod(def, period) then return nil, code("BAD_BOARD") end
@@ -185,7 +186,7 @@ function B.page(boardId, period, user, admin)
         local anon = acc and acc.anon
         local b = c.base[r.u]
         out.rows[i] = { r = i, n = not anon and r.u or nil, a = anon and admin and r.u or nil, v = r.v,
-            t = acc and acc.title or nil, d = b and b - i or nil }
+            t = acc and (not anon or admin) and acc.title or nil, d = b and b - i or nil }
     end
     local mine = user and c.rank[user]
     if mine then

@@ -1,7 +1,8 @@
 -- MinidoracatQuest/Entry.lua: ways into the window and notifications (ARCHITECTURE 7, spec 17).
 --   Family Dock entry (id quest, order 70, badge = state.unseen, bind MinidoracatQuest_Toggle), the hotkey
 --   (registered unbound: the family key table has no free single key), player MOD options (show the Dock entry,
---   show server-wide unlock toasts) and the toast texts for every server toast kind.
+--   server-wide unlock toasts, the tracker panel, other players' titles over heads and in chat) and the toast texts
+--   for every server toast kind.
 --   Dock callbacks run every frame inside pcall: they only read cached values (no tables, no strings).
 
 if isServer() then return end
@@ -21,26 +22,38 @@ E.DOCK_ICON = "media/ui/MinidoracatQuest/dock_trophy.png"
 E.badge = E.badge or 0
 E.showDock = E.showDock ~= false
 E.showBroadcast = E.showBroadcast ~= false
+E.showHud = E.showHud ~= false
+E.showHeadTitles = E.showHeadTitles ~= false
+E.showChatTitles = E.showChatTitles ~= false
 
 -- ===== MOD options (PZAPI.ModOptions; tick boxes read with explicit nil/type tests) =====
+local function tick(o, id)
+    local t = o:getOption(id)
+    return t == nil or t:getValue() ~= false
+end
+
 function E.readOptions()
     local o = E.options
     if o == nil then return end
-    local d, b = o:getOption("ShowDock"), o:getOption("ShowBroadcast")
-    E.showDock = d == nil or d:getValue() ~= false
-    E.showBroadcast = b == nil or b:getValue() ~= false
+    E.showDock, E.showBroadcast = tick(o, "ShowDock"), tick(o, "ShowBroadcast")
+    E.showHud, E.showHeadTitles, E.showChatTitles = tick(o, "ShowHud"), tick(o, "ShowHeadTitles"), tick(o, "ShowChatTitles")
 end
 
 function E.applyOptions()
+    local hud = E.showHud
     E.readOptions()
     local UI = D.ui({ "dock" })
     if UI ~= nil and UI.Dock ~= nil then UI.Dock.refresh() end
+    if Q.Hud ~= nil and hud ~= E.showHud then Q.Hud.setShown(E.showHud) end
 end
 
 if first and PZAPI and PZAPI.ModOptions then
     local o = PZAPI.ModOptions:create("MinidoracatQuestFor42", "UI_MinidoracatQuest_Options")
     o:addTickBox("ShowDock", "UI_MinidoracatQuest_ShowDock", true, "UI_MinidoracatQuest_ShowDock_tooltip")
     o:addTickBox("ShowBroadcast", "UI_MinidoracatQuest_ShowBroadcast", true, "UI_MinidoracatQuest_ShowBroadcast_tooltip")
+    o:addTickBox("ShowHud", "UI_MinidoracatQuest_ShowHud", true, "UI_MinidoracatQuest_ShowHud_tooltip")
+    o:addTickBox("ShowHeadTitles", "UI_MinidoracatQuest_ShowHeadTitles", true, "UI_MinidoracatQuest_ShowHeadTitles_tooltip")
+    o:addTickBox("ShowChatTitles", "UI_MinidoracatQuest_ShowChatTitles", true, "UI_MinidoracatQuest_ShowChatTitles_tooltip")
     o.apply = function() MinidoracatQuest.Entry.applyOptions() end
     E.options = o
     -- framework rev 23 backup (UI repo ARCHITECTURE 3.23): at file load, before the vanilla load in
@@ -161,5 +174,6 @@ if first then
     Events.OnGameStart.Add(function()
         MinidoracatQuest.Entry.readOptions()
         MinidoracatQuest.Entry.registerDock()
+        if MinidoracatQuest.Hud ~= nil then MinidoracatQuest.Hud.show = MinidoracatQuest.Entry.showHud end
     end)
 end

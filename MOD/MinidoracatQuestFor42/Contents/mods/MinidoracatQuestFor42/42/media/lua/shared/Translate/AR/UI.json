@@ -4,6 +4,12 @@
   "UI_MinidoracatQuest_ShowDock_tooltip": "El botón de Misiones y logros en la barra de la familia de mods. Si está oculto, la tecla (Configuración de teclas > [MinidoracatQuest]) sigue abriendo la ventana.",
   "UI_MinidoracatQuest_ShowBroadcast": "Mostrar avisos de desbloqueo del servidor",
   "UI_MinidoracatQuest_ShowBroadcast_tooltip": "Avisos cuando otro jugador desbloquea un rango alto de logro.",
+  "UI_MinidoracatQuest_ShowHud": "Mostrar el panel de seguimiento",
+  "UI_MinidoracatQuest_ShowHud_tooltip": "Arriba a la izquierda: el progreso de las misiones y logros que marcaste con \"Seguir\" en una tarjeta. Arrástralo para moverlo.",
+  "UI_MinidoracatQuest_ShowHeadTitles": "Mostrar títulos sobre las cabezas",
+  "UI_MinidoracatQuest_ShowHeadTitles_tooltip": "El título que lleva cada jugador, una línea encima de su nombre. Se oculta si el servidor oculta los nombres. Desactivarlo también ahorra el dibujado en este equipo.",
+  "UI_MinidoracatQuest_ShowChatTitles": "Mostrar títulos en el chat",
+  "UI_MinidoracatQuest_ShowChatTitles_tooltip": "El título del autor después de su nombre en las líneas del chat.",
   "UI_optionscreen_binding_MinidoracatQuest": "Minidoracat Misiones y logros",
   "UI_optionscreen_binding_MinidoracatQuest_Toggle": "Abrir / cerrar Misiones y logros"
 }

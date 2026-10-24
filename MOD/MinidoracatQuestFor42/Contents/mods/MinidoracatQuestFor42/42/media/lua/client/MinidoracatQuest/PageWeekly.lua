@@ -83,7 +83,7 @@ function P.layout(page)
     for i, q in ipairs(type(week.quests) == "table" and week.quests or {}) do
         if type(q) == "table" and q.state ~= "expired" then
             n = n + 1
-            y = Q.PageDaily.questCard(b, page, x, y, w, q, { key = "w" .. i })
+            y = Q.PageDaily.questCard(b, page, x, y, w, q, { key = "w" .. i, pin = "w" .. i })
         end
     end
     if n == 0 then y = b:para(x, y, getText("IGUI_MQ_UI_NoQuests"), w, "textMuted") + GAP end

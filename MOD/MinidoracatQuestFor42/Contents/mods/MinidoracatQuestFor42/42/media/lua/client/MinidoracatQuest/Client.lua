@@ -425,6 +425,23 @@ function C.exchangeQuote(state, text)
     return q
 end
 
+-- ===== tracker pins (state.pins: "d1".."d4" daily slots, "w1".."w3" weekly slots, "a:<achId>") =====
+function C.pins() return C.state ~= nil and type(C.state.pins) == "table" and C.state.pins or {} end
+
+function C.isPinned(id)
+    for _, p in ipairs(C.pins()) do
+        if p == id then return true end
+    end
+    return false
+end
+
+-- the mutation's fresh state redraws the pages and the panel; a refusal (TOO_MANY_PINS) shows why
+function C.setPin(id, on)
+    return C.send("pin", { id = id, on = on == true }, function(r)
+        if not r.ok and Q.Draw ~= nil then Q.Draw.toast(Q.Draw.codeText(r.code), "", nil) end
+    end)
+end
+
 -- ===== receive =====
 local H = {}
 C.handlers = H
@@ -479,6 +496,9 @@ function H.records(p)
 end
 
 function H.toast(p) C.emit("toast", p) end
+
+-- { full, map = { user -> titleId } } at hello, { u, t } on a change (Titles.lua keeps the table)
+function H.titles(p) C.emit("titles", p) end
 
 function C.receive(cmd, payload)
     if type(payload) ~= "table" then return end

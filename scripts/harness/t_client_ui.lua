@@ -85,6 +85,7 @@ return function(T)
         function b:fitWidth() self.width = #tostring(self.title) * 7 + 20 end
         function b:setActive(v) self.active = v end
         function b:setEnabled(v) self.enabled = v end
+        function b:setTooltip(t) self.tooltip = t end
         return b
     end }
     fake.ScrollPanel = { new = function(o)
@@ -153,12 +154,12 @@ return function(T)
     fake.CAPABILITIES.modOptionsBackup = true
     T.bootClient()
     PZAPI.ModOptions:load() -- the vanilla load in MainOptions:create comes after every MOD file loaded
-    check(table.concat(trace, ",") == "create,tick,tick,protect:MinidoracatQuestFor42,load",
-        "flag on: protect once, after both tick boxes, before the vanilla load (" .. table.concat(trace, ",") .. ")")
+    check(table.concat(trace, ",") == "create,tick,tick,tick,tick,tick,protect:MinidoracatQuestFor42,load",
+        "flag on: protect once, after every tick box, before the vanilla load (" .. table.concat(trace, ",") .. ")")
     trace = {}
     fake.CAPABILITIES.modOptionsBackup = nil
     T.bootClient()
-    check(table.concat(trace, ",") == "create,tick,tick", "flag off: protect not called (" .. table.concat(trace, ",") .. ")")
+    check(table.concat(trace, ",") == "create,tick,tick,tick,tick,tick", "flag off: protect not called (" .. table.concat(trace, ",") .. ")")
     PZAPI, fake.ModOptionsBackup = nil, nil
 
     local MQ = T.bootClient()
@@ -325,5 +326,47 @@ return function(T)
     local off = false
     for _, s in ipairs(T.clientSent) do if s.command == "watch" and s.args.on == false then off = true end end
     check(off and not W.visible(), "closing sends watch off")
+
+    T.section("client UI: tracker panel")
+    local Hd = MQ.Hud
+    function El:setAlwaysOnTop(v) self.onTop = v end
+    getPlayerScreenLeft, getPlayerScreenTop, getPlayerData = function() return 0 end, function() return 0 end, function() end
+    push("delta", { pins = { "d1", "w1" } })
+    local hp = Hd.panel
+    check(hp ~= nil and hp:isVisible() and #hp.rows == 2 and hp.onTop == false and #errors == 0,
+        "pins with the window closed: the panel shows a row for each, under later windows")
+    hp:render()
+    local h1 = hp.hits[1]
+    Hd.onMouseDown(hp, h1.xx + 2, h1.y0 + 2)
+    local unpin = T.clientSent[#T.clientSent]
+    check(unpin.command == "pin" and unpin.args.id == "d1" and unpin.args.on == false, "a row's x unpins it")
+    local fullH = hp.height
+    Hd.onMouseDown(hp, hp.width - 10, 4)
+    check(hp.collapsed and hp.height < fullH and hp.height <= Hd.titleH() + Hd.PAD, "the arrow folds the panel to its title row")
+    Hd.onMouseDown(hp, hp.width - 10, 4)
+    check(not hp.collapsed and hp.height == fullH, "and opens it again")
+    W.open("daily")
+    check(not hp:isVisible(), "the main window hides the panel")
+    W.close()
+    check(hp:isVisible(), "closing the window brings it back")
+    ISUIHandler = { allUIVisible = false }
+    Hd.sync()
+    check(not hp:isVisible(), "hidden while V hides the UI")
+    ISUIHandler = nil
+    push("delta", { pins = { "d1", "d2", "d3", "d4", "w1" } })
+    W.open("daily")
+    W.onTick()
+    local dchip = W.pages.daily.pool.items.q1pin
+    W.select("achievements")
+    W.onTick()
+    local achChip = nil
+    for key, el in pairs(W.pages.achievements.pool.items) do
+        if string.sub(key, 1, 4) == "pin:" and el.visible then achChip = el end
+    end
+    check(dchip and dchip.active and dchip.enabled and achChip and achChip.enabled == false and achChip.tooltip ~= nil,
+        "five pinned: their chips stay clickable, the others turn gray with the reason on hover")
+    W.close()
+    push("delta", { pins = {} })
+    check(not hp:isVisible() and #errors == 0, "nothing pinned: no panel")
     MinidoracatUI = nil
 end

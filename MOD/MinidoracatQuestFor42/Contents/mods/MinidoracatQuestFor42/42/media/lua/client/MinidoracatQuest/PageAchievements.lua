@@ -1,7 +1,7 @@
 -- MinidoracatQuest/PageAchievements.lua: achievements page (spec 8.2): unlocked-count chip, category filter chips
---   (categories without achievements are hidden), one card per achievement: icon with a tier-colored frame,
---   tier badge in text and color, next tier with threshold and points, progress bar from the records totals
---   (scope "life" reads the this-life column); hidden achievements show only their hint until unlocked.
+--   with unlocked/total each (categories without achievements are hidden), one card per achievement: icon with a
+--   tier-colored frame, tier badge in text and color, next tier with threshold and points, progress bar from the
+--   records totals (scope "life" reads the this-life column); hidden achievements show only their hint until unlocked.
 --   Icons: media/ui/MinidoracatQuest/ach/<icon>.png, missing -> framework icon tinted with the tier color.
 
 if isServer() then return end
@@ -54,12 +54,26 @@ function P.categories(defs)
     return out
 end
 
+-- unlocked (tier >= 1) and total, overall and per category ({ got, total } by category)
 function P.counts(defs, achv)
-    local got = 0
+    local got, byCat = 0, {}
     for _, a in ipairs(defs.achievements) do
-        if (tonumber(achv and achv[a.id]) or 0) >= 1 then got = got + 1 end
+        local c = byCat[a.cat or "other"]
+        if c == nil then
+            c = { 0, 0 }
+            byCat[a.cat or "other"] = c
+        end
+        c[2] = c[2] + 1
+        if (tonumber(achv and achv[a.id]) or 0) >= 1 then
+            got = got + 1
+            c[1] = c[1] + 1
+        end
     end
-    return got, #defs.achievements
+    return got, #defs.achievements, byCat
+end
+
+local function chipTitle(label, got, total)
+    return label .. " " .. getText("IGUI_MQ_UI_Count", tostring(got), tostring(total))
 end
 
 -- ===== card =====
@@ -151,7 +165,7 @@ function P.layout(page)
     local s = C.state
     local defs = C.defs()
     local achv = s and type(s.achv) == "table" and s.achv or {}
-    local got, total = P.counts(defs, achv)
+    local got, total, byCat = P.counts(defs, achv)
     y = b:header(x, y, x + w, getText("IGUI_MQ_UI_Achievements"),
         { { getText("IGUI_MQ_UI_Count", tostring(got), tostring(total)), D.EXTRA.gold } })
     if s == nil then
@@ -162,12 +176,13 @@ function P.layout(page)
     page.cat = page.cat or "all"
     local cats = P.categories(defs)
     local found = page.cat == "all"
-    local btns = { page.pool:button("cat:all", page.UI, page.theme, getText("IGUI_MQ_UI_All"), page, P.onCat, "chip",
-        page.cat == "all") }
+    local btns = { page.pool:button("cat:all", page.UI, page.theme, chipTitle(getText("IGUI_MQ_UI_All"), got, total), page,
+        P.onCat, "chip", page.cat == "all") }
     btns[1].internal = "all"
     for _, cat in ipairs(cats) do
-        local btn = page.pool:button("cat:" .. cat, page.UI, page.theme, getText("IGUI_MQ_AchCat_" .. cat), page, P.onCat,
-            "chip", page.cat == cat)
+        local c = byCat[cat]
+        local title = chipTitle(getText("IGUI_MQ_AchCat_" .. cat), c[1], c[2])
+        local btn = page.pool:button("cat:" .. cat, page.UI, page.theme, title, page, P.onCat, "chip", page.cat == cat)
         btn.internal = cat
         btns[#btns + 1] = btn
         if cat == page.cat then found = true end

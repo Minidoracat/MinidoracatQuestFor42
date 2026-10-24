@@ -24,6 +24,7 @@ return function(T)
     function Base:setTooltip(s) self.tooltip = s end
     function Base:setEnabled(b) self.enabled = b end
     function Base:isEnabled() return self.enabled ~= false end
+    function Base:setWantMouseEvents(b) self.wantMouse = b end
     local function class(parent)
         local cls = setmetatable({}, { __index = parent })
         cls.__index = cls

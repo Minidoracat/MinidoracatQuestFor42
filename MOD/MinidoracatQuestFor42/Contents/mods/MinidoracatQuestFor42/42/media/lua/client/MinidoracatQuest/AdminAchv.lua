@@ -354,10 +354,16 @@ function P_.layout(P, pg, F)
     F:row(ctrls)
     F:text("dn", getText("IGUI_MQ_Admin_DiffNote"), "textMuted")
 
-    -- category filter
+    -- category filter, each with how many achievements it holds
+    local perCat = {}
+    for _, a in ipairs(pg.list) do
+        local c = a.custom and "custom" or a.cat
+        perCat[c] = (perCat[c] or 0) + 1
+    end
     local opts = {}
     for _, c in ipairs(cats) do
-        opts[#opts + 1] = { id = c, label = c == "custom" and getText("IGUI_MQ_Admin_CatCustom") or getText("IGUI_MQ_AchCat_" .. c) }
+        local label = c == "custom" and getText("IGUI_MQ_Admin_CatCustom") or getText("IGUI_MQ_AchCat_" .. c)
+        opts[#opts + 1] = { id = c, label = getText("IGUI_MQ_Admin_CatCount", label, A.num(perCat[c] or 0)) }
     end
     F:row({ F:label("cl", getText("IGUI_MQ_Admin_Category")), F:dropdown("cat", opts, pg.cat, P_.onCat) })
 

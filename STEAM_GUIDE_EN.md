@@ -128,7 +128,7 @@ Daily and weekly quests, achievements, season leaderboards and titles; pair it w
 [tr][td]Hidden achievement (1 tier)[/td][td]30, some give a title[/td][/tr]
 [/table]
 [list]
-[*] [b]About 110 in total[/b]: 107 built in; a server may add custom achievements or achievements from other mods.
+[*] [b]About 110 in total[/b]: 107 built in; a server may add custom achievements or achievements from other mods. Each category button shows unlocked/total.
 [*] [b]Next tier[/b]: every achievement shows the next tier's threshold and points.
 [*] [b]More tiers[/b]: admins can add up to 10 tiers; tier 5 and up are called "Legend".
 [*] [b]One-life achievements[/b]: those marked "One life" use this life's stats and start over after death; the rest use your all-time totals across characters.
@@ -239,7 +239,7 @@ The server needs Minidoracat Economy (multiplayer only). The Exchange page on th
 [*] [b]Refunded[/b]: if your economy account cannot receive coins, the points come back and you are asked to contact an admin.
 [*] [b]No reply[/b]: press "Ask again" to check the result; asking again never exchanges twice.
 [*] [b]Imported achievements[/b]: points from achievements imported mid-save never reach your balance and cannot be exchanged.
-[*] [b]Exchange history[/b]: once you have exchanged, the Exchange page lists the last 10 below the balance card (time, points to coins, Queued / Credited / Points returned). In the Economy admin ledger the reason reads "Quest points exchange"; with Economy versions after 42.21.0-0.22.0, your wallet statement and the receipts on the Economy admin's Player page read it too.
+[*] [b]Exchange history[/b]: once you have exchanged, the Exchange page lists the last 10 below the balance card (time, points to coins, Queued / Credited / Points returned). In the Economy admin ledger the reason reads "Quest points exchange"; from Economy 42.21.0-0.23.0 on, your wallet statement and the receipts on the Economy admin's Player page read it too.
 [/list]
 === 🧰 Settings
 {{img:07-settings-en.jpg}}
@@ -305,7 +305,7 @@ Open "Admin" on the left of the window; only roles listed in the "Admin roles" s
 [*] [b]Batch edits[/b]: tick several achievements to multiply thresholds or points, or add a tier.
 [*] [b]Single edit[/b]: threshold, points and title for each tier, up to 10 tiers.
 [*] [b]Custom achievements[/b]: add one from an existing stat (name, category, thresholds, points), or delete it.
-[*] [b]Hidden achievements[/b]: pick the Hidden category; each row lists what unlocks it and the hint players see.
+[*] [b]Hidden achievements[/b]: pick the Hidden category; each row lists what unlocks it and the hint players see. Edit changes their thresholds, points and titles. A custom achievement cannot be made hidden, and the hint text cannot be changed.
 [/list]
 [h3]Quests[/h3]
 [list]
@@ -326,8 +326,8 @@ Open "Admin" on the left of the window; only roles listed in the "Admin roles" s
 [/list]
 [h3]Players[/h3]
 [list]
-[*] [b]Anomalies[/b]: today or the last 7 days, records of a stat going over its per-minute limit.
-[*] [b]Look up an account[/b]: three point numbers, achievements, anomalies this season, whether it is removed from the leaderboards.
+[*] [b]Anomalies[/b]: today or the last 7 days, records of a stat going over its per-minute limit. Every stat has one (120 zombie kills by default, for example); each row shows that minute's total and the limit. The excess is not counted, so it does not advance quests or achievements.
+[*] [b]Look up an account[/b]: View on a row, or type the account, lists at the top of the page its three point numbers, achievements, anomalies this season and whether it is removed from the leaderboards.
 [*] [b]Revoke achievements[/b]: down to a chosen tier, or all of it.
 [*] [b]Remove from or return to the leaderboards[/b]: data is kept. Revoking and removing require a reason and record who did it.
 [/list]

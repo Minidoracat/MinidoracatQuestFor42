@@ -449,6 +449,7 @@ local function view(P, user)
         res.user = res.user or user
         pg.acct, pg.revAch, pg.revTier = res, nil, nil
         A.layout(P)
+        pg.sp:setYScroll(0)   -- the account is drawn at the top; "View" on a row far down would look like nothing happened
     end)
 end
 
@@ -544,6 +545,7 @@ local function layoutPlayers(P, pg, F)
     if pg.acct then layoutAccount(P, pg, F) end
 
     F:head("h", getText("IGUI_MQ_Admin_AnomHead"))
+    F:text("an", getText("IGUI_MQ_Admin_AnomNote"), "textMuted")
     local chips = {}
     for i, days in ipairs({ 1, 7 }) do
         local b = F:button("d" .. i, getText(days == 1 and "IGUI_MQ_Admin_Today" or "IGUI_MQ_Admin_Days7"), onDays, "chip")
@@ -564,7 +566,8 @@ local function layoutPlayers(P, pg, F)
         local b = F:button("v" .. i, getText("IGUI_MQ_Admin_View"), onView, "ghost")
         b.user = r.user
         -- the description goes on its own (wrapped) line under the row when it does not fit beside the name
-        local desc = getText("IGUI_MQ_Admin_AnomRow", A.statName(r.stat), A.num(r.n or 0), A.num(r.ceil or 0))
+        -- the entry keeps only the dropped part (Audit.over); that minute's total is the limit plus it
+        local desc = getText("IGUI_MQ_Admin_AnomRow", A.statName(r.stat), A.num((r.ceil or 0) + (r.n or 0)), A.num(r.ceil or 0))
         local descX = A.PAD + timeW + userW + A.GAP
         local fits = A.textW(desc) <= F.width - A.PAD - b.width - A.GAP - descX
         local cells = {

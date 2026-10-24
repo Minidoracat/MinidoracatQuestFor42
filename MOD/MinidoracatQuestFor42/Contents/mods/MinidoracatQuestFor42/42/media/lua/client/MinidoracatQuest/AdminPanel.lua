@@ -203,6 +203,9 @@ function Flow:cells(key, cells, zebra)
     local r = self:get(key, function()
         local e = Row:new(0, 0, 1, 1)
         e:initialise()
+        -- display only: ISUIElement:new wants mouse events and its onMouseUp returns nil, so a row added after a
+        -- button over it took the mouse-up and the button never fired (anomaly "View", UIElement.java:1331-1342)
+        e:setWantMouseEvents(false)
         e.theme, e.fh = P.theme, fontH()
         return e
     end)

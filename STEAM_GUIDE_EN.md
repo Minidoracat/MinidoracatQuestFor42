@@ -239,7 +239,7 @@ The server needs Minidoracat Economy (multiplayer only). The Exchange page on th
 [*] [b]Refunded[/b]: if your economy account cannot receive coins, the points come back and you are asked to contact an admin.
 [*] [b]No reply[/b]: press "Ask again" to check the result; asking again never exchanges twice.
 [*] [b]Imported achievements[/b]: points from achievements imported mid-save never reach your balance and cannot be exchanged.
-[*] [b]Exchange history[/b]: once you have exchanged, the Exchange page lists the last 10 below the balance card (time, points to coins, Queued / Credited / Points returned). In the Economy admin ledger the reason reads "Quest points exchange".
+[*] [b]Exchange history[/b]: once you have exchanged, the Exchange page lists the last 10 below the balance card (time, points to coins, Queued / Credited / Points returned). In the Economy admin ledger the reason reads "Quest points exchange"; with Economy versions after 42.21.0-0.22.0, your wallet statement and the receipts on the Economy admin's Player page read it too.
 [/list]
 === 🧰 Settings
 {{img:07-settings-en.jpg}}

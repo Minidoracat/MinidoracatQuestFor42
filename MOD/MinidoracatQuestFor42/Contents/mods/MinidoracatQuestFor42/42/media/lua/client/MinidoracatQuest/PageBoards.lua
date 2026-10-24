@@ -95,7 +95,12 @@ function P.onRetry(page) P.ask(page) end
 function P.onDaily() MinidoracatQuest.Window.select("daily") end
 
 -- ===== drawing =====
-local function nameOf(row) return row.n or getText("IGUI_MQ_UI_Anonymous") end
+-- row.a: the real name of an anonymous row, sent to admins only
+local function nameOf(row)
+    if row.n ~= nil then return row.n end
+    if row.a ~= nil then return getText("IGUI_MQ_UI_AnonReal", row.a) end
+    return getText("IGUI_MQ_UI_Anonymous")
+end
 
 local function delta(b, xRight, y, d)
     if d == nil then

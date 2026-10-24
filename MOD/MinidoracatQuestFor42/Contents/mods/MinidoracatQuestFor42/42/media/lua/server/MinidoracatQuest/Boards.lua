@@ -169,8 +169,8 @@ function B.tick(now)
     end
 end
 
--- -> payload | nil, code
-function B.page(boardId, period, user)
+-- -> payload | nil, code. admin: an anonymous row also carries the real name in `a` (only admins get it)
+function B.page(boardId, period, user, admin)
     local def = type(boardId) == "string" and B.def(boardId) or nil
     if not def or not B.hasPeriod(def, period) then return nil, code("BAD_BOARD") end
     local key = boardId .. ":" .. period
@@ -182,9 +182,10 @@ function B.page(boardId, period, user)
     for i = 1, math.min(B.TOP, #c.rows) do
         local r = c.rows[i]
         local acc = MQ.Store.account(r.u, false)
+        local anon = acc and acc.anon
         local b = c.base[r.u]
-        out.rows[i] = { r = i, n = not (acc and acc.anon) and r.u or nil, v = r.v, t = acc and acc.title or nil,
-            d = b and b - i or nil }
+        out.rows[i] = { r = i, n = not anon and r.u or nil, a = anon and admin and r.u or nil, v = r.v,
+            t = acc and acc.title or nil, d = b and b - i or nil }
     end
     local mine = user and c.rank[user]
     if mine then
@@ -216,7 +217,7 @@ end
 
 MQ.Server.define("board", { kind = "query", fields = { board = "str", period = "str" }, cooldownMs = 2000,
     run = function(ctx)
-        local page, c = B.page(ctx.args.board, ctx.args.period, ctx.user)
+        local page, c = B.page(ctx.args.board, ctx.args.period, ctx.user, ctx.admin)
         if not page then return false, c end
         MQ.Net.send(ctx.player, "board", page)
         return true

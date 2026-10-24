@@ -183,6 +183,16 @@ return function(T)
     check(E.toastText({ kind = "broadcast", who = "bob", id = a2.id, tier = 3 }) == nil, "server-wide toasts can be turned off")
     E.showBroadcast = true
     check(E.toastText({ kind = "broadcast", who = nil, id = a2.id, tier = 3 }) ~= nil, "broadcast shown (anonymous ok)")
+    local gt = getText
+    getText = function(key, ...)
+        local s = key
+        for i = 1, select("#", ...) do s = s .. "|" .. tostring((select(i, ...))) end
+        return s
+    end
+    local ok, head = pcall(E.toastText, { kind = "broadcast", a = "mei", id = a2.id, tier = 3 })
+    getText = gt
+    check(ok and type(head) == "string" and string.find(head, "IGUI_MQ_UI_AnonReal|mei", 1, true) ~= nil,
+        "the admins' copy names the anonymous achiever")
     check(E.toastText({ kind = "achvMany", ids = { a2.id, "c:mykills" }, n = 5 }) ~= nil
         and E.toastText({ kind = "exchange", state = "queued", coins = 10 }) ~= nil, "merged unlocks and exchange toasts")
     check(D.num(1234567) == "1,234,567" and D.num(0) == "0" and D.num(-1500) == "-1,500" and D.num(12.34) == "12.3",

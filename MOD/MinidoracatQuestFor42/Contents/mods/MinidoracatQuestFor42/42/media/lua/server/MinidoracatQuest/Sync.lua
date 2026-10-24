@@ -172,7 +172,7 @@ function Y.toast(user, t)
 end
 
 -- Server-wide notice; at most broadcast.perMinute per achiever per minute. achiever defaults to t.who
--- (pass the real user when t.who is nil because the player is anonymous).
+-- (pass the real user when t.who is nil because the player is anonymous: admins get a copy naming them in `a`).
 function Y.broadcastToast(t, achiever)
     local cfg = Q.Config.get().broadcast or {}
     if cfg.enabled == false then return false end
@@ -188,7 +188,15 @@ function Y.broadcastToast(t, achiever)
         if b.n >= cap then return false end
         b.n = b.n + 1
     end
-    Q.Net.broadcast("toast", t)
+    if t.who == nil and achiever ~= nil then
+        local named = U.copy(t)
+        named.a = achiever
+        Q.Net.eachOnline(function(p)
+            Q.Net.send(p, "toast", (Q.Server ~= nil and Q.Server.isAdmin(p)) and named or t)
+        end)
+    else
+        Q.Net.broadcast("toast", t)
+    end
     return true
 end
 

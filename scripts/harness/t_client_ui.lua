@@ -231,7 +231,8 @@ return function(T)
     local long = "Lena_Wanderer_of_Muldraugh_and_the_Whole_County"
     local rows50 = {}
     for r = 1, 50 do
-        rows50[r] = { r = r, n = (r == 4) and long or ("p" .. r), v = 2000 - r, d = 0, t = (r == 4) and "s3_top1" or nil }
+        rows50[r] = { r = r, n = (r == 4) and long or (r ~= 5 and r ~= 6 and ("p" .. r) or nil), v = 2000 - r, d = 0,
+            t = (r == 4) and "s3_top1" or nil, a = (r == 5) and "Mei" or nil }
     end
     push("board", { board = "points", period = "season", status = "ok", season = { no = 3, endsAt = now + 86400000 },
         at = now, rows = rows50, me = { r = 57, v = 640, d = 3 }, count = 80 })
@@ -249,6 +250,12 @@ return function(T)
     check(rk.stops[rk.cursor].rank == 4 and string.find(rk:focusLabel(), long, 1, true) ~= nil
         and string.find(rk:focusLabel(), "IGUI_MQ_UI_TitleBracket", 1, true) ~= nil,
         "the truncated long name gets its full name and title in the focus caption")
+    rk:onFocusKey(Keyboard.KEY_DOWN)
+    local l5 = rk:focusLabel()
+    rk:onFocusKey(Keyboard.KEY_DOWN)
+    check(string.find(l5, "IGUI_MQ_UI_AnonReal", 1, true) ~= nil
+        and string.find(rk:focusLabel(), "IGUI_MQ_UI_Anonymous", 1, true) ~= nil,
+        "an anonymous row shows the real name only when the reply carries it (admins)")
     local steps = 0
     while rk.stops[rk.cursor].rank ~= 50 and steps < 100 do
         rk:onFocusKey(Keyboard.KEY_DOWN)

@@ -141,7 +141,8 @@ function E.toastText(t)
     elseif k == "broadcast" then
         if not E.showBroadcast then return nil end
         local a = defs.achById[t.id] or { id = tostring(t.id), kind = "builtin", tiers = {} }
-        local who = t.who or getText("IGUI_MQ_UI_Anonymous")
+        -- t.a: the real name of an anonymous achiever, in the copy sent to admins only
+        local who = t.who or (t.a ~= nil and getText("IGUI_MQ_UI_AnonReal", t.a)) or getText("IGUI_MQ_UI_Anonymous")
         -- who + tier in the title, the achievement name opens the body: a long name plus a long achievement
         -- name overflowed the two title lines in FR / DE (quest-ui-fr-1023g)
         local title = getText("IGUI_MQ_UI_ToastBroadcastHead", who, D.tierName(t.tier))

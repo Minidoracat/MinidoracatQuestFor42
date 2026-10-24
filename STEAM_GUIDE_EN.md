@@ -138,13 +138,13 @@ Daily and weekly quests, achievements, season leaderboards and titles; pair it w
 [list]
 [*] [b]Your own[/b]: quest completions, achievement unlocks, streak milestones, the server goal, exchange results and season payouts.
 [*] [b]Merged[/b]: several unlocks within 2 seconds become one "N achievements unlocked" notice.
-[*] [b]Server-wide notices[/b]: when someone unlocks Gold III or higher (or a hidden achievement), every online player sees it, at most 1 per player per minute; anonymous players are not named.
+[*] [b]Server-wide notices[/b]: when someone unlocks Gold III or higher (or a hidden achievement), every online player sees it, at most 1 per player per minute; anonymous players are not named, admins see "Name (anonymous)".
 [*] [b]Turn server-wide notices off[/b]: untick "Show server-wide unlock notices" in Options > MODS > Quests & Achievements.
 [/list]
 [h3]Titles[/h3]
 [list]
 [*] [b]Earned from[/b]: top achievement tiers, hidden achievements, a 30-day streak, newcomer quests and season rewards.
-[*] [b]Use one[/b]: pick it on the My records page; it appears next to your name on leaderboards and in server-wide notices.
+[*] [b]Use one[/b]: pick one on the My records page to show next to your name on leaderboards (one at a time, or none). A server-wide notice names the title that unlock earned.
 [/list]
 === 🧰 Leaderboards and seasons
 {{img:04-leaderboard-en.jpg}}
@@ -165,7 +165,7 @@ Daily and weekly quests, achievements, season leaderboards and titles; pair it w
 [*] [b]Each page[/b]: the top 50, plus your rank, how it changed and how much more you need for the next rank.
 [*] [b]Updates[/b]: Season boards every 5 minutes, All-time boards every 30 minutes; the page shows the last update.
 [*] [b]Not ranked[/b]: accounts offline for 180 days (data is kept) and accounts an admin removed from the leaderboards.
-[*] [b]Anonymous[/b]: turn it on under Settings; you are still ranked, others see "Anonymous survivor".
+[*] [b]Anonymous[/b]: turn it on under Settings; you are still ranked, others see "Anonymous survivor", admins see "Name (anonymous)".
 [/list]
 [h3]Seasons[/h3]
 [list]
@@ -230,7 +230,7 @@ The server needs Minidoracat Economy (multiplayer only). On the My records page,
 [h3]Settings in the window[/h3]
 [list]
 [*] [b]Quest preferences[/b]: pick up to 3 themes and press Apply; rules under "Daily quests".
-[*] [b]Appear anonymous on leaderboards[/b]: you are still ranked, others see "Anonymous survivor", and server-wide notices do not name you. Only applies to this mod's leaderboards.
+[*] [b]Appear anonymous on leaderboards[/b]: you are still ranked, others see "Anonymous survivor", and server-wide notices do not name you; admins can still see who you are. Only applies to this mod's leaderboards.
 [/list]
 [h3]Mod options (Options > MODS > Quests & Achievements)[/h3]
 [list]
@@ -427,7 +427,7 @@ https://github.com/Minidoracat/MinidoracatQuestFor42#給其他-mod-的-api
 [/list]
 [h3]I am anonymous. Can others still see me?[/h3]
 [list]
-[*] This mod's leaderboards and server-wide notices do not show your name, but a modified client can read the save data; see "Known limitations".
+[*] Other players do not see your name on this mod's leaderboards or in server-wide notices; admins do. A modified client can also read the save data; see "Known limitations".
 [/list]
 [h3]How do I become an admin?[/h3]
 [list]

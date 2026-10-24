@@ -271,6 +271,13 @@ return function(T)
     T.check(Q.Sync.broadcastToast({ kind = "broadcast", who = "wat", id = "a1", tier = 3 }), "first broadcast sent")
     T.check(not Q.Sync.broadcastToast({ kind = "broadcast", who = "wat", id = "a2", tier = 3 }), "second broadcast in the minute capped")
     T.check(T.lastOf(bob, "toast") ~= nil, "broadcast reaches other players")
+    T.advance(60000)
+    local boss = T.player({ name = "boss", admin = true })
+    T.clearOutbox()
+    T.check(Q.Sync.broadcastToast({ kind = "broadcast", id = "a3", tier = 3 }, "wat"), "anonymous broadcast sent")
+    local seen, named = T.lastOf(bob, "toast"), T.lastOf(boss, "toast")
+    T.check(seen and seen.who == nil and seen.a == nil and named and named.a == "wat",
+        "an anonymous achiever is named to admins only")
 
     T.section("event log")
     Q.EventLog.write("quest_done", "bob", { tid = "d_kill" })

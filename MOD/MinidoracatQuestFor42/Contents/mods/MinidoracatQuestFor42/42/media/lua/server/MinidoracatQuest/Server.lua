@@ -441,10 +441,11 @@ end })
 
 -- ===== admin ops (section 6.2) =====
 
+-- dir: the folder of config.json under Zomboid/Lua/ (the History tab names it; single player is sp_<save>)
 S.defineAdmin("cfg.get", { kind = "query", run = function()
     local root = Q.Store.root()
     return true, { overrides = Q.Config.overrides(), rev = root.config.rev, history = Q.Config.historyRows(),
-        file = Q.Config.file.status }
+        file = Q.Config.file.status, dir = Q.Store.path("") }
 end })
 
 S.defineAdmin("cfg.preview", { kind = "query", fields = { changes = "json" }, run = function(ctx)

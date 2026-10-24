@@ -291,50 +291,50 @@ The sandbox page "Minidoracat Quests & Achievements" has three options; everythi
 [tr][td]Not ranked[/td][td]Offline for 180 days[/td][/tr]
 [/table]
 === ⚙️ Admin panel
-{{img:08-admin-thresholds-en.jpg}}
+{{img:08-admin-basic-en.jpg}}
 Open "Admin" on the left of the window; only roles listed in the "Admin roles" sandbox option see it, and the server checks every action again.
 [h3]How changes work[/h3]
 [list]
-[*] [b]Draft first[/b]: edits go into pending changes; press "Preview changes" to see old and new values, then apply.
+[*] [b]Tabs[/b]: settings come first (General, Achievements, Quests, Season, Exchange, Towns); after the divider come operations (Players, Balance, History).
+[*] [b]Draft first[/b]: edits go into pending changes; press "Preview changes" to see old and new values, then apply. "Discard changes" asks before it discards.
+[*] [b]Instant buttons[/b]: timed events, the payout review and account actions skip the preview; those sections say so.
 [*] [b]Unlocks are kept[/b]: higher thresholds only affect what comes next.
 [*] [b]Times[/b]: shown in the sandbox time zone.
 [/list]
+[h3]General[/h3]
+Steps 1-5 cover the common settings; the other tabs hold the rest.
+[olist]
+[*] [b]Difficulty[/b]: Easy, Normal, Hard or a custom multiplier; changes thresholds and quest targets only, not points. A button first lists the estimated effect, then you confirm.
+[*] [b]Season[/b]: days per season and the next settlement; a button takes you to the Season tab to change it.
+[*] [b]Rewards[/b]: 1st, 2nd-3rd, 4th-10th and participation.
+[*] [b]Exchange[/b]: on/off, rate, per-player daily limit; without the Economy mod the step says why.
+[*] [b]Newcomer quests and announcements[/b]: newcomer quests on/off, announcements on/off and the tier they start from.
+[/olist]
 [h3]Achievements[/h3]
 [list]
-[*] [b]Quick difficulty[/b]: Easy, Normal, Hard or a custom multiplier; changes thresholds and quest targets only, not points, with an estimate before you apply.
-[*] [b]Batch edits[/b]: tick several achievements to multiply thresholds or points, or add a tier.
-[*] [b]Single edit[/b]: threshold, points and title for each tier, up to 10 tiers.
+[*] [b]Batch edits[/b]: act on every achievement in the category shown; multiply thresholds or points, or add a tier.
+[*] [b]Single edit[/b]: threshold, points and title for each tier, up to 10 tiers; you can also turn the achievement off, so players no longer see it on the achievements page and cannot unlock it.
+[*] [b]Marks[/b]: changed achievements show "(changed)", disabled ones "(off)".
 [*] [b]Custom achievements[/b]: add one from an existing stat (name, category, thresholds, points), or delete it.
 [*] [b]Hidden achievements[/b]: pick the Hidden category; each row lists what unlocks it and the hint players see. Edit changes their thresholds, points and titles. A custom achievement cannot be made hidden, and the hint text cannot be changed.
+[*] [b]Announcements and title display[/b]: announcements on/off, starting tier, announcements per player per minute; one server-wide switch each for head and chat titles, off means nobody sees them.
 [/list]
 [h3]Quests[/h3]
 [list]
-[*] [b]Daily and weekly pools[/b]: on/off, target range and points per template.
-[*] [b]Daily settings[/b]: points for daily, rare and server-wide quests, swaps per day.
-[*] [b]Server goal[/b]: on/off, reward, growth over last week, rotation, minimum, maximum and minimum contribution per stat.
+[*] [b]Theme filter[/b]: the list shows how many daily and weekly quests each theme has; with a theme picked you can turn the whole group on or off, or multiply its targets by 0.8 or 1.25. The result goes into pending changes.
+[*] [b]Daily and weekly pools[/b]: on/off, target range and points per template; of two templates with the same name, the bigger one shows "(bulk)".
+[*] [b]Daily and weekly settings[/b]: points for the server-wide quest, swaps per day, weekly quests.
+[*] [b]Community goal[/b]: on/off, reward, growth over last week, and the minimum, maximum and minimum contribution of each stat in the rotation.
 [*] [b]Streak rewards[/b]: quests needed per day, grace days per week, milestones.
-[*] [b]Newcomer quests and server-wide notices[/b]: on/off, reward, starting tier, notices per player per minute.
-[*] [b]Title display[/b]: one server-wide switch each for head and chat titles; off means nobody sees them.
+[*] [b]Newcomer quests[/b]: on/off and reward.
+[*] [b]Timed events[/b]: name, quest theme (or all quests), multiplier (1-5), start and end date (inclusive); up to 3 at a time, removable.
 [/list]
-[h3]Exchange & events[/h3]
+[h3]Exchange[/h3]
 {{img:11-admin-exchange-en.jpg}}
 [list]
 [*] [b]Exchange settings[/b]: on/off, rate, per-player daily limit, minimum per exchange.
 [*] [b]Today[/b]: server total exchanged today, estimated daily exchange, and the Economy mod's daily limit for this mod with today's usage.
 [*] [b]Warnings[/b]: shown at the top when the Economy limit is 0, cannot be read, this mod is disabled in the Economy mod, or the estimate exceeds the limit; see "Economy integration".
-[*] [b]Timed events[/b]: name, quest theme (or all quests), multiplier (1-5), start and end date (inclusive); up to 3 at a time, removable.
-[/list]
-[h3]Players[/h3]
-[list]
-[*] [b]Anomalies[/b]: today or the last 7 days, records of a stat going over its per-minute limit. Every stat has one (120 zombie kills by default, for example); each row shows that minute's total and the limit. The excess is not counted, so it does not advance quests or achievements.
-[*] [b]Look up an account[/b]: View on a row, or type the account, lists at the top of the page its three point numbers, achievements, anomalies this season and whether it is removed from the leaderboards.
-[*] [b]Revoke achievements[/b]: down to a chosen tier, or all of it.
-[*] [b]Remove from or return to the leaderboards[/b]: data is kept. Revoking and removing require a reason and record who did it.
-[/list]
-[h3]Balance[/h3]
-[list]
-[*] [b]Completion rate[/b]: for each quest template over the last 7 days, with median completion time.
-[*] [b]Suggestions[/b]: below 30% is marked "Too hard", above 90% "Too easy", with a suggested target range you can add to the pending changes in one click.
 [/list]
 [h3]Towns[/h3]
 [list]
@@ -342,10 +342,24 @@ Open "Admin" on the left of the window; only roles listed in the "Admin roles" s
 [*] [b]Custom towns[/b]: a name and two corners; "Use my position" fills in coordinates.
 [*] [b]Used for[/b]: town achievements, the Towns visited board and the newcomer step "leave your starting town".
 [/list]
+[h3]Players[/h3]
+[list]
+[*] [b]Anomalies[/b]: today or the last 7 days, records of a stat going over its per-minute limit. Every stat has one (120 zombie kills by default, for example); each row shows that minute's total and the limit. The excess is not counted, so it does not advance quests or achievements.
+[*] [b]Per-minute limits[/b]: "Per-minute limits..." at the bottom of the page opens the limit of every stat (1-1,000,000); changes go into pending changes like any other.
+[*] [b]Look up an account[/b]: View on a row, or type the account, lists at the top of the page its three point numbers, achievements, anomalies this season and whether it is removed from the leaderboards.
+[*] [b]Revoke achievements[/b]: down to a chosen tier, or all of it.
+[*] [b]Remove from or return to the leaderboards[/b]: data is kept. Revoking and removing require a reason and record who did it.
+[/list]
+[h3]Balance[/h3]
+[list]
+[*] [b]Completion rate[/b]: for each quest template over the last 7 days, with median completion time; weekly quests show "(weekly)".
+[*] [b]Suggestions[/b]: below 30% is marked "Too hard", above 90% "Too easy", with a suggested target range you can add to the pending changes in one click.
+[/list]
 [h3]History[/h3]
 [list]
 [*] [b]Undo[/b]: the last 20 changes; undo writes the old values back and counts as a change itself.
-[*] [b]Settings file state[/b]: below the list you see when config.json was last in sync; when the file has an error and was not applied, you see the line or the field.
+[*] [b]Settings file state[/b]: below the list you see the folder of config.json and when it was last in sync; when the file has an error and was not applied, you see the line or the field.
+[*] [b]File-only settings[/b]: leaderboards (boards), community goal rotation (goal.rotation), newcomer title and days (newbie.title, newbie.days); see "Settings file config.json".
 [/list]
 === ⚙️ Settings file config.json
 The admin panel settings (except timed events and the season length) are also kept in a file on the server, so you can change them without joining the game. Location: Lua/MinidoracatQuest/<server name>/ in the server's user folder (a dedicated server uses ~/Zomboid by default, %USERPROFILE%\Zomboid on Windows); in single player it is Zomboid/Lua/MinidoracatQuest/sp_<save name>/ on your own computer, one per save. The console prints this folder at start (settings files: …).
@@ -360,6 +374,7 @@ The admin panel settings (except timed events and the season length) are also ke
 [*] [b]Write only what you change[/b]: anything not written uses the default; removing a whole group (for example "exchange") puts that group back to the defaults. Lists such as tiers or the goal rotation are always written whole.
 [*] [b]An error stops the whole file[/b]: with broken JSON, a value out of range or a misspelt name, the current settings stay; status.json, the server console and the panel's History tab show the line where the JSON stopped or the field with the error (for example daily.pool.d_kill.target).
 [*] [b]Panel changes rewrite the file[/b]: after an apply or undo in the panel the server writes the settings in effect back to config.json, so manual edits it has not read yet are overwritten. A deleted file is written again.
+[*] [b]Not in the panel[/b]: leaderboards (boards), community goal rotation (goal.rotation), newcomer title and days (newbie.title, newbie.days) change only in this file.
 [*] [b]Restoring a world save[/b]: the server applies config.json at start, so the settings follow the file, not the older save.
 [/list]
 Example: the daily quest "Kill N zombies" (d_kill) gets a target of 30 to 60 and 20 points, the "Zombie Slayer" achievement (zombie_kills) gets doubled thresholds, and the exchange rate becomes 1 point for 2 Survivor Coins:
@@ -386,7 +401,7 @@ Example: the daily quest "Kill N zombies" (d_kill) gets a target of 30 to 60 and
 [olist]
 [*] [b]Freeze[/b]: ranks freeze at the season end and a new season starts at once.
 [*] [b]Review[/b]: the admin page lists the frozen ranks; accounts with anomalies are only flagged, never excluded automatically.
-[*] [b]Exclude[/b]: write a reason to exclude someone from rewards.
+[*] [b]Exclude[/b]: press "Exclude from rewards" on a row and write a reason; "Include again" puts them back. These buttons act at once.
 [*] [b]Pay[/b]: press "Confirm and pay..." and confirm again; payouts cannot be undone.
 [*] [b]Automatic payout[/b]: if nobody acts within 24 hours, the frozen list minus excluded accounts is paid automatically.
 [/olist]
@@ -398,7 +413,7 @@ Example: the daily quest "Kill N zombies" (d_kill) gets a target of 30 to 60 and
 [list]
 [*] [b]Registers itself[/b]: once the server is up, this mod registers with the Economy mod as the integration source "Quests & Achievements" and pays in Survivor Coins.
 [*] [b]The limit you must set[/b]: the Economy mod gives every integration source a daily mint limit of 0 by default. Open the Economy admin's "Integration sources" page and set a daily limit for Quests & Achievements; until you do, every exchange is queued and nothing is paid.
-[*] [b]Choosing the limit[/b]: roughly players who exchange per day × per-player daily limit × rate; the estimate on this mod's "Exchange & events" admin page helps.
+[*] [b]Choosing the limit[/b]: roughly players who exchange per day × per-player daily limit × rate; the estimate on this mod's "Exchange" admin tab helps.
 [*] [b]Queue and retries[/b]: when the allowance is used up, rate-limited, the Economy mod is not ready or does not answer, the exchange is queued and retried every hour, plus right after the Economy mod's daily reset.
 [*] [b]Refunds[/b]: any other refusal (for example a player's economy account cannot receive coins) refunds the points. One exchange is never paid twice.
 [*] [b]Day change[/b]: when the Economy mod provides its day-change API (versions after 42.21.0-0.20.1), the daily and weekly reset happen at the same moment as the Economy mod's daily reward; reading the limit and today's usage needs the same versions. Older Economy versions still exchange, but the admin page cannot show the limit.

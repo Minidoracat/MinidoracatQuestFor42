@@ -1,7 +1,9 @@
 -- MinidoracatQuest/AdminPages.lua: admin tabs other than achievements and history (spec 9.4, 11.2-11.4, 13.5-13.8).
--- quests (daily/weekly pools, shared goal, streak, newbie, broadcast, title display), season (length preview/apply,
--- review, rewards), exchange & events, players (anomalies, account view, revoke, hide), balance, towns.
--- Config edits go through the draft (AdminPanel); season/events/revoke/hide use their own ops (ARCHITECTURE.md 6.2).
+-- basic (the guided first page: difficulty, season, rewards, exchange, newcomer quests and notices), quests (daily
+-- and weekly pools by theme with whole-theme buttons, shared goal, streak, newbie, timed events), season (length
+-- preview/apply, review, rewards), exchange, players (account view, revoke, hide, anomalies, per-minute limits),
+-- balance, towns. Config edits go through the draft (AdminPanel); season/events/revoke/hide use their own ops
+-- (ARCHITECTURE.md 6.2), and the sections holding them say so (IGUI_MQ_Admin_ImmediateNote).
 
 require "MinidoracatQuest/AdminPanel"
 
@@ -10,42 +12,10 @@ local A = MQ.Admin
 local AM = MQ.AdminModel
 
 local THEMES = { "combat", "build", "craft", "cook", "tailor", "farm", "animal", "fishtrap", "forage", "mech", "explore" }
-
-local function fLabel(path) return getTextOrNull("IGUI_MQ_Admin_F_" .. string.gsub(path, "%.", "_")) or path end
+local form, formRow = A.form, A.formRow
 
 local function summary(P, text)
     P.draftSummary = P.draftSummary and (P.draftSummary .. "; " .. text) or text
-end
-
--- label column + controls; a label longer than the (capped) column wraps inside it
-local function formRow(F, key, text, labelW, ctrls)
-    local l = F:label("l:" .. key, text, nil, nil, labelW - A.GAP)
-    l:setWidth(labelW)
-    local row = { l }
-    for _, c in ipairs(ctrls) do row[#row + 1] = c end
-    F:row(row)
-end
-
-local function labelWidth(paths)
-    local w = 0
-    for _, p in ipairs(paths) do w = math.max(w, A.textW(fLabel(p))) end
-    return math.min(w + A.GAP, 260)
-end
-
--- simple form: { { path, range | "bool" } }
-local function form(P, pg, F, rows)
-    local paths = {}
-    for i, r in ipairs(rows) do paths[i] = r[1] end
-    local lw = labelWidth(paths)
-    for _, r in ipairs(rows) do
-        local ctrl
-        if r[2] == "bool" then
-            ctrl = A.boolField(P, pg, r[1], "", r[1])
-        else
-            ctrl = A.numField(P, pg, r[1], r[1], nil, r[2])
-        end
-        formRow(F, r[1], fLabel(r[1]), lw, { ctrl })
-    end
 end
 
 local function textOf(t)
@@ -53,49 +23,315 @@ local function textOf(t)
     return (string.gsub(t, "%s+$", ""))
 end
 
+-- "all" reads "All quests" in the admin (event theme); theme names come from Draw, like on the player pages
+local function themeLabel(id)
+    return id == "all" and getText("IGUI_MQ_Admin_ThemeAll") or MQ.Draw.themeName(id)
+end
+
+-- ===== shared loads: Basic shows both; Quests lists the events from ex.status =====
+
+local function loadSeason(P)
+    local pg = P.pages.season
+    A.send(P, "season.review", {}, function(res)
+        pg.data, pg.err = res.ok and res or nil, (not res.ok) and res or nil
+        A.layout(P)
+    end)
+end
+
+local function loadExchange(P)
+    local pg = P.pages.exchange
+    A.send(P, "ex.status", {}, function(res)
+        pg.data, pg.err = res.ok and res or nil, (not res.ok) and res or nil
+        A.layout(P)
+    end)
+end
+
+local function loadingText(P, F, key, pg)
+    F:text(key, pg.err and A.codeText(P, pg.err) or getText("IGUI_MQ_Admin_Loading"), pg.err and "errorText" or "textMuted")
+end
+
+-- warn: unknown | disabled | cap_zero | over_cap (Systems ex.status, one at a time); nil = nothing to warn
+local function exWarn(d)
+    local w = d and d.warn
+    if w == "unknown" or w == "disabled" or w == "cap_zero" or w == "over_cap" then return w end
+    return nil
+end
+
+-- ===== basic: steps 1-5 on one page; each step edits the same paths as its own tab =====
+
+local function step(F, key, n, text) F:text(key, getText("IGUI_MQ_Admin_Step", n, text), "accent", UIFont.Medium) end
+
+local function onToSeason(P) A.select(P, "season") end
+
+local function layoutBasic(P, pg, F)
+    local lw = A.labelWidth({ "rewards.top1", "rewards.top3", "rewards.top10", "rewards.participation", "exchange.enabled",
+        "exchange.rate", "exchange.perDay", "newbie.enabled", "broadcast.enabled", "broadcast.minTier" })
+    F:head("h", getText("IGUI_MQ_Admin_BasicHead"))
+    F:text("n", getText("IGUI_MQ_Admin_BasicNote"), "textMuted")
+
+    -- 1. difficulty: its own preview with the estimate (the confirm view), like it was on the achievements tab
+    step(F, "s1", 1, getText("IGUI_MQ_Admin_F_difficulty_preset"))
+    A.AchvPage.difficultyRow(P, F)
+    F:text("s1n", getText("IGUI_MQ_Admin_DiffNote"), "textMuted")
+
+    -- 2. season: shown only; the length has the 24-hour rule and its preview on the season tab
+    step(F, "s2", 2, getText("IGUI_MQ_Admin_Tab_season"))
+    local sd = P.pages.season.data
+    if sd then
+        F:row({ F:label("s2l", getText("IGUI_MQ_Admin_BasicSeason", A.num(sd.lengthDays or 0),
+            A.time(type(sd.endMs) == "number" and sd.endMs - 60000 or nil))),
+            F:button("s2b", getText("IGUI_MQ_Admin_ToSeason"), onToSeason) })
+    else
+        loadingText(P, F, "s2l", P.pages.season)
+    end
+
+    step(F, "s3", 3, getText("IGUI_MQ_Admin_RewardsHead"))
+    form(P, pg, F, { { "rewards.top1", "pts" }, { "rewards.top3", "pts" }, { "rewards.top10", "pts" },
+        { "rewards.participation", "pts" } }, lw)
+
+    -- 4. exchange: without the economy mod this step only says so
+    step(F, "s4", 4, getText("IGUI_MQ_Admin_ExHead"))
+    local xd = P.pages.exchange.data
+    if xd and xd.ecAvailable == false then
+        F:text("s4x", getText("IGUI_MQ_Admin_NoEconomy"), "textMuted")
+    else
+        form(P, pg, F, { { "exchange.enabled", "bool" }, { "exchange.rate", "rate" }, { "exchange.perDay", "perDay" } }, lw)
+        local warn = exWarn(xd)
+        if warn then F:text("s4w", getText("IGUI_MQ_Admin_Warn_" .. warn .. "_Body", A.num(xd.ecCap or 0)), "warning") end
+    end
+
+    step(F, "s5", 5, getText("IGUI_MQ_Admin_StepNotice"))
+    form(P, pg, F, { { "newbie.enabled", "bool" }, { "broadcast.enabled", "bool" }, { "broadcast.minTier", "minTier" } }, lw)
+end
+
+A.pages.basic = { layout = layoutBasic, load = function(P) loadSeason(P); loadExchange(P) end }
+
 -- ===== quests =====
 
-local function pool(P, pg, F, kind, list)
+-- templates of one pool in theme order; theme = "all" or one theme id
+local function templates(kind, theme)
+    local out = {}
+    for _, th in ipairs(THEMES) do
+        if theme == "all" or th == theme then
+            for _, tpl in ipairs(MQ.Catalog[kind] or {}) do if tpl.theme == th then out[#out + 1] = tpl end end
+        end
+    end
+    return out
+end
+
+local function poolName(tpl) return A.questName(tpl.tid) .. (tpl.rare and (" " .. getText("IGUI_MQ_Admin_Rare")) or "") end
+
+-- one pool: on, name, target min - max, points. Under "all" a theme line opens each group; the name column is as
+-- wide as the longest name of the whole pool, so picking a theme does not move the fields
+local function pool(P, pg, F, kind, theme)
     local numW = math.max(60, A.textW("1,000,000") + 20)
     local ptsW = math.max(50, A.textW("10000") + 20)
+    local onW, dashW = 44, A.textW("-")
+    local names = {}
+    for i, tpl in ipairs(MQ.Catalog[kind] or {}) do names[i] = poolName(tpl) end
+    local nameW = A.colW(names, math.max(80, F.width - 2 * A.PAD - onW - 2 * numW - dashW - ptsW - 5 * A.GAP))
+    local xName = A.PAD + onW + A.GAP
+    local xTarget = xName + nameW + A.GAP
     F:cells(kind .. ":hd", {
         { text = getText("IGUI_MQ_Admin_ColOn"), x = A.PAD, token = "textMuted" },
-        { text = getText("IGUI_MQ_Admin_ColTarget"), x = A.PAD + 44 + A.GAP, token = "textMuted" },
-        { text = getText("IGUI_MQ_Admin_ColPts"), x = A.PAD + 44 + 2 * numW + 4 * A.GAP + A.textW("-"), token = "textMuted" },
-        { text = getText("IGUI_MQ_Admin_ColQuest"), x = A.PAD + 44 + 2 * numW + ptsW + 5 * A.GAP + A.textW("-"), token = "textMuted" },
+        { text = getText("IGUI_MQ_Admin_ColQuest"), x = xName, token = "textMuted" },
+        { text = getText("IGUI_MQ_Admin_ColTarget"), x = xTarget, token = "textMuted" },
+        { text = getText("IGUI_MQ_Admin_ColPts"), x = xTarget + 2 * numW + dashW + 3 * A.GAP, token = "textMuted" },
     })
-    for _, tpl in ipairs(list or {}) do
+    local last
+    for _, tpl in ipairs(templates(kind, theme)) do
+        if theme == "all" and tpl.theme ~= last then
+            last = tpl.theme
+            F:text(kind .. ":th:" .. last, MQ.Draw.themeName(last), "accent")
+        end
         local base = kind .. ".pool." .. tpl.tid
         local on = A.boolField(P, pg, base .. ".enabled", "", base .. ".enabled")
-        on:setWidth(44)
+        on:setWidth(onW)
+        -- a long name wraps inside its column (a long DE name used to drop under the fields and read as the next
+        -- row's, quest-ui-de-1023g)
+        local name = F:label("n:" .. base, poolName(tpl), nil, nil, nameW - A.GAP)
+        name:setWidth(nameW)
         local a = A.numField(P, pg, base .. ".target.1", base .. ".target", { 1 }, "target", numW)
         local dash = F:label("d:" .. base, "-", "textMuted")
         local b = A.numField(P, pg, base .. ".target.2", base .. ".target", { 2 }, "target", numW)
         local p = A.numField(P, pg, base .. ".pts", base .. ".pts", nil, "pts", ptsW)
-        -- the name wraps inside what the row has left (a long DE name used to drop under the fields and read as
-        -- the next row's, quest-ui-de-1023g)
-        local nameW = math.max(80, F.width - 2 * A.PAD - 44 - 2 * numW - A.textW("-") - ptsW - 5 * A.GAP)
-        local name = F:label("n:" .. base, A.questName(tpl.tid) .. (tpl.rare and (" " .. getText("IGUI_MQ_Admin_Rare")) or ""),
-            nil, nil, nameW)
-        F:row({ on, a, dash, b, p, name })
+        F:row({ on, name, a, dash, b, p })
     end
 end
 
-local function layoutQuests(P, pg, F)
+local function themeOptions()
     local C = MQ.Catalog
-    F:head("hd", getText("IGUI_MQ_Admin_DailyHead"))
-    form(P, pg, F, { { "daily.pts", "pts" }, { "daily.rarePts", "pts" }, { "daily.sharedPts", "pts" },
-        { "daily.swapsPerDay", "swaps" } })
+    local nd, nw = {}, {}
+    for _, t in ipairs(C.daily or {}) do nd[t.theme] = (nd[t.theme] or 0) + 1 end
+    for _, t in ipairs(C.weekly or {}) do nw[t.theme] = (nw[t.theme] or 0) + 1 end
+    local opts = { { id = "all", label = getText("IGUI_MQ_Admin_ThemeCount", MQ.Draw.themeName("all"), #(C.daily or {}),
+        #(C.weekly or {})) } }
+    for _, th in ipairs(THEMES) do
+        opts[#opts + 1] = { id = th, label = getText("IGUI_MQ_Admin_ThemeCount", MQ.Draw.themeName(th), nd[th] or 0, nw[th] or 0) }
+    end
+    return opts
+end
+
+-- the rows of other themes hide: their typed values go into the draft first (A.collect skips hidden fields)
+local function onTheme(P, id, dd)
+    local pg = P.pages.quests
+    if not A.fold(P) then
+        if dd then dd:setSelected(pg.theme, true) end
+        return
+    end
+    pg.theme = id
+    A.layout(P)
+end
+
+-- whole theme, daily and weekly: enabled on/off, or targets x mult on each template's step; into the draft
+local function onThemeBatch(P, b)
+    local pg = P.pages.quests
+    if not A.fold(P) then return end
+    local n = 0
+    for _, kind in ipairs({ "daily", "weekly" }) do
+        for _, tpl in ipairs(templates(kind, pg.theme)) do
+            local base = kind .. ".pool." .. tpl.tid
+            if b.on ~= nil then
+                if AM.get(P.S, base .. ".enabled") ~= b.on then
+                    AM.draftSet(P.S.draft, base .. ".enabled", b.on)
+                    n = n + 1
+                end
+            else
+                local t = AM.scaleTarget(AM.get(P.S, base .. ".target") or tpl.target, b.mult, tpl.step)
+                if t then
+                    AM.draftSet(P.S.draft, base .. ".target", t)
+                    n = n + 1
+                end
+            end
+        end
+    end
+    if n == 0 then return A.say(P, getText("IGUI_MQ_Admin_NoChanges"), "textMuted") end
+    local th = MQ.Draw.themeName(pg.theme)
+    if b.on == true then
+        summary(P, getText("IGUI_MQ_Admin_SumThemeOn", th, n))
+    elseif b.on == false then
+        summary(P, getText("IGUI_MQ_Admin_SumThemeOff", th, n))
+    else
+        summary(P, getText("IGUI_MQ_Admin_SumThemeMult", th, n, AM.num(b.mult)))
+    end
+    pg.version = pg.version + 1   -- the fields show the draft now
+    A.say(P, getText("IGUI_MQ_Admin_InDraft"), "textMuted")
+    A.layout(P)
+end
+
+local function onEventRemove(P, b)
+    local e = b.entry
+    A.ask(P, { title = getText("IGUI_MQ_Admin_EventRemove"), danger = true, confirm = getText("IGUI_MQ_Admin_EventRemove"),
+        text = getText("IGUI_MQ_Admin_EventRemoveAsk", tostring(e.name)), onOk = function()
+            A.send(P, "event.remove", { id = e.id }, function(res)
+                if not res.ok then return A.fail(P, res) end
+                loadExchange(P)
+            end)
+        end })
+end
+
+local function onEventAdd(P)
+    local pool = P.pages.quests.flow.pool
+    local name = textOf(pool["ev:name"]:getText())
+    local mult, key, lo, hi = AM.check(pool["ev:mult"]:getText(), "eventMult")
+    local s = AM.dayStartMs(pool["ev:start"]:getText())
+    local e = AM.dayStartMs(pool["ev:end"]:getText())
+    A.markError(P, pool["ev:mult"], mult == nil and getText(key, AM.num(lo), AM.num(hi)) or nil)
+    A.markError(P, pool["ev:start"], s == nil and getText("IGUI_MQ_Admin_ErrDate") or nil)
+    A.markError(P, pool["ev:end"], (e == nil or (s and e < s)) and getText("IGUI_MQ_Admin_ErrDate") or nil)
+    if name == "" then return A.say(P, getText("IGUI_MQ_Admin_ErrName"), "errorText") end
+    if mult == nil or s == nil or e == nil or e < s then return A.say(P, getText("IGUI_MQ_Admin_FixErrors"), "errorText") end
+    e = e + 86400000   -- end day inclusive
+    if e <= getTimestampMs() then return A.say(P, getText("IGUI_MQ_Admin_ErrPast"), "errorText") end
+    A.send(P, "event.add", { name = string.sub(name, 1, 64), theme = pool["ev:theme"]:getSelected() or "all", mult = mult,
+        startMs = s, endMs = e }, function(res)
+        if not res.ok then return A.fail(P, res) end
+        pool["ev:name"]:setText("")
+        A.say(P, getText("IGUI_MQ_Admin_EventAdded"), "success")
+        loadExchange(P)
+    end)
+end
+
+local function dateField(P, F, key)
+    local UI = P.UI
+    if UI.CAPABILITIES.datePicker and UI.DateField then
+        return F:get(key, function() return UI.DateField.new({ x = 0, y = 0, theme = P.theme, target = P }) end)
+    end
+    return F:field(key, A.textW("0000-00-00") + 30, "YYYY-MM-DD", 10)
+end
+
+-- timed events multiply quest points, so they sit with the quests; event.add / event.remove take effect at once
+local function layoutEvents(P, pg, F)
+    local xp = P.pages.exchange
+    F:head("he", getText("IGUI_MQ_Admin_EventsHead"))
+    F:text("hen", getText("IGUI_MQ_Admin_EventsNote") .. " " .. getText("IGUI_MQ_Admin_ImmediateNote") .. " " .. A.tzNote(),
+        "textMuted")
+    if xp.data == nil then loadingText(P, F, "eld", xp) end
+    local events = xp.data and xp.data.events or {}
+    local live = 0
+    for i, e in ipairs(events) do
+        if (e.endMs or 0) > getTimestampMs() then live = live + 1 end
+        F:text("e" .. i, getText("IGUI_MQ_Admin_EventRow", tostring(e.name), themeLabel(e.theme), AM.num(e.mult or 1),
+            A.time(e.startMs) .. " - " .. A.time(e.endMs)), "text")
+        local rm = F:button("er" .. i, getText("IGUI_MQ_Admin_EventRemove"), onEventRemove, "danger")
+        rm.entry = e
+        F:row({ rm })
+    end
+    if xp.data and #events == 0 then F:text("en", getText("IGUI_MQ_Admin_EventsNone"), "textMuted") end
+    local themes = { { id = "all", label = themeLabel("all") } }
+    for _, t in ipairs(THEMES) do themes[#themes + 1] = { id = t, label = themeLabel(t) } end
+    local lw = 0
+    for _, k in ipairs({ "EvName", "EvTheme", "EvMult", "EvStart", "EvEnd" }) do lw = math.max(lw, A.textW(getText("IGUI_MQ_Admin_" .. k))) end
+    lw = lw + A.GAP
+    formRow(F, "ev:name", getText("IGUI_MQ_Admin_EvName"), lw, { F:field("ev:name", math.max(120, math.min(300, F.width - lw - 3 * A.PAD)), nil, 64) })
+    formRow(F, "ev:theme", getText("IGUI_MQ_Admin_EvTheme"), lw,
+        { F:dropdown("ev:theme", themes, pg.flow.pool["ev:theme"] and pg.flow.pool["ev:theme"]:getSelected() or "all", nil) })
+    local mult = F:field("ev:mult", 60)
+    if mult:getText() == "" then mult:setText("2") end
+    mult:setTooltip(getText("IGUI_MQ_Admin_RangeTip", "1", "5"))
+    formRow(F, "ev:mult", getText("IGUI_MQ_Admin_EvMult"), lw, { mult })
+    formRow(F, "ev:start", getText("IGUI_MQ_Admin_EvStart"), lw, { dateField(P, F, "ev:start") })
+    formRow(F, "ev:end", getText("IGUI_MQ_Admin_EvEnd"), lw, { dateField(P, F, "ev:end") })
+    local add = F:button("ev:add", getText("IGUI_MQ_Admin_EventAdd"), onEventAdd, "primary")
+    add:setEnabled(live < 3 and not A.busy(P))
+    F:row({ add })
+    if live >= 3 then F:text("ev:max", getText("IGUI_MQ_Admin_EventsMax"), "warning") end
+end
+
+local function layoutQuests(P, pg, F)
+    pg.theme = pg.theme or "all"
+    local lw = A.labelWidth({ "daily.sharedPts", "daily.swapsPerDay", "weekly.count", "goal.enabled", "goal.pts", "goal.growth",
+        "streak.need", "streak.gracePerWeek", "newbie.enabled", "newbie.pts" })
+    F:row({ F:label("thl", getText("IGUI_MQ_Admin_ThemeFilter")), F:dropdown("th", themeOptions(), pg.theme, onTheme) })
     F:text("dpn", getText("IGUI_MQ_Admin_PoolHelp"), "textMuted")
-    pool(P, pg, F, "daily", C.daily)
+    F:head("hd", getText("IGUI_MQ_Admin_DailyHead"))
+    -- daily.pts / rarePts / weekly.pts stay in config.json for pack quests: every built-in template has its own points
+    form(P, pg, F, { { "daily.sharedPts", "pts" }, { "daily.swapsPerDay", "swaps" } }, lw)
+    pool(P, pg, F, "daily", pg.theme)
     F:gap()
     F:head("hw", getText("IGUI_MQ_Admin_WeeklyHead"))
-    form(P, pg, F, { { "weekly.count", "weeklyCount" }, { "weekly.pts", "pts" } })
-    pool(P, pg, F, "weekly", C.weekly)
+    form(P, pg, F, { { "weekly.count", "weeklyCount" } }, lw)
+    pool(P, pg, F, "weekly", pg.theme)
+    if pg.theme ~= "all" then
+        local n = #templates("daily", pg.theme) + #templates("weekly", pg.theme)
+        local row = { F:label("tbl", getText("IGUI_MQ_Admin_ThemeBatch", MQ.Draw.themeName(pg.theme), A.num(n))) }
+        for k, on in ipairs({ true, false }) do
+            local b = F:button("tb:o" .. k, getText(on and "IGUI_MQ_Admin_AllOn" or "IGUI_MQ_Admin_AllOff"), onThemeBatch)
+            b.on, b.mult = on, nil
+            row[#row + 1] = b
+        end
+        for k, m in ipairs({ 0.8, 1.25 }) do
+            local b = F:button("tb:m" .. k, getText("IGUI_MQ_Admin_TargetMult", AM.num(m)), onThemeBatch)
+            b.on, b.mult = nil, m
+            row[#row + 1] = b
+        end
+        F:gap()
+        F:row(row)
+    end
     F:gap()
 
     F:head("hg", getText("IGUI_MQ_Admin_GoalHead"))
-    form(P, pg, F, { { "goal.enabled", "bool" }, { "goal.pts", "pts" }, { "goal.growth", "growth" } })
+    form(P, pg, F, { { "goal.enabled", "bool" }, { "goal.pts", "pts" }, { "goal.growth", "growth" } }, lw)
     local numW = math.max(60, A.textW("1,000,000") + 20)
     local statW = 0
     local rotation = AM.get(P.S, "goal.rotation") or {}
@@ -117,7 +353,7 @@ local function layoutQuests(P, pg, F)
     F:gap()
 
     F:head("hs", getText("IGUI_MQ_Admin_StreakHead"))
-    form(P, pg, F, { { "streak.need", "need" }, { "streak.gracePerWeek", "grace" } })
+    form(P, pg, F, { { "streak.need", "need" }, { "streak.gracePerWeek", "grace" } }, lw)
     local ms = AM.get(P.S, "streak.milestones") or {}
     for i = 1, #ms do
         local l = F:label("ms:" .. i, getText("IGUI_MQ_Admin_Milestone", i))
@@ -130,13 +366,9 @@ local function layoutQuests(P, pg, F)
     F:gap()
 
     F:head("hn", getText("IGUI_MQ_Admin_NewbieHead"))
-    form(P, pg, F, { { "newbie.enabled", "bool" }, { "newbie.pts", "pts" } })
+    form(P, pg, F, { { "newbie.enabled", "bool" }, { "newbie.pts", "pts" } }, lw)
     F:gap()
-    F:head("hb", getText("IGUI_MQ_Admin_BroadcastHead"))
-    form(P, pg, F, { { "broadcast.enabled", "bool" }, { "broadcast.minTier", "minTier" }, { "broadcast.perMinute", "perMinute" } })
-    F:gap()
-    F:head("ht", getText("IGUI_MQ_Admin_TitlesHead"))
-    form(P, pg, F, { { "titles.head", "bool" }, { "titles.chat", "bool" } })
+    layoutEvents(P, pg, F)
 end
 
 -- milestone days strictly increasing
@@ -152,16 +384,9 @@ local function checkQuests(_, _, values)
     return nil
 end
 
-A.pages.quests = { layout = layoutQuests, check = checkQuests }
+A.pages.quests = { layout = layoutQuests, check = checkQuests, load = function(P) loadExchange(P) end }
 
 -- ===== season =====
-
-local function loadSeason(P, pg)
-    A.send(P, "season.review", {}, function(res)
-        pg.data, pg.err = res.ok and res or nil, (not res.ok) and res or nil
-        A.layout(P)
-    end)
-end
 
 local function onSeasonPreview(P)
     local pg = P.pages.season
@@ -184,7 +409,7 @@ local function onSeasonApply(P)
         if not res.ok then return A.fail(P, res) end
         pg.preview = nil
         A.say(P, getText("IGUI_MQ_Admin_SeasonApplied", pv.days, A.time((res.endMs or pv.endMs) - 60000)), "success")
-        loadSeason(P, pg)
+        loadSeason(P)
     end)
 end
 
@@ -193,18 +418,17 @@ local function onSeasonCancel(P)
     A.layout(P)
 end
 
-local function onExclude(P, value, box)
-    local pg = P.pages.season
-    local r = box.entry
-    box:setChecked(r.excluded == true, true)   -- the server decides; reload shows the result
+-- a button, not a switch: excluding asks for a reason; "Include again" sends right away
+local function onExclude(P, b)
+    local r = b.entry
     local function send(reason)
-        A.send(P, "season.exclude", { user = r.user, on = value, reason = reason }, function(res)
+        A.send(P, "season.exclude", { user = r.user, on = not r.excluded, reason = reason }, function(res)
             if not res.ok then return A.fail(P, res) end
-            loadSeason(P, pg)
+            loadSeason(P)
         end)
     end
-    if not value then return send(nil) end
-    A.ask(P, { title = getText("IGUI_MQ_Admin_Exclude"), danger = true, required = true,
+    if r.excluded then return send(nil) end
+    A.ask(P, { title = getText("IGUI_MQ_Admin_Exclude"), danger = true, required = true, confirm = getText("IGUI_MQ_Admin_Exclude"),
         text = getText("IGUI_MQ_Admin_ExcludeAsk", r.user, A.num(r.pts or 0)),
         input = { placeholder = getText("IGUI_MQ_Admin_Reason") }, onOk = send })
 end
@@ -223,17 +447,55 @@ local function onSeasonConfirm(P)
             A.send(P, "season.confirm", {}, function(res)
                 if not res.ok then return A.fail(P, res) end
                 A.say(P, getText("IGUI_MQ_Admin_Paid"), "success")
-                loadSeason(P, pg)
+                loadSeason(P)
             end)
         end })
+end
+
+-- review list: rank, name (as wide as the longest), points, anomalies; the button at the right end
+local function layoutReview(P, F, d)
+    local rows = d.rows or {}
+    local rankW = A.textW("#000") + A.GAP
+    local ptsW = A.textW("1,000,000") + A.GAP
+    local names, anomW = {}, 0
+    for i, r in ipairs(rows) do
+        names[i] = r.excluded and getText("IGUI_MQ_Admin_ExcludedTag", tostring(r.user)) or tostring(r.user)
+        if (r.anomalies or 0) > 0 then anomW = math.max(anomW, A.textW(A.count("IGUI_MQ_Admin_Anomalies", r.anomalies)) + A.GAP) end
+    end
+    local btnW = math.max(A.textW(getText("IGUI_MQ_Admin_Exclude")), A.textW(getText("IGUI_MQ_Admin_Unexclude"))) + 24
+    local userW = A.colW(names, math.max(80, F.width - 2 * A.PAD - rankW - ptsW - anomW - btnW - 2 * A.GAP))
+    for i, r in ipairs(rows) do
+        local cells = {
+            { text = tostring(r.rank or i), x = A.PAD + rankW - A.GAP, right = true, token = "textMuted" },
+            { text = names[i], x = A.PAD + rankW, w = userW, token = r.excluded and "textMuted" or "text" },
+            { text = A.num(r.pts or 0), x = A.PAD + rankW + userW + ptsW, right = true },
+        }
+        if (r.anomalies or 0) > 0 then
+            cells[#cells + 1] = { text = A.count("IGUI_MQ_Admin_Anomalies", r.anomalies), x = A.PAD + rankW + userW + ptsW + A.GAP,
+                token = "warning" }
+        end
+        local row = F:cells("rr" .. i, cells, i % 2 == 0)
+        local b = F:button("rx" .. i, getText(r.excluded and "IGUI_MQ_Admin_Unexclude" or "IGUI_MQ_Admin_Exclude"), onExclude,
+            (not r.excluded) and "danger" or nil)
+        b.entry = r
+        b:setX(F.width - A.PAD - b.width)
+        b:setY(row:getY() + math.floor((row.height - b.height) / 2))
+        if b.height > row.height then
+            row:setHeight(b.height)
+            F.y = row:getY() + row.height
+            b:setY(row:getY())
+        end
+        if r.excluded and r.reason then F:text("rw" .. i, getText("IGUI_MQ_Admin_ExcludedWhy", tostring(r.reason)), "textMuted") end
+    end
 end
 
 local function layoutSeason(P, pg, F)
     local d = pg.data
     F:head("h", getText("IGUI_MQ_Admin_SeasonHead"))
     if d == nil then
-        F:text("ld", pg.err and A.codeText(P, pg.err) or getText("IGUI_MQ_Admin_Loading"), pg.err and "errorText" or "textMuted")
+        loadingText(P, F, "ld", pg)
     else
+        F:text("imm", getText("IGUI_MQ_Admin_ImmediateNote"), "textMuted")
         F:text("cur", getText("IGUI_MQ_Admin_SeasonNow", d.no or "?", A.time(d.startMs)), "text")
         F:text("end", getText("IGUI_MQ_Admin_SeasonEnd", A.time(type(d.endMs) == "number" and d.endMs - 60000 or nil)), "text")
         local len = F:field("len", math.max(60, A.textW("180") + 30))
@@ -262,26 +524,7 @@ local function layoutSeason(P, pg, F)
             F:text("rn", getText("IGUI_MQ_Admin_ReviewNone"), "textMuted")
         else
             F:text("rf", getText("IGUI_MQ_Admin_FrozenAt", A.time(d.frozenAt)), "info")
-            local rankW = A.textW("#000") + A.GAP
-            local ptsW = A.textW("1,000,000") + A.GAP
-            for i, r in ipairs(d.rows or {}) do
-                local cells = {
-                    { text = tostring(r.rank or i), x = A.PAD + 44 + rankW - A.GAP, right = true, token = "textMuted" },
-                    { text = tostring(r.user), x = A.PAD + 44 + rankW, w = 160 },
-                    { text = A.num(r.pts or 0), x = A.PAD + 44 + rankW + 160 + ptsW, right = true },
-                }
-                if (r.anomalies or 0) > 0 then
-                    cells[#cells + 1] = { text = A.count("IGUI_MQ_Admin_Anomalies", r.anomalies), x = A.PAD + 44 + rankW + 160 + ptsW + A.GAP,
-                        token = "warning" }
-                end
-                local row = F:cells("rr" .. i, cells, i % 2 == 0)
-                local box = F:check("rx" .. i, "", onExclude, r.excluded == true)
-                box.entry = r
-                box:setWidth(40)
-                box:setX(A.PAD)
-                box:setY(row:getY() + math.floor((row.height - box.height) / 2))
-                if r.excluded and r.reason then F:text("rw" .. i, getText("IGUI_MQ_Admin_ExcludedWhy", tostring(r.reason)), "textMuted") end
-            end
+            layoutReview(P, F, d)
             F:text("rc", getText("IGUI_MQ_Admin_ReviewNote"), "textMuted")
             F:row({ F:button("pay", getText("IGUI_MQ_Admin_PayConfirm"), onSeasonConfirm, "danger") })
         end
@@ -294,73 +537,19 @@ local function layoutSeason(P, pg, F)
     F:text("wn", getText("IGUI_MQ_Admin_RewardsNote"), "textMuted")
 end
 
-A.pages.season = { layout = layoutSeason, load = loadSeason }
+A.pages.season = { layout = layoutSeason, load = function(P) loadSeason(P) end }
 
--- ===== exchange & events =====
-
-local function loadExchange(P, pg)
-    A.send(P, "ex.status", {}, function(res)
-        pg.data, pg.err = res.ok and res or nil, (not res.ok) and res or nil
-        A.layout(P)
-    end)
-end
-
-local function onEventRemove(P, b)
-    local e = b.entry
-    A.ask(P, { title = getText("IGUI_MQ_Admin_EventRemove"), danger = true,
-        text = getText("IGUI_MQ_Admin_EventRemoveAsk", tostring(e.name)), onOk = function()
-            A.send(P, "event.remove", { id = e.id }, function(res)
-                if not res.ok then return A.fail(P, res) end
-                loadExchange(P, P.pages.exchange)
-            end)
-        end })
-end
-
-local function themeLabel(id)
-    return id == "all" and getText("IGUI_MQ_Admin_ThemeAll") or getText("IGUI_MQ_Theme_" .. tostring(id))
-end
-
-local function onEventAdd(P)
-    local pg = P.pages.exchange
-    local pool = pg.flow.pool
-    local name = textOf(pool["ev:name"]:getText())
-    local mult, key, lo, hi = AM.check(pool["ev:mult"]:getText(), "eventMult")
-    local s = AM.dayStartMs(pool["ev:start"]:getText())
-    local e = AM.dayStartMs(pool["ev:end"]:getText())
-    A.markError(P, pool["ev:mult"], mult == nil and getText(key, AM.num(lo), AM.num(hi)) or nil)
-    A.markError(P, pool["ev:start"], s == nil and getText("IGUI_MQ_Admin_ErrDate") or nil)
-    A.markError(P, pool["ev:end"], (e == nil or (s and e < s)) and getText("IGUI_MQ_Admin_ErrDate") or nil)
-    if name == "" then return A.say(P, getText("IGUI_MQ_Admin_ErrName"), "errorText") end
-    if mult == nil or s == nil or e == nil or e < s then return A.say(P, getText("IGUI_MQ_Admin_FixErrors"), "errorText") end
-    e = e + 86400000   -- end day inclusive
-    if e <= getTimestampMs() then return A.say(P, getText("IGUI_MQ_Admin_ErrPast"), "errorText") end
-    A.send(P, "event.add", { name = string.sub(name, 1, 64), theme = pool["ev:theme"]:getSelected() or "all", mult = mult,
-        startMs = s, endMs = e }, function(res)
-        if not res.ok then return A.fail(P, res) end
-        pool["ev:name"]:setText("")
-        A.say(P, getText("IGUI_MQ_Admin_EventAdded"), "success")
-        loadExchange(P, pg)
-    end)
-end
-
-local function dateField(P, F, key)
-    local UI = P.UI
-    if UI.CAPABILITIES.datePicker and UI.DateField then
-        return F:get(key, function() return UI.DateField.new({ x = 0, y = 0, theme = P.theme, target = P }) end)
-    end
-    return F:field(key, A.textW("0000-00-00") + 30, "YYYY-MM-DD", 10)
-end
+-- ===== exchange =====
 
 local function layoutExchange(P, pg, F)
     local d = pg.data
     F:head("h", getText("IGUI_MQ_Admin_ExHead"))
     if d == nil then
-        F:text("ld", pg.err and A.codeText(P, pg.err) or getText("IGUI_MQ_Admin_Loading"), pg.err and "errorText" or "textMuted")
+        loadingText(P, F, "ld", pg)
     else
         if d.ecAvailable == false then F:text("noec", getText("IGUI_MQ_Admin_NoEconomy"), "warning") end
-        -- warn: unknown | disabled | cap_zero | over_cap (Systems ex.status, one at a time); nil = nothing to warn
-        local warn = d.warn
-        if warn == "unknown" or warn == "disabled" or warn == "cap_zero" or warn == "over_cap" then
+        local warn = exWarn(d)
+        if warn then
             F:text("warn", getText("IGUI_MQ_Admin_Warn_" .. warn .. "_Body", A.num(d.ecCap or 0)), "text", nil, "warning",
                 getText("IGUI_MQ_Admin_Warn_" .. warn .. "_Head"))
         end
@@ -390,45 +579,11 @@ local function layoutExchange(P, pg, F)
     F:head("hs", getText("IGUI_MQ_Admin_ExSettings"))
     form(P, pg, F, { { "exchange.enabled", "bool" }, { "exchange.rate", "rate" }, { "exchange.perDay", "perDay" },
         { "exchange.min", "exMin" } })
-    F:gap()
-
-    -- events
-    F:head("he", getText("IGUI_MQ_Admin_EventsHead"))
-    F:text("hen", getText("IGUI_MQ_Admin_EventsNote") .. " " .. A.tzNote(), "textMuted")
-    local events = d and d.events or {}
-    local live = 0
-    for i, e in ipairs(events) do
-        if (e.endMs or 0) > getTimestampMs() then live = live + 1 end
-        F:text("e" .. i, getText("IGUI_MQ_Admin_EventRow", tostring(e.name), themeLabel(e.theme), AM.num(e.mult or 1),
-            A.time(e.startMs) .. " - " .. A.time(e.endMs)), "text")
-        local rm = F:button("er" .. i, getText("IGUI_MQ_Admin_EventRemove"), onEventRemove, "danger")
-        rm.entry = e
-        F:row({ rm })
-    end
-    if #events == 0 then F:text("en", getText("IGUI_MQ_Admin_EventsNone"), "textMuted") end
-    local themes = { { id = "all", label = themeLabel("all") } }
-    for _, t in ipairs(THEMES) do themes[#themes + 1] = { id = t, label = themeLabel(t) } end
-    local lw = 0
-    for _, k in ipairs({ "EvName", "EvTheme", "EvMult", "EvStart", "EvEnd" }) do lw = math.max(lw, A.textW(getText("IGUI_MQ_Admin_" .. k))) end
-    lw = lw + A.GAP
-    formRow(F, "ev:name", getText("IGUI_MQ_Admin_EvName"), lw, { F:field("ev:name", math.max(120, math.min(300, F.width - lw - 3 * A.PAD)), nil, 64) })
-    formRow(F, "ev:theme", getText("IGUI_MQ_Admin_EvTheme"), lw,
-        { F:dropdown("ev:theme", themes, pg.flow.pool["ev:theme"] and pg.flow.pool["ev:theme"]:getSelected() or "all", nil) })
-    local mult = F:field("ev:mult", 60)
-    if mult:getText() == "" then mult:setText("2") end
-    mult:setTooltip(getText("IGUI_MQ_Admin_RangeTip", "1", "5"))
-    formRow(F, "ev:mult", getText("IGUI_MQ_Admin_EvMult"), lw, { mult })
-    formRow(F, "ev:start", getText("IGUI_MQ_Admin_EvStart"), lw, { dateField(P, F, "ev:start") })
-    formRow(F, "ev:end", getText("IGUI_MQ_Admin_EvEnd"), lw, { dateField(P, F, "ev:end") })
-    local add = F:button("ev:add", getText("IGUI_MQ_Admin_EventAdd"), onEventAdd, "primary")
-    add:setEnabled(live < 3 and not A.busy(P))
-    F:row({ add })
-    if live >= 3 then F:text("ev:max", getText("IGUI_MQ_Admin_EventsMax"), "warning") end
 end
 
-A.pages.exchange = { layout = layoutExchange, load = loadExchange }
+A.pages.exchange = { layout = layoutExchange, load = function(P) loadExchange(P) end }
 
--- ===== players: anomalies, account view, revoke, hide =====
+-- ===== players: account view, revoke, hide, anomalies, per-minute limits =====
 
 local function loadAnom(P, pg)
     pg.days = pg.days or 1
@@ -480,7 +635,7 @@ local function onRevoke(P)
     local cur = acc and acc.achv and tonumber(acc.achv[id]) or 0
     local to = pg.revTier or 0
     if id == nil or to >= cur then return end
-    A.ask(P, { title = getText("IGUI_MQ_Admin_Revoke"), danger = true, required = true,
+    A.ask(P, { title = getText("IGUI_MQ_Admin_Revoke"), danger = true, required = true, confirm = getText("IGUI_MQ_Admin_RevokeWhat"),
         text = getText("IGUI_MQ_Admin_RevokeAsk", acc.user, A.achName(P, id), cur - to, AM.roman(to)),
         input = { placeholder = getText("IGUI_MQ_Admin_Reason") }, onOk = function(reason)
             A.send(P, "achv.revoke", { user = acc.user, achId = id, tier = to, reason = reason }, function(res)
@@ -495,6 +650,7 @@ local function onHide(P)
     local acc = P.pages.players.acct
     local on = acc.hidden == nil
     A.ask(P, { title = getText(on and "IGUI_MQ_Admin_Hide" or "IGUI_MQ_Admin_Unhide"), danger = on, required = on,
+        confirm = getText(on and "IGUI_MQ_Admin_HideNow" or "IGUI_MQ_Admin_UnhideNow"),
         text = getText(on and "IGUI_MQ_Admin_HideAsk" or "IGUI_MQ_Admin_UnhideAsk", acc.user),
         input = { placeholder = getText("IGUI_MQ_Admin_Reason") }, onOk = function(reason)
             A.send(P, "board.hide", { user = acc.user, on = on, reason = reason ~= "" and reason or nil }, function(res)
@@ -535,8 +691,42 @@ local function layoutAccount(P, pg, F)
     rv:setEnabled(#opts > 0)
     F:row({ rv, F:button("a:hide", getText(acc.hidden and "IGUI_MQ_Admin_Unhide" or "IGUI_MQ_Admin_Hide"), onHide,
         acc.hidden and "normal" or "danger") })
-    F:text("a:n", getText("IGUI_MQ_Admin_DangerNote"), "textMuted")
+    F:text("a:n", getText("IGUI_MQ_Admin_ImmediateNote") .. " " .. getText("IGUI_MQ_Admin_DangerNote"), "textMuted")
     F:gap(2 * A.GAP)
+end
+
+-- the stats with a per-minute limit that players drive (account-level ones are fed by the mod itself)
+local function ceilStats()
+    local C, out = MQ.Catalog, {}
+    for _, id in ipairs(C.statOrder or {}) do
+        local s = C.stats[id]
+        if s and s.ceil and not s.account then out[#out + 1] = s end
+    end
+    return out
+end
+
+-- closing hides the fields: their typed values go into the draft first (A.collect skips hidden fields)
+local function onCeilToggle(P)
+    local pg = P.pages.players
+    if pg.ceilOpen and not A.fold(P) then return end
+    pg.ceilOpen = not pg.ceilOpen
+    A.layout(P)
+end
+
+-- ceilings: one field per stat, the default being Catalog.stats[id].ceil; only changed stats get a key
+local function layoutCeilings(P, pg, F)
+    local stats = ceilStats()
+    F:row({ F:button("ceil", pg.ceilOpen and getText("IGUI_MQ_Admin_Collapse") or getText("IGUI_MQ_Admin_CeilOpen", A.num(#stats)),
+        onCeilToggle) })
+    if not pg.ceilOpen then return end
+    F:text("ceiln", getText("IGUI_MQ_Admin_CeilNote"), "textMuted")
+    local labels = {}
+    for i, s in ipairs(stats) do labels[i] = A.statName(s.id) end
+    local lw = A.colW(labels, 260)
+    local w = math.max(60, A.textW("1,000,000") + 20)
+    for i, s in ipairs(stats) do
+        formRow(F, "ceil:" .. s.id, labels[i], lw, { A.numField(P, pg, "ceil:" .. s.id, "ceilings", { s.id }, "ceil", w, s.ceil) })
+    end
 end
 
 local function layoutPlayers(P, pg, F)
@@ -556,35 +746,39 @@ local function layoutPlayers(P, pg, F)
     F:row(chips)
     F:text("tz", A.tzNote(), "textMuted")
     if pg.rows == nil then
-        F:text("ld", pg.err and A.codeText(P, pg.err) or getText("IGUI_MQ_Admin_Loading"), pg.err and "errorText" or "textMuted")
-        return
-    end
-    if #pg.rows == 0 then F:text("none", getText("IGUI_MQ_Admin_AnomNone"), "textMuted") end
-    local timeW = A.timeW()
-    local userW = 120
-    for i, r in ipairs(pg.rows) do
-        local b = F:button("v" .. i, getText("IGUI_MQ_Admin_View"), onView, "ghost")
-        b.user = r.user
-        -- the description goes on its own (wrapped) line under the row when it does not fit beside the name
-        -- the entry keeps only the dropped part (Audit.over); that minute's total is the limit plus it
-        local desc = getText("IGUI_MQ_Admin_AnomRow", A.statName(r.stat), A.num((r.ceil or 0) + (r.n or 0)), A.num(r.ceil or 0))
-        local descX = A.PAD + timeW + userW + A.GAP
-        local fits = A.textW(desc) <= F.width - A.PAD - b.width - A.GAP - descX
-        local cells = {
-            { text = A.time(r.at), x = A.PAD, token = "textMuted" },
-            { text = tostring(r.user), x = A.PAD + timeW, w = userW },
-        }
-        if fits then cells[3] = { text = desc, x = descX } end
-        local row = F:cells("r" .. i, cells, i % 2 == 0)
-        b:setX(F.width - A.PAD - b.width)
-        b:setY(row:getY() + math.floor((row.height - b.height) / 2))
-        if b.height > row.height then
-            row:setHeight(b.height)
-            F.y = row:getY() + row.height
-            b:setY(row:getY())
+        loadingText(P, F, "ld", pg)
+    else
+        if #pg.rows == 0 then F:text("none", getText("IGUI_MQ_Admin_AnomNone"), "textMuted") end
+        local timeW = A.timeW()
+        local users = {}
+        for i, r in ipairs(pg.rows) do users[i] = r.user end
+        local userW = A.colW(users, math.floor(F.width / 3))
+        for i, r in ipairs(pg.rows) do
+            local b = F:button("v" .. i, getText("IGUI_MQ_Admin_View"), onView)
+            b.user = r.user
+            -- the description goes on its own (wrapped) line under the row when it does not fit beside the name
+            -- the entry keeps only the dropped part (Audit.over); that minute's total is the limit plus it
+            local desc = getText("IGUI_MQ_Admin_AnomRow", A.statName(r.stat), A.num((r.ceil or 0) + (r.n or 0)), A.num(r.ceil or 0))
+            local descX = A.PAD + timeW + userW + A.GAP
+            local fits = A.textW(desc) <= F.width - A.PAD - b.width - A.GAP - descX
+            local cells = {
+                { text = A.time(r.at), x = A.PAD, token = "textMuted" },
+                { text = tostring(r.user), x = A.PAD + timeW, w = userW },
+            }
+            if fits then cells[3] = { text = desc, x = descX } end
+            local row = F:cells("r" .. i, cells, i % 2 == 0)
+            b:setX(F.width - A.PAD - b.width)
+            b:setY(row:getY() + math.floor((row.height - b.height) / 2))
+            if b.height > row.height then
+                row:setHeight(b.height)
+                F.y = row:getY() + row.height
+                b:setY(row:getY())
+            end
+            if not fits then F:text("rd" .. i, desc, "text") end
         end
-        if not fits then F:text("rd" .. i, desc, "text") end
     end
+    F:gap()
+    layoutCeilings(P, pg, F)
 end
 
 A.pages.players = { layout = layoutPlayers, load = loadAnom }
@@ -618,10 +812,10 @@ end
 local function layoutBalance(P, pg, F)
     F:head("h", getText("IGUI_MQ_Admin_BalanceHead"))
     F:text("n", getText("IGUI_MQ_Admin_BalanceNote"), "textMuted")
-    if pg.rows == nil then
-        F:text("ld", pg.err and A.codeText(P, pg.err) or getText("IGUI_MQ_Admin_Loading"), pg.err and "errorText" or "textMuted")
-        return
-    end
+    if pg.rows == nil then return loadingText(P, F, "ld", pg) end
+    -- daily and weekly rows share one list: the weekly ones say so ("Craft N items" is both)
+    local weekly = {}
+    for _, t in ipairs(MQ.Catalog.weekly or {}) do weekly[t.tid] = true end
     local rateW = math.max(A.textW(getText("IGUI_MQ_Admin_ColRate")), A.textW("100%")) + 2 * A.GAP
     local timeW = math.max(A.textW(getText("IGUI_MQ_Admin_ColMedian")), A.textW(getText("IGUI_MQ_Admin_Minutes", "000"))) + 2 * A.GAP
     -- quest names get the width; a suggestion goes on its own line under its row (EN names were cut to
@@ -637,8 +831,11 @@ local function layoutBalance(P, pg, F)
     local any = false
     for i, r in ipairs(pg.rows) do
         any = any or r.suggest ~= nil
+        local tid = tostring(r.tid)
+        local name = A.questName(tid)
+        if weekly[tid] then name = getText("IGUI_MQ_Admin_WeeklyTag", name) end
         F:cells("r" .. i, {
-            { text = A.questName(tostring(r.tid)), x = A.PAD, w = nameW - A.GAP },
+            { text = name, x = A.PAD, w = nameW - A.GAP },
             { text = type(r.rate) == "number" and (math.floor(r.rate * 100 + 0.5) .. "%") or "-", x = x1, right = true },
             { text = type(r.medianMin) == "number" and getText("IGUI_MQ_Admin_Minutes", A.num(math.floor(r.medianMin + 0.5))) or "-",
                 x = x2, right = true },
@@ -727,7 +924,7 @@ local function layoutTowns(P, pg, F)
     local custom = AM.get(P.S, "towns.custom") or {}
     if #custom == 0 then F:text("cn", getText("IGUI_MQ_Admin_CustomTownsNone"), "textMuted") end
     for i, t in ipairs(custom) do
-        local rm = F:button("cr" .. i, getText("IGUI_MQ_Admin_Remove"), onTownRemove, "ghost")
+        local rm = F:button("cr" .. i, getText("IGUI_MQ_Admin_Remove"), onTownRemove)
         rm.townId, rm.townName = t.id, t.name
         F:row({ F:label("cl" .. i, tostring(t.name)), F:label("cx" .. i, rectText(t.rects and t.rects[1]), "textMuted"), rm })
     end
@@ -739,7 +936,7 @@ local function layoutTowns(P, pg, F)
     formRow(F, "t:name", getText("IGUI_MQ_Admin_TownName"), lw, { F:field("t:name", 200, nil, 64) })
     local cw = A.textW("100000") + 24
     for i = 1, 2 do
-        local here = F:button("t:here" .. i, getText("IGUI_MQ_Admin_UseHere"), onHere, "ghost")
+        local here = F:button("t:here" .. i, getText("IGUI_MQ_Admin_UseHere"), onHere)
         here.corner = i
         formRow(F, "t:c" .. i, getText("IGUI_MQ_Admin_Corner", i), lw,
             { F:field("t:x" .. i, cw, "x"), F:field("t:y" .. i, cw, "y"), here })

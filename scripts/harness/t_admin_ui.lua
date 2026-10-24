@@ -52,7 +52,7 @@ return function(T)
         Text = { fit = function(s) return s end, wrap = function(s) return { s } end },
         Button = { new = widget({ setTitle = function(self, s) self.opts.title = s end,
             fitWidth = function(self) self.width = #tostring(self.opts.title) * 7 + 20 end,
-            setActive = function(self, b) self.active = b end }) },
+            setActive = function(self, b) self.active = b end, setStyle = function(self, s) self.style = s end }) },
         Checkbox = { new = widget({ setLabel = function() end, setChecked = function(self, b) self.opts.checked = b end,
             getChecked = function(self) return self.opts.checked == true end }) },
         TextField = { new = widget({ getText = function(self) return self.text or "" end, setText = function(self, s) self.text = s end,
@@ -78,7 +78,8 @@ return function(T)
     local exWarn = "over_cap"
     local replies = {
         ["cfg.get"] = function() return { overrides = {}, history = { { id = 3, at = now, actor = "boss", summary = "x", n = 2 } }, rev = 3,
-            file = { ok = false, at = now, source = "file", why = "target", path = "daily.pool.d_kill.target" } } end,
+            file = { ok = false, at = now, source = "file", why = "target", path = "daily.pool.d_kill.target" },
+            dir = "MinidoracatQuest/servertest/" } end,
         ["cfg.preview"] = function(args)
             local rows = {}
             for i, c in ipairs(Q.Util.decode(args.changes)) do rows[i] = { path = c.path, before = 1, after = c.value } end
@@ -122,27 +123,31 @@ return function(T)
     local function answer(ok, text) local d = dialogs[#dialogs]; dialogs[#dialogs] = nil; d.onResult(ok, text) end
 
     T.section("admin ui: every tab lays out and loads its data")
-    local loads = { season = "season.review", exchange = "ex.status", players = "anom.list", balance = "balance.report" }
+    T.check(P.current == "basic" and last("season.review") ~= nil and last("ex.status") ~= nil,
+        "the admin page opens on Basic, which loads the season and the exchange status")
+    local loads = { quests = "ex.status", season = "season.review", exchange = "ex.status", players = "anom.list", balance = "balance.report" }
     for _, id in ipairs(A.TABS) do
         A.select(P, id)
         if loads[id] then T.check(last(loads[id]) ~= nil, "tab " .. id .. " sends " .. loads[id]) end
     end
     T.check(not T.printed("admin layout"), "no tab raised during layout")
 
-    T.section("admin ui: batch x1.25 -> preview -> apply")
+    T.section("admin ui: batch on the category shown -> preview -> apply")
     A.select(P, "achv")
-    local box
     local cat = pool("achv")["cat"]
     cat.handler(P, "combat", cat)
-    for _, el in pairs(pool("achv")) do if el.achId == "zombie_kills" and el.opts.onChange then box = el end end
-    T.check(box ~= nil, "zombie_kills row has a select box")
-    box.handler(P, true, box)
-    T.check(pool("achv")["b:m2"]:isEnabled(), "batch buttons enabled with a selection")
+    local combat = {}
+    for _, a in ipairs(C.achievements) do if a.cat == "combat" then combat[#combat + 1] = a.id end end
+    T.check(P.barFlow.pool["preview"].style == "normal" and pool("achv")["c1"] == nil,
+        "nothing to preview: the bar button is not the gold one; rows have no select switches")
     press("achv", "b:m2")
+    T.check(AM.draftCount(P.S.draft) == #combat and P.barFlow.pool["preview"].style == "primary",
+        "x1.25 drafts every achievement of the category (" .. #combat .. "), the preview button turns primary")
+    T.check(pool("achv")["r1"].cells[1].text == "IGUI_MQ_Admin_Changed", "a changed row says so in its name, not only in gold")
     A.onPreview(P)
     local pv = last("cfg.preview")
     local changes = pv and Q.Util.decode(pv.changes)
-    T.check(changes and changes[1].path == "achievements.zombie_kills.tiers" and P.confirm ~= nil, "preview sent, confirm view shown")
+    T.check(changes and changes[1].path == "achievements." .. combat[1] .. ".tiers" and P.confirm ~= nil, "preview sent, confirm view shown")
     T.check(pool("achv")["cf:r1"] ~= nil and pool("achv")["cf:r1"].cells[2].strike == true, "old value struck through")
     press("achv", "cf:apply")
     local ap = last("cfg.apply")
@@ -156,11 +161,21 @@ return function(T)
     press("achv", "e:add")
     T.check(#apg.rows == 5 and pool("achv")["e:t5"]:getText() ~= "", "add tier fills the default")
     pool("achv")["e:n5"]:setText("Undying")
+    local onBox = pool("achv")["e:on"]
+    onBox.handler(P, false, onBox)
     press("achv", "e:save")
     local tiers = AM.get(P.S, "achievements.zombie_kills.tiers")
     local titles = AM.get(P.S, "achievements.zombie_kills.titles")
     T.check(#tiers == 5 and titles[5] == "Undying" and apg.edit == nil, "editor result is in the draft")
+    T.check(AM.get(P.S, "achievements.zombie_kills.enabled") == false, "the editor's switch turns the achievement off in the draft")
     A.onDiscard(P)
+    T.check(#dialogs == 1 and dialogs[1].danger and dialogs[1].confirmText == "IGUI_MQ_Admin_Discard" and AM.draftCount(P.S.draft) > 0,
+        "Discard changes asks first and names the action")
+    answer(false)
+    T.check(AM.draftCount(P.S.draft) > 0, "cancelling keeps the draft")
+    A.onDiscard(P)
+    answer(true, "")
+    T.check(AM.draftCount(P.S.draft) == 0, "confirmed: the draft is empty")
     press("achv", "n:open")
     pool("achv")["n:name"]:setText("Pest control")
     pool("achv")["n:tiers"]:setText("10, 100")
@@ -168,15 +183,54 @@ return function(T)
     press("achv", "n:add")
     local customPath = P.S.draft.order[1]
     T.check(customPath ~= nil and string.match(customPath, "^custom%.c[a-z0-9]+$") ~= nil, "new achievement drafted under custom.<id>")
-    A.onDiscard(P)
+    A.discard(P)
 
-    T.section("admin ui: quick difficulty")
+    T.section("admin ui: quick difficulty on Basic")
+    A.select(P, "basic")
+    pool("basic")["f:rewards.top1"]:setText("700")
     local hard
-    for _, el in pairs(pool("achv")) do if el.preset == "hard" then hard = el end end
+    for _, el in pairs(pool("basic")) do if el.preset == "hard" then hard = el end end
     hard.handler(P, hard)
     T.check(last("diff.preview").preset == "hard" and P.confirm and P.confirm.estimate ~= nil, "diff.preview -> confirm with estimate")
-    press("achv", "cf:apply")
+    T.check(AM.get(P.S, "rewards.top1") == 700, "a value typed on Basic went into the draft before the difficulty preview")
+    press("basic", "cf:apply")
     T.check(Q.Util.decode(last("cfg.apply").changes)[1].path == "difficulty.preset", "difficulty applied through cfg.apply")
+    T.check(AM.get(P.S, "rewards.top1") == 700 and pool("basic")["f:rewards.top1"]:getText() == "700",
+        "applying the difficulty keeps the typed reward (still in the draft)")
+    A.discard(P)
+
+    T.section("admin ui: Basic and the other tabs edit the same settings")
+    pool("basic")["f:exchange.rate"]:setText("3")
+    A.select(P, "exchange")
+    T.check(pool("exchange")["f:exchange.rate"]:getText() == "3", "the exchange tab shows the rate typed on Basic")
+    A.onPreview(P)
+    changes = Q.Util.decode(last("cfg.preview").changes)
+    T.check(#changes == 1 and changes[1].path == "exchange.rate" and changes[1].value == 3, "a preview there keeps it")
+    A.select(P, "basic")
+    T.check(P.confirm == nil and P.msg == "IGUI_MQ_Admin_ConfirmClosed", "switching tabs closes the confirm view and says so")
+    A.discard(P)
+
+    T.section("admin ui: quest templates by theme")
+    A.select(P, "quests")
+    local th = pool("quests")["th"]
+    pool("quests")["f:daily.pool.d_kill.target.1"]:setText("25")
+    th.handler(P, "tailor", th)
+    T.check(P.pages.quests.theme == "tailor" and not pool("quests")["f:daily.pool.d_kill.enabled"]:isVisible()
+        and pool("quests")["f:daily.pool.d_sew.enabled"]:isVisible() and pool("quests")["f:weekly.pool.w_sew.enabled"]:isVisible(),
+        "a theme shows only its daily and weekly templates")
+    T.check(P.S.draft.by["daily.pool.d_kill.target"] ~= nil and P.S.draft.by["daily.pool.d_kill.target"][1] == 25,
+        "a value typed before picking a theme is in the draft")
+    press("quests", "tb:o2")
+    local off = 0
+    for _, path in ipairs(P.S.draft.order) do if string.match(path, "%.enabled$") and P.S.draft.by[path] == false then off = off + 1 end end
+    T.check(off == 4 and pool("quests")["f:daily.pool.d_sew.enabled"]:getChecked() == false,
+        "Disable all: the 3 daily and 1 weekly tailoring templates, and the switches show it")
+    press("quests", "tb:m2")
+    local sew = AM.get(P.S, "daily.pool.d_sew.target")
+    T.check(sew[1] == 3 and sew[2] == 5 and pool("quests")["f:daily.pool.d_sew.target.1"]:getText() == "3",
+        "targets x1.25 on the template step; the fields show the draft")
+    A.discard(P)
+    th.handler(P, "all", th)
 
     T.section("admin ui: quest form checks before sending")
     A.select(P, "quests")
@@ -196,7 +250,7 @@ return function(T)
     changes = Q.Util.decode(last("cfg.preview").changes)
     T.check(#sent == before + 1 and changes[1].path == "daily.pool." .. tid .. ".target" and changes[1].value[1] == 3, "valid edit previewed")
     A.onConfirmCancel(P)
-    A.onDiscard(P)
+    A.discard(P)
     -- typed values used to stay on the page: a Preview on another tab missed them and the next resync reverted them
     local tpath = "daily.pool." .. tid .. ".target"
     pool("quests")["f:" .. tpath .. ".1"]:setText("2")
@@ -210,6 +264,7 @@ return function(T)
     pool("quests")["f:" .. tpath .. ".1"]:setText("2")
     A.onPreview(P)
     A.onDiscard(P)
+    answer(true, "")
     T.check(P.confirm == nil and AM.draftCount(P.S.draft) == 0, "discarding closes the confirm view, so Apply cannot send the discarded changes")
 
     T.section("admin ui: season length, exclusion, payout")
@@ -223,19 +278,24 @@ return function(T)
     T.check(last("season.preview").days == 35 and pool("season")["pvb"]:isVisible(), "season.preview -> info banner")
     press("season", "pva")
     T.check(last("season.apply").days == 35, "season.apply with the previewed length")
-    local rx = pool("season")["rx1"]
-    rx.handler(P, true, rx)
+    press("season", "rx1")
+    T.check(#dialogs == 1 and dialogs[1].confirmText == "IGUI_MQ_Admin_Exclude"
+        and string.find(dialogs[1].text, "IGUI_MQ_Admin_Reason", 1, true) ~= nil,
+        "exclude is a button; the dialog names the action and says a reason is needed")
     answer(true, "  ")
     T.check(#dialogs == 1 and dialogs[1].danger, "empty reason asks again")
     answer(true, "alt account")
     local ex = last("season.exclude")
     T.check(ex.user == "OldJoe" and ex.on == true and ex.reason == "alt account", "season.exclude with user and reason")
+    press("season", "rx2")
+    ex = last("season.exclude")
+    T.check(#dialogs == 0 and ex.user == "Ricky" and ex.on == false, "Include again on an excluded row sends at once")
     press("season", "pay")
     T.check(dialogs[1].danger == true, "payout asks once more with a danger dialog")
     answer(true, "")
     T.check(last("season.confirm") ~= nil, "season.confirm sent after the second confirmation")
 
-    T.section("admin ui: exchange status and events")
+    T.section("admin ui: exchange status; timed events on the quests tab")
     A.select(P, "exchange")
     local warnEl = pool("exchange")["warn"]
     T.check(warnEl ~= nil and warnEl:isVisible() and warnEl.lines[1] == "IGUI_MQ_Admin_Warn_over_cap_Head",
@@ -252,14 +312,16 @@ return function(T)
     P.pages.exchange.loaded = false
     A.select(P, "exchange")
     T.check(not pool("exchange")["warn"]:isVisible(), "no warn -> no banner")
-    pool("exchange")["ev:name"]:setText("Fest")
-    pool("exchange")["ev:start"]:setText("2099-01-01")
-    pool("exchange")["ev:end"]:setText("2099-01-03")
-    press("exchange", "ev:add")
+    A.select(P, "quests")
+    pool("quests")["ev:name"]:setText("Fest")
+    pool("quests")["ev:start"]:setText("2099-01-01")
+    pool("quests")["ev:end"]:setText("2099-01-03")
+    press("quests", "ev:add")
     local ev = last("event.add")
     T.check(ev and ev.name == "Fest" and ev.theme == "all" and ev.mult == 2 and ev.startMs == AM.dayStartMs("2099-01-01")
         and ev.endMs == AM.dayStartMs("2099-01-03") + 86400000, "event.add with day range in the sandbox timezone")
-    press("exchange", "er1")
+    press("quests", "er1")
+    T.check(dialogs[#dialogs].confirmText == "IGUI_MQ_Admin_EventRemove", "the remove dialog names the action")
     answer(true, "")
     T.check(last("event.remove").id == 1, "event.remove by id")
 
@@ -278,17 +340,30 @@ return function(T)
     local rv = last("achv.revoke")
     T.check(rv and rv.user == "Ricky" and rv.achId == "zombie_kills" and rv.tier == 0 and rv.reason == "duped kills", "achv.revoke fields")
     press("players", "a:hide")
+    T.check(dialogs[#dialogs].confirmText == "IGUI_MQ_Admin_HideNow", "the hide dialog names the action")
     answer(true, "cheating")
     local hd = last("board.hide")
     T.check(hd and hd.user == "Ricky" and hd.on == true and hd.reason == "cheating", "board.hide fields")
+    press("players", "ceil")
+    local zf = pool("players")["f:ceil:zombie.kills"]
+    T.check(zf ~= nil and zf:isVisible() and zf:getText() == tostring(C.stats["zombie.kills"].ceil), "per-minute limits open with the defaults")
+    zf:setText("200")
+    A.onPreview(P)
+    changes = Q.Util.decode(last("cfg.preview").changes)
+    local keys = 0
+    for _ in pairs(changes[1].value) do keys = keys + 1 end
+    T.check(#changes == 1 and changes[1].path == "ceilings" and changes[1].value["zombie.kills"] == 200 and keys == 1,
+        "one ceilings change holding only the stat that changed")
+    A.onConfirmCancel(P)
+    A.discard(P)
 
     T.section("admin ui: balance suggestions, towns, history")
     A.select(P, "balance")
     press("balance", "apply")
     changes = Q.Util.decode(last("cfg.preview").changes)
     T.check(changes[1].path == "daily.pool." .. tid .. ".target" and changes[1].value[2] == 3 and P.confirm ~= nil, "suggestions previewed")
-    A.onConfirmCancel(P)
     A.select(P, "towns")
+    T.check(P.confirm == nil, "leaving the tab closed the suggestions' confirm view")
     press("towns", "t:here1")
     T.check(pool("towns")["t:x1"]:getText() == "10500", "towns.here fills the corner")
     pool("towns")["t:name"]:setText("Camp")
@@ -300,12 +375,14 @@ return function(T)
     local tb = pool("towns")["b1"]
     tb.handler(P, false, tb)
     T.check(AM.get(P.S, "towns.disabled")[C.towns[1].id] == true, "built-in town disabled in the draft")
-    A.onDiscard(P)
+    A.discard(P)
     A.select(P, "history")
     press("history", "u1")
     answer(true, "")
     T.check(last("cfg.undo").historyId == 3, "cfg.undo with the history id")
     T.check(pool("history")["ios"] ~= nil and pool("history")["export"] == nil, "history tab shows the config.json state, no export/import")
+    T.check(P.dir == "MinidoracatQuest/servertest/" and pool("history")["ioo"]:isVisible(),
+        "the History tab gets the server's folder from cfg.get and lists what only the file can change")
     T.check(A.summaryText("event.add 3") == "IGUI_MQ_Admin_HistEventAdd" and A.summaryText("season.length 35") == "IGUI_MQ_Admin_HistSeasonLength"
         and A.summaryText("undo #2") == "IGUI_MQ_Admin_HistUndo" and A.summaryText("config.json") == "IGUI_MQ_Admin_HistFile"
         and A.summaryText("Tiers of X") == "Tiers of X",

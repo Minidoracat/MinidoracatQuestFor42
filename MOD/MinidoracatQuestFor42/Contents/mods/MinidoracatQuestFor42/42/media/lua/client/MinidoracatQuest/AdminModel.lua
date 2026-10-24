@@ -14,7 +14,7 @@ AM.RANGE = {
     target = { 1, 1e9, true }, rate = { 0.01, 1000 }, perDay = { 0, 1e6, true }, exMin = { 1, 1e6, true },
     need = { 1, 4, true }, grace = { 0, 7, true }, msDays = { 1, 365, true }, minTier = { 1, 10, true },
     perMinute = { 0, 60, true }, growth = { 0.1, 10 }, weeklyCount = { 1, 3, true }, swaps = { 0, 10, true },
-    eventMult = { 1, 5 }, coord = { 0, 100000, true },
+    eventMult = { 1, 5 }, coord = { 0, 100000, true }, ceil = { 1, 1e6, true },
 }
 AM.MAX_TIERS = 10
 AM.DEL = {}   -- draft marker: path removed (falls back to defaults)
@@ -155,7 +155,8 @@ function AM.achievements(S, catalog)
         out[#out + 1] = { id = a.id, cat = a.cat, stat = a.stat, hidden = a.hidden, order = i, path = base,
             tiers = AM.get(S, base .. ".tiers") or a.tiers or {},
             pts = AM.get(S, base .. ".pts") or a.pts or {},
-            titles = AM.get(S, base .. ".titles") or a.titles or {} }
+            titles = AM.get(S, base .. ".titles") or a.titles or {},
+            enabled = AM.get(S, base .. ".enabled") ~= false }
     end
     local ids = {}
     local seen = {}
@@ -176,7 +177,8 @@ function AM.achievements(S, catalog)
         local c = AM.get(S, "custom." .. cid)
         if type(c) == "table" then
             out[#out + 1] = { id = "c:" .. cid, cid = cid, custom = true, cat = c.cat, stat = c.stat, name = c.name,
-                order = i, path = "custom." .. cid, tiers = c.tiers or {}, pts = c.pts or {}, titles = c.titles or {} }
+                order = i, path = "custom." .. cid, tiers = c.tiers or {}, pts = c.pts or {}, titles = c.titles or {},
+                enabled = c.enabled ~= false }
         end
     end
     MQ.Util.sort(out, achSort)
@@ -185,17 +187,19 @@ end
 
 function AM.lt(a, b) return a < b end
 
--- write tiers/pts/titles of one achievement into the draft (custom: the whole object)
-function AM.putAch(S, a, tiers, pts, titles)
+-- write tiers/pts/titles of one achievement into the draft (custom: the whole object); enabled = nil leaves it as it is
+function AM.putAch(S, a, tiers, pts, titles, enabled)
     if a.custom then
         local obj = AM.copy(AM.get(S, a.path)) or {}
         obj.tiers, obj.pts, obj.titles = AM.copy(tiers), AM.copy(pts), AM.copy(titles or obj.titles or {})
+        if enabled == false then obj.enabled = false elseif enabled then obj.enabled = nil end
         AM.draftSet(S.draft, a.path, obj)
         return
     end
     if not AM.same(tiers, a.tiers) then AM.draftSet(S.draft, a.path .. ".tiers", AM.copy(tiers)) end
     if not AM.same(pts, a.pts) then AM.draftSet(S.draft, a.path .. ".pts", AM.copy(pts)) end
     if titles ~= nil and not AM.same(titles, a.titles) then AM.draftSet(S.draft, a.path .. ".titles", AM.copy(titles)) end
+    if enabled ~= nil and enabled ~= a.enabled then AM.draftSet(S.draft, a.path .. ".enabled", enabled) end
 end
 
 -- thresholds x f, kept strictly increasing and within 1..1e9; nil when the top tier overflows
@@ -216,7 +220,7 @@ function AM.scalePts(pts, f)
     return out
 end
 
--- batch multiplier over the selected achievements; field "tiers" | "pts".
+-- batch multiplier over the achievements in `selected` (a set of ids: the category shown); field "tiers" | "pts".
 -- Returns number changed, list of ids skipped (overflow).
 function AM.batchScale(S, list, selected, field, f)
     local n, skipped = 0, {}
@@ -258,6 +262,16 @@ function AM.batchAddTier(S, list, selected)
         end
     end
     return n, skipped
+end
+
+-- quest target {min, max} x f on the template's step (Balance.suggest rounds the same way); nil when unchanged
+function AM.scaleTarget(t, f, step)
+    step = step or 1
+    local a = math.max(1, math.floor(t[1] * f / step + 0.5) * step)
+    local b = math.max(a, math.floor((t[2] or t[1]) * f / step + 0.5) * step)
+    if a > AM.RANGE.target[2] or b > AM.RANGE.target[2] then return nil end
+    if a == t[1] and b == (t[2] or t[1]) then return nil end
+    return { a, b }
 end
 
 -- tier editor rows { { tier = text, pts = text, title = text } } -> tiers, pts, titles | nil, errors
@@ -331,7 +345,9 @@ local function setPart(t, part, v)
     t[part[#part]] = v
 end
 
--- fields with values already read ({ field, value }) -> changed paths written into the draft, count
+-- fields with values already read ({ field, value }) -> changed paths written into the draft, count.
+-- A field with a default (a key inside a map, like one stat's per-minute limit) drops its key at the default value,
+-- so only real changes reach the overrides.
 function AM.formToDraft(S, values)
     local byPath, order = {}, {}
     for _, fv in ipairs(values) do
@@ -340,7 +356,9 @@ function AM.formToDraft(S, values)
             order[#order + 1] = f.path
             byPath[f.path] = f.part and (AM.copy(AM.get(S, f.path)) or {}) or fv.value
         end
-        if f.part then setPart(byPath[f.path], f.part, fv.value) else byPath[f.path] = fv.value end
+        local v = fv.value
+        if f.part and f.default ~= nil and v == f.default then v = nil end
+        if f.part then setPart(byPath[f.path], f.part, v) else byPath[f.path] = v end
     end
     local n = 0
     for _, path in ipairs(order) do

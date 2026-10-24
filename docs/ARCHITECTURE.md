@@ -364,7 +364,7 @@ boards[i] = { id = "kills", cat = "combat", stat = "zombie.kills", periods = { "
 
 | op | 欄位 | 回應 data |
 |---|---|---|
-| `cfg.get` | — | `overrides`、`rev`、`history`（id、時間、操作者、摘要）、`file`（`config.json` 的同步狀態，同 `status.json`） |
+| `cfg.get` | — | `overrides`、`rev`、`history`（id、時間、操作者、摘要）、`file`（`config.json` 的同步狀態，同 `status.json`）、`dir`（設定檔資料夾，`Zomboid/Lua/` 底下的相對路徑，變更紀錄頁顯示） |
 | `cfg.preview` | `changes: json` | `rows = { { path, before, after } }`、`ok` |
 | `cfg.apply` | `changes: json`、`summary: text` | `historyId`、`rev` |
 | `cfg.undo` | `historyId: int` | `historyId`、`rev` |

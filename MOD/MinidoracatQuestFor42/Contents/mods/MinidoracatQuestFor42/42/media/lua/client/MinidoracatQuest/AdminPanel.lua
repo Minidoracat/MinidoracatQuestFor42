@@ -15,7 +15,9 @@ local A = MQ.Admin or {}
 MQ.Admin = A
 local AM = MQ.AdminModel
 
-A.TABS = { "achv", "quests", "season", "exchange", "players", "balance", "towns", "history" }
+-- settings first (Basic is the guided first page), then the operations tabs from A.TAB_BREAK on
+A.TABS = { "basic", "achv", "quests", "season", "exchange", "towns", "players", "balance", "history" }
+A.TAB_BREAK = "players"
 A.pages = A.pages or {}   -- id -> { layout = fn(P, pg, F), load = fn(P, pg)? }
 A.PAD, A.GAP = 10, 6
 
@@ -241,12 +243,14 @@ local function click(P, b) if b.handler then b.handler(P, b) end end
 local function checked(P, value, box) if box.handler then box.handler(P, value, box) end end
 local function picked(P, id, dd) if dd.handler then dd.handler(P, id, dd) end end
 
+-- style is applied on every layout: a reused button can switch (season "Exclude" danger <-> "Include again" normal)
 function Flow:button(key, title, handler, style)
     local P = self.P
     local b = self:get(key, function()
         return P.UI.Button.new({ x = 0, y = 0, title = title, style = style, theme = P.theme, target = P, onClick = click })
     end)
     b:setTitle(title)
+    if b.setStyle then b:setStyle(style or "normal") end
     b:fitWidth()
     b:setEnabled(true)
     b.handler = handler
@@ -315,6 +319,13 @@ function A.timeW()
     return w + A.GAP
 end
 
+-- a name column as wide as its widest entry, cut only past cap (a fixed 160 cut "Lena_Wanderer_of_Mul...")
+function A.colW(texts, cap)
+    local w = 0
+    for _, s in ipairs(texts) do w = math.max(w, textW(tostring(s))) end
+    return math.max(20, math.min(w + A.GAP, cap))
+end
+
 -- "1 item" / "N items": key .. "1" holds the singular (same text where the language does not inflect)
 function A.count(key, n) return getText(n == 1 and key .. "1" or key, n) end
 
@@ -345,8 +356,15 @@ end
 
 function A.questName(tid)
     local t = MQ.Client and MQ.Client.defs().daily[tid]
-    if type(t) == "table" and type(t.nameKey) == "string" then return getText(t.nameKey, "N") end
-    return getTextOrNull("IGUI_MQ_Q_" .. tid, "N") or tid   -- with the argument, %1 does not warn (Draw.textOrNull)
+    local name
+    if type(t) == "table" and type(t.nameKey) == "string" then
+        name = getText(t.nameKey, "N")
+    else
+        name = getTextOrNull("IGUI_MQ_Q_" .. tid, "N") or tid   -- with the argument, %1 does not warn (Draw.textOrNull)
+    end
+    -- "_more" templates read like their base one to players (only the number differs); admin lists tell them apart
+    if string.match(tostring(tid), "_more$") then name = getText("IGUI_MQ_Admin_Bulk", name) end
+    return name
 end
 
 function A.titleText(id)
@@ -391,6 +409,21 @@ function A.valueText(v)
     return A.count("IGUI_MQ_Admin_Items", n)
 end
 
+-- per-stat limit rows of a "ceilings" change (effective maps; a stat without a key uses Catalog.stats[id].ceil)
+local function ceilRows(out, label, before, after)
+    local C = MQ.Catalog or {}
+    local stats, keys, seen = C.stats or {}, {}, {}
+    local function add(k) if not seen[k] then seen[k] = true; keys[#keys + 1] = k end end
+    for _, k in ipairs(C.statOrder or {}) do if before[k] ~= nil or after[k] ~= nil then add(k) end end
+    for k in pairs(after) do add(k) end
+    for k in pairs(before) do add(k) end
+    for _, k in ipairs(keys) do
+        local def = stats[k] and stats[k].ceil
+        local b, a = before[k] or def, after[k] or def
+        if b ~= a then out[#out + 1] = { label = label .. " - " .. A.statName(k), before = A.valueText(b), after = A.valueText(a) } end
+    end
+end
+
 -- server preview rows -> display rows { label, before, after }; number lists expand per tier
 function A.diffRows(P, rows)
     local out = {}
@@ -404,6 +437,8 @@ function A.diffRows(P, rows)
                         after = A.valueText(r.after[i]) }
                 end
             end
+        elseif r.path == "ceilings" and type(r.before) == "table" and type(r.after) == "table" then
+            ceilRows(out, label, r.before, r.after)
         else
             out[#out + 1] = { label = label, before = A.valueText(r.before), after = A.valueText(r.after) }
         end
@@ -459,12 +494,13 @@ function A.layoutBar(P)
     F.y = 4
     local n = AM.draftCount(P.S.draft)
     local ctrls = {}
+    -- the solid gold button only when there is something to preview
     local prev = F:button("preview", n > 0 and getText("IGUI_MQ_Admin_PreviewN", n) or getText("IGUI_MQ_Admin_Preview"),
-        A.onPreview, "primary")
+        A.onPreview, n > 0 and "primary" or nil)
     prev:setEnabled(P.confirm == nil and P.S.overrides ~= nil)
     ctrls[1] = prev
-    if n > 0 then ctrls[#ctrls + 1] = F:button("discard", getText("IGUI_MQ_Admin_Discard"), A.onDiscard, "ghost") end
-    ctrls[#ctrls + 1] = F:button("reload", getText("IGUI_MQ_Admin_Reload"), A.onReload, "ghost")
+    if n > 0 then ctrls[#ctrls + 1] = F:button("discard", getText("IGUI_MQ_Admin_Discard"), A.onDiscard) end
+    ctrls[#ctrls + 1] = F:button("reload", getText("IGUI_MQ_Admin_Reload"), A.onReload)
     F:row(ctrls)
     if A.busy(P) then
         F:text("msg", getText("IGUI_MQ_Admin_Waiting"), "textMuted")
@@ -503,15 +539,17 @@ local function valueAt(P, f)
     return v
 end
 
--- number field bound to a config path (part = key list inside the value); range = AM.RANGE key
-function A.numField(P, pg, key, path, part, range, width)
+-- number field bound to a config path (part = key list inside the value); range = AM.RANGE key;
+-- default = what an unset key means (shown, and dropped again by AM.formToDraft)
+function A.numField(P, pg, key, path, part, range, width, default)
     local f = field(pg, key)
-    f.path, f.part, f.range, f.kind = path, part, range, "num"
+    f.path, f.part, f.range, f.kind, f.default = path, part, range, "num", default
     local r = AM.RANGE[range]
     f.el = pg.flow:field("f:" .. key, width or math.max(60, textW(AM.num(r[2])) + 20))
     if f.at ~= pg.version then
         f.at = pg.version
         local v = valueAt(P, f)
+        if v == nil then v = default end
         f.el:setText(type(v) == "number" and (v == math.floor(v) and tostring(math.floor(v)) or AM.num(v)) or "")
         markError(P, f.el, nil)
     end
@@ -528,6 +566,44 @@ function A.boolField(P, pg, key, label, path, part)
         f.el:setChecked(valueAt(P, f) ~= false, true)
     end
     return f.el
+end
+
+-- ===== forms: a label column + controls, shared by every tab =====
+
+function A.fLabel(path) return getTextOrNull("IGUI_MQ_Admin_F_" .. string.gsub(path, "%.", "_")) or path end
+
+-- label column + controls; a label longer than the (capped) column wraps inside it
+function A.formRow(F, key, text, labelW, ctrls)
+    local l = F:label("l:" .. key, text, nil, nil, labelW - A.GAP)
+    l:setWidth(labelW)
+    local row = { l }
+    for _, c in ipairs(ctrls) do row[#row + 1] = c end
+    F:row(row)
+end
+
+-- one label width for every form of a tab, so the fields line up (each form measured itself before)
+function A.labelWidth(paths)
+    local w = 0
+    for _, p in ipairs(paths) do w = math.max(w, textW(A.fLabel(p))) end
+    return math.min(w + A.GAP, 260)
+end
+
+-- simple form: { { path, range | "bool" } }; lw = the tab's label width (A.labelWidth), else this form's own
+function A.form(P, pg, F, rows, lw)
+    if lw == nil then
+        local paths = {}
+        for i, r in ipairs(rows) do paths[i] = r[1] end
+        lw = A.labelWidth(paths)
+    end
+    for _, r in ipairs(rows) do
+        local ctrl
+        if r[2] == "bool" then
+            ctrl = A.boolField(P, pg, r[1], "", r[1])
+        else
+            ctrl = A.numField(P, pg, r[1], r[1], nil, r[2])
+        end
+        A.formRow(F, r[1], A.fLabel(r[1]), lw, { ctrl })
+    end
 end
 
 -- read this page's bound fields; nil when any is invalid (marked on the field)
@@ -567,6 +643,18 @@ function A.collect(P, pg)
     return values
 end
 
+-- typed values reach the draft only through Preview or this: leaving a tab, or a button that edits the draft itself
+-- (theme batch, difficulty). false = a field is invalid (marked, and the bar says so)
+function A.fold(P)
+    local values = A.collect(P, P.pages[P.current])
+    if values == nil then
+        A.say(P, getText("IGUI_MQ_Admin_FixErrors"), "errorText")
+        return false
+    end
+    AM.formToDraft(P.S, values)
+    return true
+end
+
 -- bar "Preview changes": fold the page's form into the draft, then cfg.preview the whole draft
 function A.onPreview(P)
     local pg = P.pages[P.current]
@@ -583,8 +671,16 @@ function A.onPreview(P)
     A.previewChanges(P, changes, P.draftSummary or A.count("IGUI_MQ_Admin_SummaryN", #changes), { fromDraft = true })
 end
 
--- also closes the confirm view: its Apply sends the changes it was opened with, the discarded ones too
+-- asks first: the draft can hold edits from every tab, and nothing brings them back
 function A.onDiscard(P)
+    local n = AM.draftCount(P.S.draft)
+    if n == 0 then return A.discard(P) end
+    A.ask(P, { title = getText("IGUI_MQ_Admin_Discard"), danger = true, text = A.count("IGUI_MQ_Admin_DiscardAsk", n),
+        confirm = getText("IGUI_MQ_Admin_Discard"), onOk = function() A.discard(P) end })
+end
+
+-- also closes the confirm view: its Apply sends the changes it was opened with, the discarded ones too
+function A.discard(P)
     P.S.draft, P.draftSummary, P.confirm = AM.newDraft(), nil, nil
     A.resync(P)
     A.say(P, nil)
@@ -691,22 +787,26 @@ end
 -- ===== dialogs =====
 
 -- opts = { title, text, confirm, danger, input = { placeholder }?, required, onOk = fn(text) }
+-- confirm names the action ("Exclude from rewards", "Undo"); a required reason is said in the text, because the
+-- input has the focus when the dialog opens and a placeholder does not draw then (framework TextField)
 function A.ask(P, opts)
     local UI = P.UI
-    UI.Dialog.show({ title = opts.title, text = opts.text, confirmText = opts.confirm or getText("UI_Ok"),
+    local text = opts.text
+    if opts.required then text = text .. "\n\n" .. getText("IGUI_MQ_Admin_Reason") end
+    UI.Dialog.show({ title = opts.title, text = text, confirmText = opts.confirm or getText("UI_Ok"),
         cancelText = getText("UI_Cancel"), danger = opts.danger, theme = P.theme, opaque = true,
         input = opts.input,
-        onResult = function(ok, text)
+        onResult = function(ok, typed)
             if not ok then return end
-            text = string.gsub(tostring(text or ""), "^%s+", "")
-            text = string.gsub(text, "%s+$", "")
-            if opts.required and text == "" then
+            typed = string.gsub(tostring(typed or ""), "^%s+", "")
+            typed = string.gsub(typed, "%s+$", "")
+            if opts.required and typed == "" then
                 local again = {}
                 for k, v in pairs(opts) do again[k] = v end
                 again.text = opts.text .. "\n\n" .. getText("IGUI_MQ_Admin_ReasonRequired")
                 return A.ask(P, again)
             end
-            opts.onOk(text)
+            opts.onOk(typed)
         end })
 end
 
@@ -721,7 +821,7 @@ function A.loadConfig(P)
         end
         P.loadError = nil
         P.S.overrides = type(res.overrides) == "table" and res.overrides or {}
-        P.history, P.rev, P.file = res.history or {}, res.rev, res.file
+        P.history, P.rev, P.file, P.dir = res.history or {}, res.rev, res.file, res.dir
         A.resync(P)
     end)
 end
@@ -779,15 +879,18 @@ function A.select(P, id)
     if cur and id ~= P.current then
         -- typed values reach the draft only through Preview: fold them in before leaving the tab, or a Preview on
         -- another tab misses them and the next resync puts the server values back
-        local values = A.collect(P, cur)
-        if values == nil then
+        if not A.fold(P) then
             if P.tabs then P.tabs:setSelected(P.current, true) end
             if P.pick then P.pick:setSelected(P.current, true) end
-            return A.say(P, getText("IGUI_MQ_Admin_FixErrors"), "errorText")
+            return
         end
-        AM.formToDraft(P.S, values)
+        -- the same path can sit on two tabs (Basic and its own tab): the tab shown reads the draft again
+        P.pages[id].version = P.pages[id].version + 1
+        if P.confirm then
+            P.confirm = nil
+            P.msg, P.msgToken = getText("IGUI_MQ_Admin_ConfirmClosed"), "textMuted"
+        end
     end
-    if P.confirm and id ~= P.current then P.confirm = nil end
     if P.UI.Dropdown and P.UI.Dropdown.close then P.UI.Dropdown.close(P.root) end
     P.current = id
     if P.tabs then P.tabs:setSelected(id, true) end
@@ -806,10 +909,16 @@ function A.build(host)
     P.root:initialise()
     P.root.background = false
     host.parent:addChild(P.root)
-    local items = {}
-    for i, id in ipairs(A.TABS) do items[i] = { id = id, label = getText("IGUI_MQ_Admin_Tab_" .. id) } end
-    P.tabs = UI.Tabs.new({ items = items, selected = P.current, theme = theme, target = P,
-        onSelect = function(target, id) A.select(target, id) end })
+    local items, strip = {}, {}
+    for i, id in ipairs(A.TABS) do
+        items[i] = { id = id, label = getText("IGUI_MQ_Admin_Tab_" .. id) }
+        -- the framework strip draws no separator: a disabled "|" item stands between settings and operations
+        if id == A.TAB_BREAK then strip[#strip + 1] = { id = "sep", label = "|" } end
+        strip[#strip + 1] = items[i]
+    end
+    P.tabs = UI.Tabs.new({ items = strip, selected = P.current, theme = theme, target = P,
+        onSelect = function(target, id) if id ~= "sep" then A.select(target, id) end end })
+    if P.tabs.setItemEnabled then P.tabs:setItemEnabled("sep", false) end
     P.root:addChild(P.tabs)
     -- long translations: a dropdown replaces the tab strip when it does not fit
     P.pick = UI.Dropdown.new({ x = A.PAD, y = 4, options = items, selected = P.current, theme = theme, target = P,
@@ -916,22 +1025,27 @@ A.pages.history = {
         local rows = P.history or {}
         if #rows == 0 then F:text("none", getText("IGUI_MQ_Admin_HistoryEmpty"), "textMuted") end
         local timeW = A.timeW()
+        local actors = {}
+        for i, h in ipairs(rows) do actors[i] = h.actor or "-" end
+        local actorW = A.colW(actors, math.floor(F.width / 3))
         for i, h in ipairs(rows) do
             F:cells("r" .. i, {
                 { text = A.time(h.at), x = A.PAD, token = "textMuted" },
-                { text = tostring(h.actor or "-"), x = A.PAD + timeW, w = 120 },
+                { text = tostring(h.actor or "-"), x = A.PAD + timeW, w = actorW },
                 { text = A.count("IGUI_MQ_Admin_Items", h.n or 0), x = F.width - A.PAD, right = true, token = "textMuted" },
             }, i % 2 == 0)
             F:text("s" .. i, A.summaryText(h.summary), "text")
             if h.undoable ~= false then
-                local undo = F:button("u" .. i, getText("IGUI_MQ_Admin_Undo"), A.onUndo, "ghost")
+                local undo = F:button("u" .. i, getText("IGUI_MQ_Admin_Undo"), A.onUndo)
                 undo.entry = h
                 F:row({ undo })
             end
         end
         F:gap()
         F:head("io", getText("IGUI_MQ_Admin_FileHead"))
-        F:text("ion", getText("IGUI_MQ_Admin_FileNote"), "textMuted")
+        -- the folder this server really uses (cfg.get dir; single player: sp_<save>)
+        F:text("ion", getText("IGUI_MQ_Admin_FileNote", "Zomboid/Lua/" .. tostring(P.dir or "MinidoracatQuest/")), "textMuted")
+        F:text("ioo", getText("IGUI_MQ_Admin_FileOnly"), "textMuted")
         if type(P.file) == "table" then F:text("ios", A.fileText(P.file), P.file.ok and "textMuted" or "errorText") end
     end,
 }
@@ -939,7 +1053,7 @@ A.pages.history = {
 function A.onUndo(P, b)
     local h = b.entry
     A.ask(P, { title = getText("IGUI_MQ_Admin_Undo"), text = getText("IGUI_MQ_Admin_UndoAsk", A.summaryText(h.summary), A.time(h.at)),
-        onOk = function()
+        confirm = getText("IGUI_MQ_Admin_Undo"), onOk = function()
             A.send(P, "cfg.undo", { historyId = h.id }, function(res)
                 if not res.ok then return A.fail(P, res) end
                 P.msg, P.msgToken = getText("IGUI_MQ_Admin_Undone"), "success"

@@ -295,7 +295,9 @@ function D.value(s, p, depth)
             local d = string.sub(s, p, p)
             if d == "}" then return obj, p + 1 end
             if d ~= "," then return nil end
+            local comma = p
             p = skip(s, p + 1)
+            if string.sub(s, p, p) == "}" then far = comma; return nil end   -- trailing comma: report the comma's line
         end
     elseif c == "[" then
         local arr = {}
@@ -309,7 +311,9 @@ function D.value(s, p, depth)
             local d = string.sub(s, p, p)
             if d == "]" then return arr, p + 1 end
             if d ~= "," then return nil end
-            p = p + 1
+            local comma = p
+            p = skip(s, p + 1)
+            if string.sub(s, p, p) == "]" then far = comma; return nil end
         end
     elseif c == '"' then
         return D.str(s, p)

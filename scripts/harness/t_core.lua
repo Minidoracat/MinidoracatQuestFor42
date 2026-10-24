@@ -140,10 +140,12 @@ return function(T)
     T.check(hist7[#hist7].actor == "config.json" and hist7[#hist7].summary == "config.json" and hist7[#hist7].undoable ~= false,
         "a file apply is a history entry that can be undone")
     T.check(Q.Config.file.status.ok == true and fileTree("status.json").ok == true, "status.json says it applied")
-    edit({ "{", '  "exchange": { "perDay": 9, }', "}" })
+    edit({ "{", '  "exchange": {', '    "perDay": 9,', "  }", "}" })
     local fst = Q.Config.file.status
-    T.check(fst.ok == false and fst.why == "json" and fst.line == 2 and Q.Config.get().exchange.perDay == 7
-        and fileTree("status.json").line == 2, "broken JSON: nothing applied, the line goes to status.json")
+    T.check(fst.ok == false and fst.why == "json" and fst.line == 3 and Q.Config.get().exchange.perDay == 7
+        and fileTree("status.json").line == 3, "broken JSON (trailing comma): nothing applied, the comma's line goes to status.json")
+    edit({ "{", '  "exchange": {', '    "perDay": 9', '    "min": 5', "  }", "}" })
+    T.check(Q.Config.file.status.line == 4, "missing comma: the line where parsing stopped")
     edit({ '{ "daily": { "pool": { "d_kill": { "target": [5, 1] } } } }' })
     fst = Q.Config.file.status
     T.check(fst.ok == false and fst.path == "daily.pool.d_kill.target" and fst.why == "target"

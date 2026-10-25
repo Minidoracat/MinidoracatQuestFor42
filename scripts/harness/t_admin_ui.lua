@@ -372,6 +372,32 @@ return function(T)
     P.pages.exchange.loaded = false
     A.select(P, "exchange")
     T.check(not pool("exchange")["warn"]:isVisible(), "no warn -> no banner")
+    -- the economy client's shortcut to its sources page (EC.v1.Client rev 7): offered only when it can, sends this mod's id
+    local function ecButton(id, key) local b = pool(id)[key]; return b ~= nil and b:isVisible() end
+    T.check(not ecButton("exchange", "ecsrc"), "no economy client: no button to its sources page")
+    local asked, openOk, openErr = {}, true, nil
+    MinidoracatEconomy = { v1 = { Client = { API_MAJOR = 1, API_REVISION = 6, CAPABILITIES = { adminSources = true },
+        openAdminSources = function(id) asked[#asked + 1] = id; return openOk, openErr end } } }
+    A.layout(P)
+    T.check(not ecButton("exchange", "ecsrc"), "an economy client before rev 7: no button")
+    MinidoracatEconomy.v1.Client.API_REVISION = 7
+    A.layout(P)
+    press("exchange", "ecsrc")
+    T.check(#asked == 1 and asked[1] == "MinidoracatQuestFor42", "the button asks the economy client for this mod's source")
+    openOk, openErr = false, "forbidden"
+    press("exchange", "ecsrc")
+    T.check(P.msg == "IGUI_MQ_Admin_EcOpenDenied", "no economy admin right: the bar says so")
+    openErr = "unavailable"
+    press("exchange", "ecsrc")
+    T.check(P.msg == "IGUI_MQ_Admin_EcOpenFailed", "any other refusal: the window could not open")
+    A.select(P, "basic")
+    T.check(not ecButton("basic", "s4e"), "Basic: no limit warning, no button")
+    exWarn = "cap_zero"
+    P.pages.basic.loaded = false
+    A.select(P, "exchange")
+    A.select(P, "basic")
+    T.check(ecButton("basic", "s4e"), "Basic: the limit warning comes with the button")
+    MinidoracatEconomy, exWarn = nil, nil
     A.select(P, "quests")
     pool("quests")["ev:name"]:setText("Fest")
     pool("quests")["ev:start"]:setText("2099-01-01")

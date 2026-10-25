@@ -337,8 +337,9 @@ Steps 1-5 cover the common settings; the other tabs hold the rest.
 {{img:11-admin-exchange-en.jpg}}
 [list]
 [*] [b]Exchange settings[/b]: on/off, rate, per-player daily limit, minimum per exchange.
-[*] [b]Today[/b]: server total exchanged today, estimated daily exchange, and the Economy mod's daily limit for this mod with today's usage.
+[*] [b]Today[/b]: exchanged today, estimated daily exchange, and the Economy mod's daily limit for this mod with today's usage, all server-wide totals.
 [*] [b]Warnings[/b]: shown at the top when the Economy limit is 0, cannot be read, this mod is disabled in the Economy mod, or the estimate exceeds the limit; see "Economy integration".
+[*] [b]Change the limit[/b]: the button opens the Economy mod's "Integration sources" page.
 [/list]
 [h3]Towns[/h3]
 [list]
@@ -425,7 +426,7 @@ Example: the daily quest "Kill N zombies" (d_kill) gets a target of 30 to 60 and
 === ⚙️ Economy integration
 [list]
 [*] [b]Registers itself[/b]: once the server is up, this mod registers with the Economy mod as the integration source "Quests & Achievements" and pays in Survivor Coins.
-[*] [b]The limit you must set[/b]: the Economy mod gives every integration source a daily mint limit of 0 by default. Open the Economy admin's "Integration sources" page and set a daily limit for Quests & Achievements; until you do, every exchange is queued and nothing is paid.
+[*] [b]The limit you must set[/b]: the Economy mod gives every integration source a daily mint limit of 0 by default, shared by all players on the server. Open the Economy admin's "Integration sources" page and set the "Daily issue cap" for Quests & Achievements; until you do, every exchange is queued and nothing is paid.
 [*] [b]Choosing the limit[/b]: roughly players who exchange per day × per-player daily limit × rate; the estimate on this mod's "Exchange" admin tab helps.
 [*] [b]Queue and retries[/b]: when the allowance is used up, rate-limited, the Economy mod is not ready or does not answer, the exchange is queued and retried every hour, plus right after the Economy mod's daily reset.
 [*] [b]Refunds[/b]: any other refusal (for example a player's economy account cannot receive coins) refunds the points. One exchange is never paid twice.

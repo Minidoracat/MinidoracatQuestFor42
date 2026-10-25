@@ -58,6 +58,23 @@ local function exWarn(d)
     return nil
 end
 
+-- Economy's own admin window on its integration sources page with this mod's row picked (EC.v1.Client rev 7,
+-- CAPABILITIES.adminSources): where the daily limit shown here is set. nil when the economy client cannot.
+local function ecSources()
+    local E = MinidoracatEconomy and MinidoracatEconomy.v1 and MinidoracatEconomy.v1.Client
+    if type(E) ~= "table" or E.API_MAJOR ~= 1 or (tonumber(E.API_REVISION) or 0) < 7 or type(E.CAPABILITIES) ~= "table"
+        or E.CAPABILITIES.adminSources ~= true or type(E.openAdminSources) ~= "function" then return nil end
+    return E
+end
+
+local function onEcSources(P)
+    local E = ecSources()
+    if not E then return end
+    local ok, opened, err = pcall(E.openAdminSources, MQ.Contract.MOD_ID)
+    if ok and opened == true then return end
+    A.say(P, getText(ok and err == "forbidden" and "IGUI_MQ_Admin_EcOpenDenied" or "IGUI_MQ_Admin_EcOpenFailed"), "errorText")
+end
+
 -- ===== basic: steps 1-5 on one page; each step edits the same paths as its own tab =====
 
 local function step(F, key, n, text) F:head(key, getText("IGUI_MQ_Admin_Step", n, text)) end
@@ -121,8 +138,13 @@ local function layoutBasic(P, pg, F)
         F:text("s4x", getText("IGUI_MQ_Admin_NoEconomy"), "textMuted")
     else
         form(P, pg, F, { { "exchange.enabled", "bool" }, { "exchange.rate", "rate" }, { "exchange.perDay", "perDay" } }, lw)
+        -- one line here, the numbers and the explanation are on the exchange tab: the five steps fit without scrolling
         local warn = exWarn(xd)
-        if warn then F:text("s4w", getText("IGUI_MQ_Admin_Warn_" .. warn .. "_Body", A.num(xd.ecCap or 0)), "warning") end
+        if warn then
+            local line = { F:label("s4w", getText("IGUI_MQ_Admin_Warn_" .. warn .. "_Head"), "warning") }
+            if ecSources() then line[2] = F:button("s4e", getText("IGUI_MQ_Admin_EcOpen"), onEcSources) end
+            F:row(line)
+        end
     end
 
     step(F, "s5", 5, getText("IGUI_MQ_Admin_StepNotice"))
@@ -635,6 +657,7 @@ local function layoutExchange(P, pg, F)
             F:cells("s" .. i, { { text = r[1], x = A.PAD, token = "textMuted" }, { text = r[2], x = A.PAD + lw + 2 * A.GAP, token = r[3] } },
                 i % 2 == 0)
         end
+        if ecSources() then F:row({ F:button("ecsrc", getText("IGUI_MQ_Admin_EcOpen"), onEcSources) }) end
     end
     F:gap()
     F:head("hs", getText("IGUI_MQ_Admin_ExSettings"))

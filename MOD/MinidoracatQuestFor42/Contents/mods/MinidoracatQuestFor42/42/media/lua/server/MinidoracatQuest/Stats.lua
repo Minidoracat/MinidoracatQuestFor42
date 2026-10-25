@@ -39,9 +39,12 @@ function S.def(stat)
     return pack and pack.stats[stat] or nil
 end
 
+-- user name and whether it may create the account: a name (Seasons, Quests, fixtures) may; a player object only
+-- counts once its hello made the account. The server's IsoPlayer for a joining client is named "Bob" (the default
+-- survivor) while LevelPerk fires for its starting levels, which made one "Bob" account per server (E2E 1025g)
 local function resolve(who)
-    if type(who) == "string" then return who end
-    return Q.Identity.principal(who)
+    if type(who) == "string" then return who, true end
+    return Q.Identity.principal(who), false
 end
 
 local function notify(acc, user, stat, delta, opts)
@@ -81,9 +84,9 @@ function S.add(who, stat, n, opts)
     if not St.ready() or St.readOnly then return false end
     local def = S.def(stat)
     if def == nil or def.kind == "max" then return false end
-    local user = resolve(who)
+    local user, create = resolve(who)
     if user == nil then return false end
-    local acc = St.account(user, true)
+    local acc = St.account(user, create)
     if acc == nil then return false end
     local ceilings = Q.Config.get().ceilings
     local add = allowance(acc, user, stat, n, ceilings and ceilings[stat] or def.ceil)
@@ -91,6 +94,7 @@ function S.add(who, stat, n, opts)
     acc.total[stat] = (acc.total[stat] or 0) + add
     if not def.account then acc.life[stat] = (acc.life[stat] or 0) + add end
     acc.season[stat] = (acc.season[stat] or 0) + add
+    if Q.Report then Q.Report.seen(acc) end
     notify(acc, user, stat, add, opts)
     return true, add
 end
@@ -102,9 +106,9 @@ function S.max(who, stat, value, opts)
     if not St.ready() or St.readOnly then return false end
     local def = S.def(stat)
     if def == nil then return false end
-    local user = resolve(who)
+    local user, create = resolve(who)
     if user == nil then return false end
-    local acc = St.account(user, true)
+    local acc = St.account(user, create)
     if acc == nil then return false end
     local old = acc.total[stat] or 0
     local changed = false

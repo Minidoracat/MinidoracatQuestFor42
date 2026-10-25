@@ -203,6 +203,10 @@ return function(T)
     T.section("stats: scopes, ceiling, lazy season")
     Q = boot({})
     local bob = T.player({ name = "bob" })
+    -- a player object counts only once hello made its account (the server's joining IsoPlayer is "Bob", E2E 1025g)
+    T.check(not Q.Stats.add(bob, "t.count", 4) and not Q.Stats.max(bob, "t.max", 4) and Q.Store.account("bob", false) == nil,
+        "a player object without an account counts nothing and makes no account")
+    Q.Store.account("bob", true)   -- what hello does
     T.check(Q.Stats.add(bob, "t.count", 4), "add counts")
     T.check(not Q.Stats.add(bob, "t.count", 0) and not Q.Stats.add(bob, "t.count", -1) and not Q.Stats.add(bob, "t.count", 0 / 0),
         "zero, negative, NaN refused")

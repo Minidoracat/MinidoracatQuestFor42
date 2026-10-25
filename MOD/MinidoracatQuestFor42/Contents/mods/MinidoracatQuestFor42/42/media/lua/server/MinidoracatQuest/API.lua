@@ -10,7 +10,7 @@ if isClient() then return end
 local MODULES = {
     "Contract", "Util", "Sandbox", "Store", "Identity", "Clock", "Audit", "EventLog", "Config", "Stats", "Points",
     "Net", "Sync", "Server",
-    "Quests", "Achievements", "Exchange", "Seasons", "Boards", "Balance",
+    "Quests", "Achievements", "Exchange", "Seasons", "Boards", "Balance", "Report",
     "Trackers", "Towns",
 }
 for _, name in ipairs(MODULES) do require("MinidoracatQuest/" .. name) end

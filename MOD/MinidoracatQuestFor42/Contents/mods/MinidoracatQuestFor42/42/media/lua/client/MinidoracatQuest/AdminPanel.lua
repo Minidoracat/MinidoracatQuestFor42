@@ -16,7 +16,7 @@ MQ.Admin = A
 local AM = MQ.AdminModel
 
 -- settings first (Basic is the guided first page), then the operations tabs from A.TAB_BREAK on
-A.TABS = { "basic", "achv", "quests", "season", "exchange", "towns", "players", "balance", "history" }
+A.TABS = { "basic", "achv", "quests", "season", "exchange", "towns", "players", "report", "balance", "history" }
 A.TAB_BREAK = "players"
 A.pages = A.pages or {}   -- id -> { layout = fn(P, pg, F), load = fn(P, pg)? }
 A.PAD, A.GAP = 10, 6
@@ -178,7 +178,11 @@ function Flow:text(key, text, token, font, box, title)
     return l
 end
 
-function Flow:head(key, text) return self:text(key, text, "text", UIFont.Medium) end
+-- a heading opens a group: twice the gap above it (not at the top), so it sits closer to what it heads
+function Flow:head(key, text)
+    if self.y > A.PAD then self:gap(2 * A.GAP) end
+    return self:text(key, text, "text", UIFont.Medium)
+end
 
 -- controls left to right, wrapping; vertically centred per line
 function Flow:row(ctrls, x0)
@@ -492,15 +496,23 @@ function A.layoutBar(P)
     if F == nil then return end
     F:begin(P.bar.width)
     F.y = 4
-    local n = AM.draftCount(P.S.draft)
     local ctrls = {}
-    -- the solid gold button only when there is something to preview
-    local prev = F:button("preview", n > 0 and getText("IGUI_MQ_Admin_PreviewN", n) or getText("IGUI_MQ_Admin_Preview"),
-        A.onPreview, n > 0 and "primary" or nil)
-    prev:setEnabled(P.confirm == nil and P.S.overrides ~= nil)
-    ctrls[1] = prev
-    if n > 0 then ctrls[#ctrls + 1] = F:button("discard", getText("IGUI_MQ_Admin_Discard"), A.onDiscard) end
-    ctrls[#ctrls + 1] = F:button("reload", getText("IGUI_MQ_Admin_Reload"), A.onReload)
+    if P.confirm then
+        -- the confirm view's own actions: its rows can run past a hundred, so Apply never waits at their end
+        local apply = F:button("apply", getText("IGUI_MQ_Admin_ApplyChanges"), A.onConfirmApply, "primary")
+        apply:setEnabled(not A.busy(P))
+        ctrls[1] = apply
+        ctrls[2] = F:button("cancel", getText("UI_Cancel"), A.onConfirmCancel)
+    else
+        local n = AM.draftCount(P.S.draft)
+        -- the solid gold button only when there is something to preview
+        local prev = F:button("preview", n > 0 and getText("IGUI_MQ_Admin_PreviewN", n) or getText("IGUI_MQ_Admin_Preview"),
+            A.onPreview, n > 0 and "primary" or nil)
+        prev:setEnabled(P.S.overrides ~= nil)
+        ctrls[1] = prev
+        if n > 0 then ctrls[#ctrls + 1] = F:button("discard", getText("IGUI_MQ_Admin_Discard"), A.onDiscard) end
+        ctrls[#ctrls + 1] = F:button("reload", getText("IGUI_MQ_Admin_Reload"), A.onReload)
+    end
     F:row(ctrls)
     if A.busy(P) then
         F:text("msg", getText("IGUI_MQ_Admin_Waiting"), "textMuted")
@@ -723,11 +735,15 @@ function A.onConfirmCancel(P)
     A.layout(P)
 end
 
--- "Apply changes?" view: summary, rows with the old value struck through, note, estimate table
+-- "Apply changes?" view: summary, estimate table and note first, then the rows with the old value struck through;
+-- Apply / Cancel are in the bar (A.layoutBar)
 function A.layoutConfirm(P, pg, F)
     local c = P.confirm
     F:head("cf:h", getText("IGUI_MQ_Admin_ConfirmHead"))
     F:text("cf:s", c.summary or "", "textMuted")
+    if c.estimate then A.layoutEstimate(P, F, c.estimate) end
+    F:text("cf:n", c.note or getText("IGUI_MQ_Admin_KeepUnlocked"), "textMuted")
+    F:gap()
     local w = F.width - 2 * A.PAD
     local arrowW = textW("->")
     -- value columns as wide as the longest old/new value (capped at 160 and a quarter), the label gets the rest
@@ -741,16 +757,10 @@ function A.layoutConfirm(P, pg, F)
             { text = r.label, x = x, w = labelW, wrap = true },
             { text = r.before, x = x + labelW + A.GAP, w = valW, token = "textFaint", strike = true },
             { text = "->", x = x + labelW + valW + 2 * A.GAP, token = "textMuted" },
-            { text = r.after, x = x + labelW + valW + arrowW + 3 * A.GAP, w = valW, token = "accent" },
+            { text = r.after, x = x + labelW + valW + arrowW + 3 * A.GAP, w = valW, token = "text" },
         }, i % 2 == 0)
     end
     if #c.rows == 0 then F:text("cf:none", getText("IGUI_MQ_Admin_NoDiff"), "textMuted") end
-    F:gap()
-    if c.estimate then A.layoutEstimate(P, F, c.estimate) end
-    F:text("cf:n", c.note or getText("IGUI_MQ_Admin_KeepUnlocked"), "textMuted")
-    local apply = F:button("cf:apply", getText("IGUI_MQ_Admin_ApplyChanges"), A.onConfirmApply, "primary")
-    apply:setEnabled(not A.busy(P))
-    F:row({ apply, F:button("cf:cancel", getText("UI_Cancel"), A.onConfirmCancel, "ghost") })
 end
 
 -- difficulty estimate { { key, easy, normal, hard, custom? } } (Systems diff.preview)
@@ -869,6 +879,9 @@ function A.layout(P)
             F:text("err", getText("IGUI_MQ_Admin_LayoutError"), "errorText")
         end
     end
+    -- ScrollPanel sizes its content by the lowest visible child: an empty label leaves a margin under the last row
+    local pad = F:get("~pad", newLabel)
+    pad:setY(F.y + A.PAD)
     F:finish()
     A.layoutBar(P)
 end
@@ -932,6 +945,11 @@ function A.build(host)
     P.bar = ISPanel:new(0, 0, host.width, 10)
     P.bar:initialise()
     P.bar.background = false
+    -- 1 px top line: the bar is fixed over the scrolled content, not the form's next row
+    function P.bar:prerender()
+        local c = theme.colors.border
+        self:drawRect(0, 0, self.width, 1, c.a or 1, c.r, c.g, c.b)
+    end
     P.root:addChild(P.bar)
     P.barFlow = A.flow(P.bar, P)
     return P
@@ -958,6 +976,7 @@ function A.place(P, width, height)
 end
 
 function A.show(host)
+    if MQ.Draw and MQ.Draw.sep then AM.SEP = MQ.Draw.sep() end
     local P = A.instance
     if P == nil or P.host.parent ~= host.parent or P.UI ~= host.UI then
         if P then P.root:setVisible(false) end
@@ -1041,7 +1060,6 @@ A.pages.history = {
                 F:row({ undo })
             end
         end
-        F:gap()
         F:head("io", getText("IGUI_MQ_Admin_FileHead"))
         -- the folder this server really uses (cfg.get dir; single player: sp_<save>)
         F:text("ion", getText("IGUI_MQ_Admin_FileNote", "Zomboid/Lua/" .. tostring(P.dir or "MinidoracatQuest/")), "textMuted")

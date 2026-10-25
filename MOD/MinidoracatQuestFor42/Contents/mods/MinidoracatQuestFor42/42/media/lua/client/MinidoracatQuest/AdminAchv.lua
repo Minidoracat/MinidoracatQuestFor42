@@ -1,5 +1,5 @@
 -- MinidoracatQuest/AdminAchv.lua: admin "Achievements" tab (spec 13.1-13.4).
--- Table: name / I-IV / more; batch multiplier and add-tier over the category shown, into the draft; tier editor
+-- Table: name / I-V / more; batch multiplier and add-tier over the category shown, into the draft; tier editor
 -- (on/off, thresholds, points, titles, up to 10 tiers); new achievement from an existing stat (custom.<id>);
 -- broadcast and title display forms. The quick difficulty chips sit on the Basic tab (P_.difficultyRow).
 -- Everything ends in cfg.preview / cfg.apply (AdminPanel).
@@ -12,6 +12,7 @@ local AM = MQ.AdminModel
 
 local P_ = {}   -- page helpers
 local MULTS = { 0.8, 1.25 }
+local COLS = 5   -- tier columns in the table (the default tier count); "+N" on Edit counts the rest
 local PRESETS = { "easy", "normal", "hard", "custom" }
 
 local function summary(P, text)
@@ -386,16 +387,18 @@ function P_.layout(P, pg, F)
     local numW = A.textW("000")
     for _, a in ipairs(pg.list) do
         if P_.shown(pg, a) then
-            for t = 1, 4 do if a.tiers[t] then numW = math.max(numW, A.textW(A.num(a.tiers[t]))) end end
+            for t = 1, COLS do if a.tiers[t] then numW = math.max(numW, A.textW(A.num(a.tiers[t]))) end end
         end
     end
     numW = numW + 2 * A.GAP
     local moreW = math.max(A.textW(getText("IGUI_MQ_Admin_Edit")), A.textW("+10")) + 24
     local right = F.width - A.PAD - moreW - 3 * A.GAP   -- one gap made FR "IV Plus" read as one header
     local nameX = A.PAD
-    local nameW = math.max(60, right - 4 * numW - nameX - A.GAP)
+    local nameW = math.max(60, right - COLS * numW - nameX - A.GAP)
     local head = { { text = getText("IGUI_MQ_Admin_ColAch"), x = nameX, token = "textMuted" } }
-    for t = 1, 4 do head[#head + 1] = { text = AM.roman(t), x = right - (4 - t) * numW, right = true, token = "textMuted" } end
+    for t = 1, COLS do
+        head[#head + 1] = { text = AM.roman(t), x = right - (COLS - t) * numW, right = true, token = "textMuted" }
+    end
     head[#head + 1] = { text = getText("IGUI_MQ_Admin_ColMore"), x = right + 3 * A.GAP, token = "textMuted" }
     F:cells("hd", head)
     local i = 0
@@ -405,14 +408,14 @@ function P_.layout(P, pg, F)
             local b0 = base[a.id]
             local cells = { { text = P_.rowName(P, a, b0), x = nameX, w = nameW, wrap = true,
                 token = a.enabled and "text" or "textMuted" } }
-            for t = 1, 4 do
+            for t = 1, COLS do
                 local v = a.tiers[t]
                 local changed = b0 == nil or (b0.tiers[t] ~= v) or (b0.pts[t] ~= a.pts[t])
-                cells[#cells + 1] = { text = v and A.num(v) or "-", x = right - (4 - t) * numW, right = true,
+                cells[#cells + 1] = { text = v and A.num(v) or "-", x = right - (COLS - t) * numW, right = true,
                     token = changed and "accent" or "text" }
             end
             local row = F:cells("r" .. i, cells, i % 2 == 0)
-            local extra = #a.tiers - 4
+            local extra = #a.tiers - COLS
             local more = F:button("m" .. i, extra > 0 and ("+" .. extra) or getText("IGUI_MQ_Admin_Edit"), P_.onEdit,
                 extra > 0 and "chip" or nil)
             more.achId = a.id
@@ -458,13 +461,11 @@ function P_.layout(P, pg, F)
     else
         F:row({ F:button("n:open", getText("IGUI_MQ_Admin_NewAch"), P_.onNewToggle) })
     end
-    F:gap()
 
     -- unlock notices and title display belong with achievements ("from which tier" is an achievement tier)
     local lw = A.labelWidth({ "broadcast.enabled", "broadcast.minTier", "broadcast.perMinute", "titles.head", "titles.chat" })
     F:head("hb", getText("IGUI_MQ_Admin_BroadcastHead"))
     A.form(P, pg, F, { { "broadcast.enabled", "bool" }, { "broadcast.minTier", "minTier" }, { "broadcast.perMinute", "perMinute" } }, lw)
-    F:gap()
     F:head("ht", getText("IGUI_MQ_Admin_TitlesHead"))
     A.form(P, pg, F, { { "titles.head", "bool" }, { "titles.chat", "bool" } }, lw)
 end

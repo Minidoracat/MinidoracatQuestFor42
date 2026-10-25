@@ -317,6 +317,60 @@ return function(T)
         Q.Sync.broadcastToast = orig
     end)
 
+    section("five tiers: tier V, skill title at level 8, login catch-up", function()
+        local Q = boot()
+        local casts = {}
+        local orig = Q.Sync.broadcastToast
+        Q.Sync.broadcastToast = function(t, who) casts[#casts + 1] = t return orig(t, who) end
+        local function count(t)
+            local n = 0
+            for _ in pairs(t or {}) do n = n + 1 end
+            return n
+        end
+        local a = T.player{ name = "alice" }
+        cmd(a, "hello")
+        local acc = Q.Store.account("alice")
+        local sk = Q.Achievements.get("skill_axe")
+        T.check(#sk.tiers == 5 and sk.tiers[4] == 8 and sk.tiers[5] == 10 and sk.pts[5] == 80
+            and sk.titles[4] == "skill_axe_4" and sk.titles[5] == nil, "skill_axe: 5 tiers, title at IV = level 8")
+        Q.Stats.max("alice", "level.Axe", 7)
+        T.check(acc.achv.skill_axe == 3 and not (acc.titles or {}).skill_axe_4, "level 7: tier III, no title yet")
+        Q.Stats.max("alice", "level.Axe", 8)
+        T.check(acc.achv.skill_axe == 4 and acc.titles.skill_axe_4 == true, "level 8: tier IV gives the title")
+        local pts0, nTitles = acc.points.total, count(acc.titles)
+        Q.Stats.max("alice", "level.Axe", 10)
+        T.check(acc.achv.skill_axe == 5 and acc.points.total - pts0 == 80 and count(acc.titles) == nTitles,
+            "level 10: tier V pays 80 and gives no new title")
+
+        -- an account from the 4-tier days: Cooking 10 held old tier IV (title), 10 towns held old tier III
+        local b = T.player{ name = "bob" }
+        cmd(b, "hello")
+        local accB = Q.Store.account("bob")
+        accB.total["level.Cooking"], accB.achv.skill_cooking = 10, 4
+        accB.titles = accB.titles or {}
+        accB.titles.skill_cooking_4 = true
+        accB.total["town.visited"], accB.achv.towns = 10, 3
+        local p0, season0 = accB.points.total, accB.points.season
+        casts = {}
+        T.clearOutbox(b)
+        cmd(b, "hello")
+        T.check(accB.achv.skill_cooking == 5 and accB.achv.towns == 4 and accB.titles.towns_4 == true,
+            "login catch-up: the tiers the new defaults give")
+        T.check(accB.points.total - p0 == 80 + 50 and accB.points.season - season0 == 80 + 50,
+            "catch-up pays only the new tiers, as normal achievement points")
+        local bcast = 0
+        for _, t in ipairs(casts) do if t.who == "bob" then bcast = bcast + 1 end end
+        T.check(bcast == 0, "catch-up is not announced server-wide")
+        T.advance(3000)
+        T.tick(1)
+        local toast = T.lastOf(b, "toast")
+        T.check(toast ~= nil and (toast.kind == "achvMany" or toast.kind == "achv"), "catch-up toasts the player")
+        local p1 = accB.points.total
+        cmd(b, "hello")
+        T.check(accB.points.total == p1 and accB.achv.skill_cooking == 5, "the next login pays nothing twice")
+        Q.Sync.broadcastToast = orig
+    end)
+
     -- ===================== Exchange =====================
     section("exchange", function()
         local credits, results = {}, {}
@@ -721,11 +775,17 @@ return function(T)
         r = admin(a, "diff.preview", { preset = "custom" })
         T.check(r and r.code == "BAD_ARGS", "custom needs mult")
         r = admin(a, "diff.preview", { preset = "hard" })
-        T.check(r and r.ok and r.changes[2].value == 1.6 and #r.rows > 0 and r.rows[1].after[1] > r.rows[1].before[1],
+        local rowOf = {}
+        for _, row in ipairs(r and r.rows or {}) do rowOf[row.path] = row end
+        local zr, sr = rowOf["achievements.zombie_kills.tiers"], rowOf["achievements.skill_axe.tiers"]
+        T.check(r and r.ok and r.changes[2].value == 1.6 and zr and zr.after[1] > zr.before[1],
             "hard preview raises thresholds")
+        T.check(sr and sr.after[5] == 10 and sr.after[1] == sr.before[1], "hard preview keeps skill levels (ceiling 10)")
         T.check(r.estimate[1] and r.estimate[1].hard > r.estimate[1].easy, "estimate table")
         local base = Q.Achievements.get("zombie_kills").tiers[3]
         T.check(Q.Config.apply(r.changes, "hard", "alice") == true, "preview changes apply")
         T.check(Q.Achievements.get("zombie_kills").tiers[3] == math.floor(base * 1.6 + 0.5), "difficulty scales thresholds")
+        T.check(Q.Achievements.get("skill_axe").tiers[5] == 10 and Q.Achievements.get("towns").tiers[5] == 11
+            and Q.Achievements.get("h_peak").tiers[1] == 10, "difficulty leaves ceiling stats (skill levels, towns) alone")
     end)
 end

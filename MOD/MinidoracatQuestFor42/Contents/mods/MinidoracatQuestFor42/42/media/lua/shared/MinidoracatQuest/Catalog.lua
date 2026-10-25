@@ -108,16 +108,33 @@ function Cat.statKey(id)
     return "IGUI_MQ_Stat_" .. string.gsub(id, "%.", "_")
 end
 
--- Achievements. Built-in: 4 tiers, title at tier 4; hidden: 1 tier.
+-- Difficulty does not scale stats with a hard ceiling (skill levels, towns): x1.6 put their top tiers out of reach.
+function Cat.scalable(stat)
+    local s = Cat.stats[stat]
+    return stat ~= "town.visited" and not (s ~= nil and s.unit == "level")
+end
+
+-- Achievements. Built-in: 5 tiers, title at tier 4 (tier V adds points only); hidden: 1 tier.
+-- Tier V = 2.5 x tier IV, except stats with a ceiling (skill levels, skill total, towns) and day counts (2 years).
 Cat.achievements = {}
-local PTS4 = { 10, 20, 30, 50 }
+local PTS5 = { 10, 20, 30, 50, 80 }
 local HIDDEN_PTS = 30
 local function A(id, cat, stat, tiers, scope)
     local titles = {}
     titles[4] = id .. "_4"
-    Cat.achievements[#Cat.achievements + 1] = { id = id, cat = cat, stat = stat, tiers = tiers, pts = PTS4,
+    Cat.achievements[#Cat.achievements + 1] = { id = id, cat = cat, stat = stat, tiers = tiers, pts = PTS5,
         titles = titles, icon = id, scope = scope }
 end
+
+-- A points override written for fewer tiers (config from the 4-tier days) keeps the default points of the
+-- tiers it does not list, so tier V does not pay 0. base = the default points; n = number of tiers.
+function Cat.fillPts(pts, base, n)
+    if #pts >= n or base == nil or #base <= #pts then return pts end
+    local out = {}
+    for i = 1, n do out[i] = pts[i] or base[i] end
+    return out
+end
+
 local function H(id, stat, n, titled, scope)
     local titles = {}
     if titled then titles[1] = id end
@@ -125,72 +142,73 @@ local function H(id, stat, n, titled, scope)
         pts = { HIDDEN_PTS }, titles = titles, icon = id, hidden = true, scope = scope }
 end
 
+-- skills top out at level 10; most characters start with a 5 somewhere, so passive ones step by one from 6
 for _, p in ipairs(Cat.perks) do
     local passive = p == "Fitness" or p == "Strength"
-    A("skill_" .. string.lower(p), "skill", "level." .. p, passive and { 6, 7, 9, 10 } or { 3, 5, 8, 10 })
+    A("skill_" .. string.lower(p), "skill", "level." .. p, passive and { 6, 7, 8, 9, 10 } or { 2, 4, 6, 8, 10 })
 end
-A("skill_total", "skill", "skill.total", { 30, 70, 140, 220 })
-A("xp_total", "skill", "xp.total", { 1000, 10000, 50000, 200000 })
+A("skill_total", "skill", "skill.total", { 30, 70, 140, 220, 300 })   -- 35 perks x 10 = 350 at most
+A("xp_total", "skill", "xp.total", { 1000, 10000, 50000, 200000, 500000 })
 
-A("zombie_kills", "combat", "zombie.kills", { 100, 1000, 5000, 20000 })
-A("kills_melee", "combat", "zombie.kills.melee", { 50, 500, 2500, 10000 })
-A("kills_firearm", "combat", "zombie.kills.firearm", { 50, 500, 2500, 10000 })
-A("kills_vehicle", "combat", "zombie.kills.vehicle", { 10, 100, 500, 2000 })
-A("kills_axe", "combat", "zombie.kills.axe", { 25, 250, 1000, 5000 })
-A("kills_blunt", "combat", "zombie.kills.blunt", { 25, 250, 1000, 5000 })
-A("kills_smallblunt", "combat", "zombie.kills.smallblunt", { 25, 250, 1000, 5000 })
-A("kills_longblade", "combat", "zombie.kills.longblade", { 25, 250, 1000, 5000 })
-A("kills_smallblade", "combat", "zombie.kills.smallblade", { 25, 250, 1000, 5000 })
-A("kills_spear", "combat", "zombie.kills.spear", { 25, 250, 1000, 5000 })
-A("kills_improvised", "combat", "zombie.kills.improvised", { 25, 250, 1000, 5000 })
-A("kills_night", "combat", "zombie.kills.night", { 50, 500, 2500, 10000 })
-A("kills_indoor", "combat", "zombie.kills.indoor", { 25, 250, 1000, 5000 })
-A("hunt", "combat", "hunt.kills", { 1, 10, 50, 200 })
+A("zombie_kills", "combat", "zombie.kills", { 100, 1000, 5000, 20000, 50000 })
+A("kills_melee", "combat", "zombie.kills.melee", { 50, 500, 2500, 10000, 25000 })
+A("kills_firearm", "combat", "zombie.kills.firearm", { 50, 500, 2500, 10000, 25000 })
+A("kills_vehicle", "combat", "zombie.kills.vehicle", { 10, 100, 500, 2000, 5000 })
+A("kills_axe", "combat", "zombie.kills.axe", { 25, 250, 1000, 5000, 12500 })
+A("kills_blunt", "combat", "zombie.kills.blunt", { 25, 250, 1000, 5000, 12500 })
+A("kills_smallblunt", "combat", "zombie.kills.smallblunt", { 25, 250, 1000, 5000, 12500 })
+A("kills_longblade", "combat", "zombie.kills.longblade", { 25, 250, 1000, 5000, 12500 })
+A("kills_smallblade", "combat", "zombie.kills.smallblade", { 25, 250, 1000, 5000, 12500 })
+A("kills_spear", "combat", "zombie.kills.spear", { 25, 250, 1000, 5000, 12500 })
+A("kills_improvised", "combat", "zombie.kills.improvised", { 25, 250, 1000, 5000, 12500 })
+A("kills_night", "combat", "zombie.kills.night", { 50, 500, 2500, 10000, 25000 })
+A("kills_indoor", "combat", "zombie.kills.indoor", { 25, 250, 1000, 5000, 12500 })
+A("hunt", "combat", "hunt.kills", { 1, 10, 50, 200, 500 })
 
-A("life_days", "survival", "life.days", { 7, 30, 100, 365 }, "life")
-A("survive_days", "survival", "survive.days", { 7, 30, 100, 365 })
-A("bandage", "survival", "bandage.count", { 10, 50, 200, 1000 })
-A("medic", "survival", "medic.count", { 5, 25, 100, 400 })
-A("sleep_indoor", "survival", "sleep.indoor", { 5, 25, 100, 365 })
-A("barricade", "survival", "barricade.count", { 10, 50, 200, 800 })
-A("corpses", "survival", "corpse.count", { 10, 100, 500, 2000 })
-A("wash", "survival", "wash.count", { 10, 50, 200, 600 })
+A("life_days", "survival", "life.days", { 7, 30, 100, 365, 730 }, "life")
+A("survive_days", "survival", "survive.days", { 7, 30, 100, 365, 730 })
+A("bandage", "survival", "bandage.count", { 10, 50, 200, 1000, 2500 })
+A("medic", "survival", "medic.count", { 5, 25, 100, 400, 1000 })
+A("sleep_indoor", "survival", "sleep.indoor", { 5, 25, 100, 365, 730 })
+A("barricade", "survival", "barricade.count", { 10, 50, 200, 800, 2000 })
+A("corpses", "survival", "corpse.count", { 10, 100, 500, 2000, 5000 })
+A("wash", "survival", "wash.count", { 10, 50, 200, 600, 1500 })
 
-A("craft", "production", "craft.count", { 25, 250, 1000, 5000 })
-A("build", "production", "build.count", { 10, 100, 500, 2000 })
-A("cook", "production", "cook.count", { 10, 100, 500, 2000 })
-A("sew", "production", "sew.count", { 10, 50, 250, 1000 })
-A("smith", "production", "smith.count", { 5, 50, 250, 1000 })
-A("knap", "production", "knap.count", { 5, 50, 250, 1000 })
-A("carve", "production", "carve.count", { 5, 50, 250, 1000 })
-A("mech_repair", "production", "mech.repair", { 5, 25, 100, 400 })
-A("mech_install", "production", "mech.install", { 5, 50, 200, 800 })
-A("power", "production", "power.count", { 1, 10, 50, 200 })
-A("scrap", "production", "scrap.count", { 10, 100, 500, 2000 })
+A("craft", "production", "craft.count", { 25, 250, 1000, 5000, 12500 })
+A("build", "production", "build.count", { 10, 100, 500, 2000, 5000 })
+A("cook", "production", "cook.count", { 10, 100, 500, 2000, 5000 })
+A("sew", "production", "sew.count", { 10, 50, 250, 1000, 2500 })
+A("smith", "production", "smith.count", { 5, 50, 250, 1000, 2500 })
+A("knap", "production", "knap.count", { 5, 50, 250, 1000, 2500 })
+A("carve", "production", "carve.count", { 5, 50, 250, 1000, 2500 })
+A("mech_repair", "production", "mech.repair", { 5, 25, 100, 400, 1000 })
+A("mech_install", "production", "mech.install", { 5, 50, 200, 800, 2000 })
+A("power", "production", "power.count", { 1, 10, 50, 200, 500 })
+A("scrap", "production", "scrap.count", { 10, 100, 500, 2000, 5000 })
 
-A("plant", "nature", "plant.count", { 25, 250, 1000, 5000 })
-A("harvest", "nature", "farm.harvest", { 25, 250, 1000, 5000 })
-A("fish", "nature", "fish.caught", { 5, 25, 100, 400 })
-A("forage", "nature", "forage.count", { 25, 250, 1000, 5000 })
-A("trap", "nature", "trap.caught", { 5, 25, 100, 400 })
-A("butcher", "nature", "butcher.count", { 3, 25, 100, 400 })
-A("milk", "nature", "milk.count", { 5, 50, 200, 800 })
-A("shear", "nature", "shear.count", { 3, 25, 100, 400 })
-A("egg", "nature", "egg.count", { 10, 100, 500, 2000 })
-A("chop", "nature", "tree.chop", { 10, 100, 500, 2000 })
+A("plant", "nature", "plant.count", { 25, 250, 1000, 5000, 12500 })
+A("harvest", "nature", "farm.harvest", { 25, 250, 1000, 5000, 12500 })
+A("fish", "nature", "fish.caught", { 5, 25, 100, 400, 1000 })
+A("forage", "nature", "forage.count", { 25, 250, 1000, 5000, 12500 })
+A("trap", "nature", "trap.caught", { 5, 25, 100, 400, 1000 })
+A("butcher", "nature", "butcher.count", { 3, 25, 100, 400, 1000 })
+A("milk", "nature", "milk.count", { 5, 50, 200, 800, 2000 })
+A("shear", "nature", "shear.count", { 3, 25, 100, 400, 1000 })
+A("egg", "nature", "egg.count", { 10, 100, 500, 2000, 5000 })
+A("chop", "nature", "tree.chop", { 10, 100, 500, 2000, 5000 })
 
-A("towns", "explore", "town.visited", { 2, 5, 8, 11 })
-A("walk", "explore", "walk.km", { 10, 100, 500, 2000 })
-A("drive", "explore", "drive.km", { 50, 250, 1000, 5000 })
-A("read", "explore", "book.read", { 5, 25, 100, 300 })
-A("furniture", "explore", "furniture.placed", { 10, 100, 500, 2000 })
+A("towns", "explore", "town.visited", { 2, 5, 8, 10, 11 })   -- all 12 is h_all_towns
+A("walk", "explore", "walk.km", { 10, 100, 500, 2000, 5000 })
+A("drive", "explore", "drive.km", { 50, 250, 1000, 5000, 12500 })
+A("read", "explore", "book.read", { 5, 25, 100, 300, 750 })
+A("furniture", "explore", "furniture.placed", { 10, 100, 500, 2000, 5000 })
 
-A("daily", "quest", "quest.daily", { 10, 50, 200, 500 })
-A("weekly", "quest", "quest.weekly", { 3, 15, 50, 150 })
-A("streak", "quest", "streak.best", { 3, 7, 30, 100 })
-A("goal", "quest", "goal.done", { 1, 5, 15, 40 })
-A("season", "quest", "season.joined", { 1, 3, 6, 12 })
-A("achv_tiers", "quest", "achv.tiers", { 10, 50, 150, 300 })
+A("daily", "quest", "quest.daily", { 10, 50, 200, 500, 1250 })
+A("weekly", "quest", "quest.weekly", { 3, 15, 50, 150, 375 })
+A("streak", "quest", "streak.best", { 3, 7, 30, 100, 250 })
+A("goal", "quest", "goal.done", { 1, 5, 15, 40, 100 })
+A("season", "quest", "season.joined", { 1, 3, 6, 12, 30 })
+A("achv_tiers", "quest", "achv.tiers", { 10, 50, 150, 300, 450 })   -- 91 x 5 + 16 hidden = 471 tiers
 
 H("h_first_blood", "zombie.kills", 1)
 H("h_unarmed", "zombie.kills.unarmed", 1, true)
@@ -381,6 +399,7 @@ end
 Cat.DEFAULTS = {
     daily = { swapsPerDay = 1, pts = D_PTS, rarePts = RARE_PTS, sharedPts = 20, pool = dailyPool },
     weekly = { count = 3, pts = W_PTS, pool = weeklyPool },
+    quests = { playerList = false },   -- players see the per-theme quest list on Settings (admins always do)
     goal = { enabled = true, pts = 50, growth = 1.1,
         rotation = { "zombie.kills", "craft.count", "drive.km", "fish.caught", "farm.harvest" },
         limits = {

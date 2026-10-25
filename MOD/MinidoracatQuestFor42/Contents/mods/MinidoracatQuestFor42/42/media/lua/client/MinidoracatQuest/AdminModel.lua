@@ -31,12 +31,16 @@ function AM.check(text, rangeKey)
     return v
 end
 
+-- thousands separator: AdminPanel sets it from IGUI_MQ_UI_ThousandSep (Draw.sep) when the panel opens; "," offline
+AM.SEP = AM.SEP or ","
+
 local function commas(i)
     local s = tostring(i)
-    local out = string.gsub(s, "^(-?%d+)(%d%d%d)", "%1,%2")
+    local rep = "%1" .. AM.SEP .. "%2"
+    local out = string.gsub(s, "^(-?%d+)(%d%d%d)", rep)
     while out ~= s do
         s = out
-        out = string.gsub(s, "^(-?%d+)(%d%d%d)", "%1,%2")
+        out = string.gsub(s, "^(-?%d+)(%d%d%d)", rep)
     end
     return out
 end
@@ -152,9 +156,10 @@ function AM.achievements(S, catalog)
     local out = {}
     for i, a in ipairs(catalog and catalog.achievements or {}) do
         local base = "achievements." .. a.id
+        local tiers = AM.get(S, base .. ".tiers") or a.tiers or {}
         out[#out + 1] = { id = a.id, cat = a.cat, stat = a.stat, hidden = a.hidden, order = i, path = base,
-            tiers = AM.get(S, base .. ".tiers") or a.tiers or {},
-            pts = AM.get(S, base .. ".pts") or a.pts or {},
+            tiers = tiers,
+            pts = catalog.fillPts(AM.get(S, base .. ".pts") or a.pts or {}, a.pts, #tiers),
             titles = AM.get(S, base .. ".titles") or a.titles or {},
             enabled = AM.get(S, base .. ".enabled") ~= false }
     end

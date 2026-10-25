@@ -37,8 +37,10 @@ function P.questCard(b, page, x, y, w, q, o)
     local progText = getText("IGUI_MQ_UI_Progress", D.num(prog), D.num(target))
     local btn = nil
     if o.swap ~= nil and not done then
-        btn = page.pool:button(o.key .. "swap", page.UI, page.theme, getText("IGUI_MQ_UI_Swap"), page, P.onSwap, "ghost")
+        -- normal style (framed like the Track chip next to it): swapping drops the progress, so it must read as a control
+        btn = page.pool:button(o.key .. "swap", page.UI, page.theme, getText("IGUI_MQ_UI_Swap"), page, P.onSwap)
         btn.internal = o.swap.slot
+        btn.quest, btn.progText = q, progText
         btn:setEnabled(o.swap.enabled)
     end
     -- pin chip: active quests, and a pinned one after it is done (so it can be taken off the panel)
@@ -89,9 +91,24 @@ function P.questCard(b, page, x, y, w, q, o)
     return y + h + GAP
 end
 
+-- a quest with progress asks first (the swap cannot be undone); progress 0 swaps at once
 function P.onSwap(page, btn)
     if C.isPending(page.swapRid) then return end
-    page.swapRid = C.send("swap", { slot = btn.internal }, function(r)
+    local slot, q = btn.internal, btn.quest
+    if (tonumber(q and q.prog) or 0) > 0 and D.has(page.UI, "dialog") then
+        page.UI.Dialog.show({ title = getText("IGUI_MQ_UI_Swap"),
+            text = getText("IGUI_MQ_UI_SwapAsk", D.questName(q), btn.progText or ""),
+            confirmText = getText("IGUI_MQ_UI_Swap"), cancelText = getText("UI_Cancel"), danger = true,
+            theme = page.theme, opaque = true,
+            onResult = function(ok) if ok then MinidoracatQuest.PageDaily.swap(page, slot) end end })
+        return
+    end
+    P.swap(page, slot)
+end
+
+function P.swap(page, slot)
+    if C.isPending(page.swapRid) then return end
+    page.swapRid = C.send("swap", { slot = slot }, function(r)
         page.swapRid = nil
         if not r.ok then D.toast(D.codeText(r.code), "", nil) end
         page.dirty = true
@@ -132,7 +149,7 @@ local function newbie(b, x, y, w, s)
     b:card(x, y, w, h, D.EXTRA.gold)
     local cy = y + CARD_PAD
     local tw = b:text(x + CARD_PAD, cy + 3, title, D.EXTRA.gold)
-    b:chip(x + CARD_PAD + tw + 8, cy, getText("IGUI_MQ_UI_Count", tostring(done), "5"), D.EXTRA.gold)
+    b:chip(x + CARD_PAD + tw + 8, cy, getText("IGUI_MQ_UI_Count", tostring(done), "5"), "textMuted")
     cy = cy + D.chipH() + 6
     for i = 1, 5 do
         local ok = steps[i] == true
@@ -158,7 +175,7 @@ end
 function P.streak(b, x, y, w, s)
     local st = type(s.streak) == "table" and s.streak or {}
     local days = math.floor(tonumber(st.days) or 0)
-    local chips = { { D.days(days), D.EXTRA.gold } }
+    local chips = { { D.days(days), "textMuted" } }
     if st.graceUsed then chips[2] = { getText("IGUI_MQ_UI_GraceUsed"), "warning" } end
     y = b:header(x, y, x + w, getText("IGUI_MQ_UI_Streak"), chips) + 3   -- room for today's ring
     local lh = D.fontH()
@@ -176,12 +193,14 @@ function P.streak(b, x, y, w, s)
         end
         if v == "done" then
             b:dot(cx, y, size, D.EXTRA.success)
-        elseif v == "grace" then
+        elseif v == "grace" then   -- grace and miss differ by an icon too, not only by color
             b:dot(cx, y, size, "warning")
             b:dot(cx + 3, y + 3, size - 6, "surface")
+            b:icon(cx + 5, y + 5, size - 10, "pause", "warning", "-")
         elseif v == "miss" then
             b:dot(cx, y, size, "errorText")
             b:dot(cx + 3, y + 3, size - 6, "surface")
+            b:icon(cx + 5, y + 5, size - 10, "close", "errorText", "x")
         else
             b:dot(cx, y, size, "border")
             b:dot(cx + 2, y + 2, size - 4, "surface")
@@ -204,7 +223,7 @@ function P.streak(b, x, y, w, s)
         y = y + lh + 4
     end
     y = b:para(x, y + 4, getText("IGUI_MQ_UI_StreakRule", tostring(cfg.need or 3), tostring(cfg.gracePerWeek or 1)),
-        w, "textFaint")
+        w, "textMuted")
     return y + GAP
 end
 
@@ -224,7 +243,7 @@ function P.layout(page)
     y = events(b, x, y, w, s)
     local st = type(s.streak) == "table" and s.streak or {}
     local chips = {}
-    if (tonumber(st.days) or 0) > 0 then chips[#chips + 1] = { getText("IGUI_MQ_UI_StreakDays", tostring(st.days)), D.EXTRA.gold } end
+    if (tonumber(st.days) or 0) > 0 then chips[#chips + 1] = { getText("IGUI_MQ_UI_StreakDays", tostring(st.days)), "textMuted" } end
     if tonumber(s.resetAt) then
         chips[#chips + 1] = { getText("IGUI_MQ_UI_ResetIn", D.duration(D.left(s.resetAt))), "textMuted" }
     end
@@ -250,7 +269,7 @@ function P.layout(page)
         y = P.questCard(b, page, x, y, w, shared, { key = "shared", pin = "d" .. sharedSlot, frame = D.EXTRA.info,
             tag = getText("IGUI_MQ_UI_Shared"), tagToken = D.EXTRA.info, barToken = D.EXTRA.info,
             foot = { getText("IGUI_MQ_UI_SharedDone", D.num(day.sharedDone or 0)), D.EXTRA.info } })
-        y = b:para(x, y - 2, getText("IGUI_MQ_UI_SharedNote"), w, "textFaint") + GAP
+        y = b:para(x, y - 2, getText("IGUI_MQ_UI_SharedNote"), w, "textMuted") + GAP
     end
     if #quests == 0 then y = b:para(x, y, getText("IGUI_MQ_UI_NoQuests"), w, "textMuted") + GAP end
     y = P.streak(b, x, y + 4, w, s)

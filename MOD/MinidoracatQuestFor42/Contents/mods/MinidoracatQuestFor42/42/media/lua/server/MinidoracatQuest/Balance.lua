@@ -1,5 +1,6 @@
--- MinidoracatQuestFor42 - quest balance: completion rate and median minutes over the last 7 days,
--- target-range suggestions (<30% too hard, >90% too easy), and the quick difficulty preview.
+-- MinidoracatQuestFor42 - quest balance: completion rate and median minutes (daily: the last 7 days; weekly: the
+-- last week that ended), target-range suggestions (<30% too hard, >90% too easy), and the quick difficulty preview.
+-- The rate leaves out assignments swapped away: done / (given - swaps).
 if isClient() then return end
 
 MinidoracatQuest = MinidoracatQuest or {}
@@ -17,8 +18,9 @@ MQ.Balance = Bal
 
 local DAY = 86400000
 Bal.DAYS = 7
+Bal.KEEP = 14                         -- days of rows kept: the last ended week starts up to 13 days ago
 Bal.MINUTES_MAX = 64
-Bal.MIN_GIVEN = 10                    -- fewer samples: no suggestion
+Bal.MIN_GIVEN = 10                    -- fewer samples (given - swaps): no suggestion
 Bal.LOW, Bal.HIGH = 0.3, 0.9
 Bal.DOWN, Bal.UP = 0.7, 1.3           -- target range factor for "hard" / "easy"
 Bal.PRESETS = { easy = 0.6, normal = 1, hard = 1.6 }
@@ -26,7 +28,7 @@ Bal.PRESETS = { easy = 0.6, normal = 1, hard = 1.6 }
 local function code(name) return MQ.Contract.CODE[name] end
 
 local function prune(now)
-    local oldest = MQ.Clock.dayKey(now - (Bal.DAYS - 1) * DAY)
+    local oldest = MQ.Clock.dayKey(now - (Bal.KEEP - 1) * DAY)
     for _, days in pairs(MQ.Store.root().balance) do
         local stale = {}
         for k in pairs(days) do
@@ -46,7 +48,7 @@ local function row(tid, now)
     root.balance[tid] = root.balance[tid] or {}
     local r = root.balance[tid][day]
     if not r then
-        r = { given = 0, done = 0, minutes = {} }
+        r = { given = 0, done = 0, swaps = 0, minutes = {} }
         root.balance[tid][day] = r
     end
     return r
@@ -56,6 +58,13 @@ function Bal.given(tid, now)
     if not MQ.Store.ready() then return end
     local r = row(tid, now)
     r.given = r.given + 1
+end
+
+-- an assignment swapped away (Quests.swap): left out of the rate
+function Bal.swapped(tid, now)
+    if not MQ.Store.ready() then return end
+    local r = row(tid, now)
+    r.swaps = (r.swaps or 0) + 1
 end
 
 function Bal.done(tid, startMs, doneMs)
@@ -102,23 +111,30 @@ local function suggest(tid, rate, cfg)
     return { kind = kind, path = section .. ".pool." .. tid .. ".target", value = { a, b } }
 end
 
+-- rows { tid, given, done, swaps, rate (nil when given - swaps is 0), medianMin, suggest }
 function Bal.report(now)
     now = now or MQ.Clock.now()
     local oldest = MQ.Clock.dayKey(now - (Bal.DAYS - 1) * DAY)
+    local weekStart = MQ.Clock.weekResetMs(now) - 7 * DAY
+    local wFrom, wTo = MQ.Clock.dayKey(weekStart - 7 * DAY), MQ.Clock.dayKey(weekStart)
+    local weekly = {}
+    for _, t in ipairs(MQ.Catalog.weekly or {}) do weekly[t.tid] = true end
     local cfg = MQ.Config.get()
     local rows = {}
     for tid, days in pairs(MQ.Store.root().balance) do
-        local given, done, mins = 0, 0, {}
+        local given, done, swaps, mins = 0, 0, 0, {}
+        local wk = weekly[tid]
         for day, r in pairs(days) do
-            if day >= oldest then
-                given, done = given + r.given, done + r.done
+            if (wk and day >= wFrom and day < wTo) or (not wk and day >= oldest) then
+                given, done, swaps = given + r.given, done + r.done, swaps + (r.swaps or 0)
                 for _, m in ipairs(r.minutes) do mins[#mins + 1] = m end
             end
         end
         if given > 0 then
-            local rate = math.min(1, done / given)
-            rows[#rows + 1] = { tid = tid, given = given, done = done, rate = rate, medianMin = median(mins),
-                suggest = given >= Bal.MIN_GIVEN and suggest(tid, rate, cfg) or nil }
+            local n = given - swaps
+            local rate = n > 0 and math.min(1, done / n) or nil
+            rows[#rows + 1] = { tid = tid, given = given, done = done, swaps = swaps, rate = rate, medianMin = median(mins),
+                suggest = rate and n >= Bal.MIN_GIVEN and suggest(tid, rate, cfg) or nil }
         end
     end
     MQ.Util.sort(rows, function(a, b) return a.tid < b.tid end)
@@ -139,7 +155,7 @@ function Bal.diffPreview(preset, mult)
     local rows = {}
     for _, d in ipairs(list) do
         if #rows >= 40 then break end
-        rows[#rows + 1] = { path = "achievements." .. d.id .. ".tiers", before = d.tiers, after = A.scale(d.base, m) }
+        rows[#rows + 1] = { path = "achievements." .. d.id .. ".tiers", before = d.tiers, after = A.scale(d.base, m, d.stat) }
     end
     -- estimate: tier III of the first combat achievement with 3+ tiers, and who has reached it
     local ref = MQ.Catalog.ach("zombie_kills")
@@ -160,7 +176,7 @@ function Bal.diffPreview(preset, mult)
             values[n] = acc.total[ref.stat] or 0
         end)
         for k, x in pairs(mults) do
-            local t3 = A.scale(ref.base, x)[3]
+            local t3 = A.scale(ref.base, x, ref.stat)[3]
             tier3[k] = t3
             local c = 0
             for i = 1, n do
@@ -176,7 +192,7 @@ function Bal.diffPreview(preset, mult)
         for _, r in ipairs(Bal.report()) do
             local t = template(r.tid)
             if t and t.stat == ref.stat and pool[r.tid] then
-                given, done = given + r.given, done + r.done
+                given, done = given + r.given - r.swaps, done + r.done
             end
         end
         if given > 0 then
@@ -192,7 +208,7 @@ function Bal.diffPreview(preset, mult)
 end
 
 MQ.Server.defineAdmin("balance.report", { kind = "query",
-    run = function(ctx) return true, { rows = Bal.report(ctx.now) } end })
+    run = function(ctx) return true, { rows = Bal.report(ctx.now), minGiven = Bal.MIN_GIVEN } end })
 
 MQ.Server.defineAdmin("diff.preview", { kind = "query", fields = { preset = "str", mult = "num?" },
     run = function(ctx)

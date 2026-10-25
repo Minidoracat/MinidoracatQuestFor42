@@ -54,7 +54,7 @@ Daily and weekly quests, achievements, season leaderboards and titles; pair it w
 [/list]
 [h3]Swaps and preferences[/h3]
 [list]
-[*] [b]Swap quest[/b]: swap 1 personal quest per day; the server-wide quest cannot be swapped.
+[*] [b]Swap quest[/b]: swap 1 personal quest per day; a quest with progress asks first (the progress cannot be restored); the server-wide quest cannot be swapped.
 [*] [b]Preferred themes[/b]: pick up to 3 themes under Settings; each day 2 quests come from your themes and 1 from all themes. When a preferred theme has no quest left for the day, that slot draws from your other preferred themes.
 [*] [b]No preferences[/b]: the three slots draw one each from Combat, Production (Building, Crafting, Cooking, Tailoring, Mechanics & Electrical) and Outdoors (Farming, Animal Care, Fishing & Trapping, Foraging, Exploration).
 [*] [b]When it applies[/b]: change preferences as often as you like; if today's quests already exist, the change applies from the next reset.
@@ -125,14 +125,15 @@ Daily and weekly quests, achievements, season leaderboards and titles; pair it w
 [tr][td]Silver II[/td][td]20[/td][/tr]
 [tr][td]Gold III[/td][td]30[/td][/tr]
 [tr][td]Platinum IV[/td][td]50 + title[/td][/tr]
+[tr][td]Legend V[/td][td]80[/td][/tr]
 [tr][td]Hidden achievement (1 tier)[/td][td]30, some give a title[/td][/tr]
 [/table]
 [list]
 [*] [b]About 110 in total[/b]: 107 built in; a server may add custom achievements or achievements from other mods. Each category button shows unlocked/total.
 [*] [b]Next tier[/b]: every achievement shows the next tier's threshold and points.
-[*] [b]More tiers[/b]: admins can add up to 10 tiers; tier 5 and up are called "Legend".
+[*] [b]How the five tiers work[/b]: for counts, Legend V is 2.5 times Platinum IV; skill achievements are skill levels 2 / 4 / 6 / 8 / 10 (Fitness and Strength 6 to 10), so a skill title comes at level 8. Admins can add up to 10 tiers.
 [*] [b]One-life achievements[/b]: those marked "One life" use this life's stats and start over after death; the rest use your all-time totals across characters.
-[*] [b]Raised thresholds[/b]: unlocked achievements are never taken back.
+[*] [b]Raised thresholds[/b]: unlocked achievements are never taken back. When thresholds are lowered or an update adds tiers, the tiers you already reached are added at your next login (points paid as usual, only you get the notice).
 [/list]
 [h3]Notifications[/h3]
 {{img:10-toast-en.jpg}}
@@ -153,7 +154,7 @@ Daily and weekly quests, achievements, season leaderboards and titles; pair it w
 === 🧰 Tracker panel
 {{img:12-tracker-en.jpg}}
 [list]
-[*] [b]Add[/b]: press "Track" on a daily or weekly quest card or an achievement card (press again to stop), up to 5; with 5 tracked the other cards' "Track" turns gray.
+[*] [b]Add[/b]: press "Track" on a daily or weekly quest card or an achievement card (press again to stop), up to 5; with 5 tracked, pressing "Track" on another card tells you to untrack one first.
 [*] [b]What it shows[/b]: at the top left, next to the vanilla sidebar: quests show progress/target, achievements the next tier's target, a done quest gets a check mark and the points it paid.
 [*] [b]Move and fold[/b]: drag the panel to move it and the game remembers where; the arrow in its title row folds it to one line.
 [*] [b]Untrack[/b]: point at a row and press the × that appears on its right.
@@ -247,6 +248,7 @@ The server needs Minidoracat Economy (multiplayer only). The Exchange page on th
 [list]
 [*] [b]Quest preferences[/b]: pick up to 3 themes and press Apply; rules under "Daily quests".
 [*] [b]Appear anonymous on leaderboards[/b]: you are still ranked, others see "Anonymous survivor", and server-wide notices do not name you; admins can still see who you are. Only applies to this mod's leaderboards and notices: your title over your head and in chat still shows.
+[*] [b]Quests by theme[/b]: at the bottom of the page, "Show" lists each theme's daily and weekly quests with their target ranges at the current difficulty and their points; rare quests are marked. By default only admins see it; once the server owner turns it on under Admin > Quests, players see it too.
 [/list]
 [h3]Mod options (Options > MODS > Quests & Achievements)[/h3]
 [list]
@@ -282,9 +284,10 @@ The sandbox page "Minidoracat Quests & Achievements" has three options; everythi
 [tr][td]Weekly quests[/td][td]3, 60 points each[/td][/tr]
 [tr][td]Server goal[/td][td]On, 50 points when reached, target ×1.1 of last week[/td][/tr]
 [tr][td]Streaks[/td][td]3 quests count as a day, 1 grace day per week[/td][/tr]
+[tr][td]Players see the quests by theme[/td][td]Off (admins only)[/td][/tr]
 [tr][td]Newcomer quests[/td][td]On, 100 points + title[/td][/tr]
-[tr][td]Achievement points[/td][td]10 / 20 / 30 / 50 per tier, hidden 30[/td][/tr]
-[tr][td]Difficulty[/td][td]Normal (Easy ×0.6, Hard ×1.6; only thresholds and quest targets)[/td][/tr]
+[tr][td]Achievement points[/td][td]10 / 20 / 30 / 50 / 80 per tier, hidden 30[/td][/tr]
+[tr][td]Difficulty[/td][td]Normal (Easy ×0.6, Hard ×1.6; only thresholds and quest targets; skill levels and towns visited have a ceiling and stay as they are)[/td][/tr]
 [tr][td]Season length[/td][td]28 days (7-180)[/td][/tr]
 [tr][td]Exchange[/td][td]On, 1 point = 1 Survivor Coin, 100 points per player per day, at least 10[/td][/tr]
 [tr][td]Server-wide notices[/td][td]On, from tier 3, 1 per player per minute[/td][/tr]
@@ -292,7 +295,7 @@ The sandbox page "Minidoracat Quests & Achievements" has three options; everythi
 [/table]
 === ⚙️ Admin panel
 {{img:08-admin-basic-en.jpg}}
-Open "Admin" on the left of the window; only roles listed in the "Admin roles" sandbox option see it, and the server checks every action again.
+Open "Admin" on the left of the window (its own group at the bottom of the list); only roles listed in the "Admin roles" sandbox option see it, and the server checks every action again.
 [h3]How changes work[/h3]
 [list]
 [*] [b]Tabs[/b]: settings come first (General, Achievements, Quests, Season, Exchange, Towns); after the divider come operations (Players, Balance, History).
@@ -321,13 +324,14 @@ Steps 1-5 cover the common settings; the other tabs hold the rest.
 [/list]
 [h3]Quests[/h3]
 [list]
-[*] [b]Theme filter[/b]: the list shows how many daily and weekly quests each theme has; with a theme picked you can turn the whole group on or off, or multiply its targets by 0.8 or 1.25. The result goes into pending changes.
+[*] [b]Players see each theme's quests[/b]: the switch at the top of the tab, off by default. While it is off only admins see the quests-by-theme list at the bottom of Settings, with a note that players cannot see it; turned on, players see it too. Like other settings it goes into pending changes, is previewed before it applies, and shows in History.
+[*] [b]Theme filter[/b]: the list shows how many daily and weekly quests each theme has; with a theme picked, buttons beside the filter turn the whole group on or off, or multiply its targets by 0.8 or 1.25. The result goes into pending changes, the bar says what was done, and templates with pending changes show "(changed)". Buttons under the filter jump to the community goal, streak rewards, newcomer quests and timed events.
 [*] [b]Daily and weekly pools[/b]: on/off, target range and points per template; of two templates with the same name, the bigger one shows "(bulk)".
 [*] [b]Daily and weekly settings[/b]: points for the server-wide quest, swaps per day, weekly quests.
 [*] [b]Community goal[/b]: on/off, reward, growth over last week, and the minimum, maximum and minimum contribution of each stat in the rotation.
 [*] [b]Streak rewards[/b]: quests needed per day, grace days per week, milestones.
 [*] [b]Newcomer quests[/b]: on/off and reward.
-[*] [b]Timed events[/b]: name, quest theme (or all quests), multiplier (1-5), start and end date (inclusive); up to 3 at a time, removable.
+[*] [b]Timed events[/b]: name, quest theme (or all quests), multiplier (1-5), start and end date (inclusive); up to 3 at a time, removable. Adding and removing take effect at once and cannot be undone from History.
 [/list]
 [h3]Exchange[/h3]
 {{img:11-admin-exchange-en.jpg}}
@@ -352,8 +356,8 @@ Steps 1-5 cover the common settings; the other tabs hold the rest.
 [/list]
 [h3]Balance[/h3]
 [list]
-[*] [b]Completion rate[/b]: for each quest template over the last 7 days, with median completion time; weekly quests show "(weekly)".
-[*] [b]Suggestions[/b]: below 30% is marked "Too hard", above 90% "Too easy", with a suggested target range you can add to the pending changes in one click.
+[*] [b]Completion rate[/b]: for each quest template, times given, completion, median time to finish and times swapped away; daily quests over the last 7 days, weekly quests over the last week that ended; weekly quests show "(weekly)". Completion leaves out swapped quests.
+[*] [b]Suggestions[/b]: quests given 10+ times with completion under 30% or over 90% show their current and suggested target range; those given fewer times say "Too few samples". "Apply N suggestions..." lists every change before you confirm.
 [/list]
 [h3]History[/h3]
 [list]
@@ -376,11 +380,12 @@ The admin panel settings (except timed events and the season length) are also ke
 [*] [b]Panel changes rewrite the file[/b]: after an apply or undo in the panel the server writes the settings in effect back to config.json, so manual edits it has not read yet are overwritten. A deleted file is written again.
 [*] [b]Not in the panel[/b]: leaderboards (boards), community goal rotation (goal.rotation), newcomer title and days (newbie.title, newbie.days) change only in this file.
 [*] [b]Restoring a world save[/b]: the server applies config.json at start, so the settings follow the file, not the older save.
+[*] [b]Settings from the 4-tier days still work[/b]: an achievement whose tiers list has 4 numbers keeps 4 tiers; a pts list of 4 numbers (points changed, tiers not) pays the default 80 for tier 5.
 [/list]
 Example: the daily quest "Kill N zombies" (d_kill) gets a target of 30 to 60 and 20 points, the "Zombie Slayer" achievement (zombie_kills) gets doubled thresholds, and the exchange rate becomes 1 point for 2 Survivor Coins:
 [code]{
   "achievements": {
-    "zombie_kills": { "tiers": [200, 2000, 10000, 40000] }
+    "zombie_kills": { "tiers": [200, 2000, 10000, 40000, 100000] }
   },
   "daily": {
     "pool": {

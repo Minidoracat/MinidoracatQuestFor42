@@ -1,6 +1,7 @@
 -- MinidoracatQuest/PageSettings.lua: settings (spec 1.2, 12.2): quest theme preferences (11 themes, pick up to 3,
 --   applied with one button; C4: takes effect today if today's quests are not made yet, otherwise next day) and
---   the anonymous-on-leaderboards switch. The Dock / broadcast switches live in the game's MOD options.
+--   the anonymous-on-leaderboards switch. The Dock / broadcast switches live in the game's MOD options. Last, the
+--   folded per-theme quest list: admins always, players while config quests.playerList is on (C.questList).
 
 if isServer() then return end
 
@@ -94,7 +95,7 @@ function P.layout(page)
     end
     local list = P.current(page)
     y = b:header(x, y, x + w, getText("IGUI_MQ_UI_Prefs"),
-        { { getText("IGUI_MQ_UI_PrefsCount", tostring(#list), tostring(P.MAX)), D.EXTRA.gold } })
+        { { getText("IGUI_MQ_UI_PrefsCount", tostring(#list), tostring(P.MAX)), "textMuted" } })
     y = b:para(x, y, getText("IGUI_MQ_UI_PrefsRule"), w, "textMuted") + 4
     local btns = {}
     for _, id in ipairs(P.themes()) do
@@ -105,6 +106,8 @@ function P.layout(page)
         btns[#btns + 1] = btn
     end
     y = D.placeRow(btns, x, y, x + w) + GAP
+    -- at the cap the other chips are disabled: say why under them (focus skips disabled chips, so no tooltip)
+    if #list >= P.MAX then y = b:para(x, y - 4, D.codeText("TOO_MANY_PREFS"), w, "textMuted") + 4 end
     local apply = page.pool:button("apply", UI, theme, getText("IGUI_MQ_UI_PrefsApply"), page, P.onApply, "primary")
     local serverPrefs = type(s.prefs) == "table" and s.prefs or {}
     apply:setEnabled(not C.isPending(page.prefsRid) and not P.same(list, serverPrefs))
@@ -115,7 +118,7 @@ function P.layout(page)
             w - apply.width - 10, page.msg[2])
     end
     y = y + apply.height + 4
-    y = b:para(x, y, getText("IGUI_MQ_UI_PrefsWhen"), w, "textFaint") + GAP
+    y = b:para(x, y, getText("IGUI_MQ_UI_PrefsWhen"), w, "textMuted") + GAP
     y = b:header(x, y + 6, x + w, getText("IGUI_MQ_UI_Privacy"))
     local label = getText("IGUI_MQ_UI_Anon")
     local cbw = math.min(w, 48 + D.textW(label))
@@ -130,9 +133,70 @@ function P.layout(page)
     cb:setX(x)
     cb:setY(y)
     y = y + cb.height + 4
-    y = b:para(x, y, getText("IGUI_MQ_UI_AnonNote"), w, "textFaint") + GAP
-    y = b:para(x, y + 6, getText("IGUI_MQ_UI_ModOptionsNote"), w, "textFaint") + GAP
+    y = b:para(x, y, getText("IGUI_MQ_UI_AnonNote"), w, "textMuted") + GAP
+    y = b:para(x, y + 6, getText("IGUI_MQ_UI_ModOptionsNote"), w, "textMuted") + GAP
+    y = P.questList(page, b, x, y, w)
     D.finish(page, y)
+end
+
+function P.onQuestList(page)
+    page.listOpen = not page.listOpen
+    page.dirty = true
+end
+
+local function range(lo, hi)
+    if lo == hi then return D.num(lo) end
+    return getText("IGUI_MQ_UI_Range", D.num(lo), D.num(hi))
+end
+
+-- last section: the quests each theme can give (C.questList: admins always, players while quests.playerList is
+-- on); folded until opened. Returns the y below
+function P.questList(page, b, x, y, w)
+    local list = C.questList()
+    if list == nil then return y end
+    y = y + 6
+    local title = getText("IGUI_MQ_UI_QuestList")
+    local tw = b:text(x, y, title, "text", UIFont.Medium)
+    local btn = page.pool:button("questList", page.UI, page.theme,
+        getText(page.listOpen and "IGUI_MQ_UI_ListHide" or "IGUI_MQ_UI_ListShow"), page, P.onQuestList, "chip",
+        page.listOpen == true)
+    local th = D.fontH(UIFont.Medium)
+    local bx, by = x + tw + 10, y + math.floor((th - btn.height) / 2)
+    if bx + btn.width > x + w then bx, by = x, y + th + 4 end
+    btn:setX(bx)
+    btn:setY(by)
+    y = math.max(y + th, by + btn.height) + GAP
+    local q = C.defs().cfg.quests
+    if not (type(q) == "table" and q.playerList == true) then
+        y = b:para(x, y, getText("IGUI_MQ_UI_QuestListAdminOnly"), w, "textMuted") + 4
+    end
+    if not page.listOpen then return y + GAP end
+    local ind = 12
+    for _, e in ipairs(list) do
+        y = y + 4
+        local name = D.themeName(e.theme)
+        local counts = getText("IGUI_MQ_UI_QuestListCount", tostring(#e.daily), tostring(#e.weekly))
+        local nw = D.textW(name)
+        if nw + GAP + D.textW(counts) <= w then
+            b:text(x, y, name, "text")
+            b:text(x + nw + GAP, y, counts, "textMuted")
+            y = y + D.fontH() + 2
+        else
+            y = b:para(x, y, name, w, "text")
+            y = b:para(x, y, counts, w, "textMuted")
+        end
+        for _, kind in ipairs({ "daily", "weekly" }) do
+            if #e[kind] > 0 then
+                y = b:para(x + ind, y, getText(kind == "daily" and "IGUI_MQ_UI_Daily" or "IGUI_MQ_UI_Weekly"), w - ind,
+                    "textMuted")
+                for _, t in ipairs(e[kind]) do
+                    y = b:para(x + 2 * ind, y, getText(t.rare and "IGUI_MQ_UI_QuestListRare" or "IGUI_MQ_UI_QuestListRow",
+                        D.questText(t.tid, range(t.lo, t.hi)), D.num(t.pts)), w - 2 * ind, "text")
+                end
+            end
+        end
+    end
+    return y + GAP
 end
 
 P.spec = {

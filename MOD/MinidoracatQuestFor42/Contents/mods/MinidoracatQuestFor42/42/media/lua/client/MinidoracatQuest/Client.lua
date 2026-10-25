@@ -171,8 +171,9 @@ local function sortedKeys(map)
 end
 
 -- difficulty multiplier on thresholds; same rule as server Achievements.lua A.scale (<100 round, else 2
--- significant digits, strictly increasing)
-function C.scale(tiers, mult)
+-- significant digits, strictly increasing; stats with a ceiling keep their thresholds)
+function C.scale(tiers, mult, stat)
+    if stat ~= nil and not Q.Catalog.scalable(stat) then mult = 1 end
     local out, prev = {}, 0
     for i, v in ipairs(tiers) do
         local s = tonumber(v) or 0
@@ -196,9 +197,10 @@ end
 local function achEntry(src, d, id, kind, mult)
     d = d or {}
     local base = d.tiers or src.tiers or {}
+    local pts = Q.Catalog.fillPts(d.pts or src.pts or {}, src.pts, #base)
     return {
-        id = id, kind = kind, cat = src.cat, stat = src.stat, base = base, tiers = C.scale(base, mult),
-        pts = d.pts or src.pts or {}, titles = d.titles or src.titles or {},
+        id = id, kind = kind, cat = src.cat, stat = src.stat, base = base, tiers = C.scale(base, mult, src.stat),
+        pts = pts, titles = d.titles or src.titles or {},
         icon = src.icon, hidden = src.hidden == true, hint = src.hint, scope = src.scope,
         name = src.name, nameKey = src.nameKey, descKey = src.descKey,
     }
@@ -262,6 +264,66 @@ function C.defs()
     for _, b in ipairs(d.boards) do d.boardById[b.id] = b end
     C._defs = d
     return d
+end
+
+-- ===== per-theme quest list (Settings) =====
+-- Built from defs(): the shared Catalog ships to every client and the catalog push carries the whole overrides
+-- tree to every player, so a server-side gate would hide nothing; config quests.playerList only decides who is
+-- shown the list (admins always). A config apply re-sends catalog, which rebuilds it.
+function C.questListShown()
+    local s = C.state
+    if s == nil then return false end
+    local q = C.defs().cfg.quests
+    return s.admin == true or (type(q) == "table" and q.playerList == true)
+end
+
+-- the lowest and highest target a template can roll: same rounding as server Quests.lua rollTarget
+function C.targetRange(t, o, mult)
+    local range = type(o) == "table" and type(o.target) == "table" and o.target or t.target
+    local a = tonumber(range[1]) or 1
+    local b = tonumber(range[2]) or a
+    local step = t.step or 1
+    local n = math.max(0, math.floor((b - a) / step))
+    local function round(v)
+        v = math.floor(v * mult / step + 0.5) * step
+        return v < 1 and 1 or v
+    end
+    return round(a), round(a + step * n)
+end
+
+-- nil while hidden; else { { theme, daily = { { tid, lo, hi, pts, rare } }, weekly = { ... } } } in theme order,
+-- enabled templates only (facade quests after the built-in ones), themes without any left out
+function C.questList()
+    if not C.questListShown() then return nil end
+    local Cat, d = Q.Catalog or {}, C.defs()
+    local cfg = d.cfg
+    local mult = type(cfg.difficulty) == "table" and tonumber(cfg.difficulty.mult) or 1
+    if mult == nil or mult <= 0 then mult = 1 end
+    local byTheme = {}
+    local function add(kind, t, pc)
+        local o = type(pc.pool) == "table" and pc.pool[t.tid] or nil
+        if type(t.theme) ~= "string" or (type(o) == "table" and o.enabled == false) then return end
+        local pts = type(o) == "table" and tonumber(o.pts) or nil
+        if pts == nil and kind == "daily" then pts = tonumber(t.pts) or (t.rare and pc.rarePts or pc.pts) end
+        local lo, hi = C.targetRange(t, o, mult)
+        local e = byTheme[t.theme] or { theme = t.theme, daily = {}, weekly = {} }
+        byTheme[t.theme] = e
+        e[kind][#e[kind] + 1] = { tid = t.tid, lo = lo, hi = hi, pts = pts or pc.pts or 0, rare = t.rare == true }
+    end
+    local dc = type(cfg.daily) == "table" and cfg.daily or {}
+    local wc = type(cfg.weekly) == "table" and cfg.weekly or {}
+    for _, t in ipairs(Cat.daily or {}) do add("daily", t, dc) end
+    for _, pack in ipairs(d.packs) do
+        for _, t in ipairs(type(pack) == "table" and type(pack.quests) == "table" and pack.quests or {}) do
+            if type(t) == "table" and type(t.target) == "table" then add("daily", t, dc) end
+        end
+    end
+    for _, t in ipairs(Cat.weekly or {}) do add("weekly", t, wc) end
+    local out = {}
+    for _, th in ipairs(Cat.themes or {}) do
+        if byTheme[th] then out[#out + 1] = byTheme[th] end
+    end
+    return out
 end
 
 -- ===== delta merge =====

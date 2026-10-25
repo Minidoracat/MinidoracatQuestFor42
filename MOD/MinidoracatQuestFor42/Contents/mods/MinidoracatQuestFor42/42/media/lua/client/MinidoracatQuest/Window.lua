@@ -1,8 +1,9 @@
--- MinidoracatQuest/Window.lua: the main window (ARCHITECTURE 7): left NavList (daily, weekly, achievements,
---   boards, my records; separate group: settings, admin when state.admin), right content, opaque window.
---   Pages register a spec { id, label (translation key), icon, group = "main" | "tail", admin?, build(page),
---   layout(page), onShow(page)?, onHide(page)?, ticking? }. Layout runs only when data changed, the window was
---   resized, or (ticking pages) every 30 s for countdown text - never per frame.
+-- MinidoracatQuest/Window.lua: the main window (ARCHITECTURE 7): left NavList W.nav (daily, weekly, achievements,
+--   boards, my records; separate group: settings) and, anchored to the bottom of the nav column, a second NavList
+--   W.navAdmin with the admin rows (shown only when state.admin; one selection across both lists), right content,
+--   opaque window. Pages register a spec { id, label (translation key), icon, group = "main" | "tail" | "admin",
+--   admin?, build(page), layout(page), onShow(page)?, onHide(page)?, ticking? }. Layout runs only when data
+--   changed, the window was resized, or (ticking pages) every 30 s for countdown text - never per frame.
 --   Admin pages hook in with MinidoracatQuest.ClientUI.registerAdminPage(spec): spec.show(host), spec.hide(),
 --   spec.resize(w, h), spec.onReply(payload); host = { UI, theme, parent, x, y, width, height, D }.
 --   Opening sends watch {on=true}, closing {on=false}; showing daily or achievements sends seen.
@@ -43,12 +44,12 @@ function W.spec(id)
     return nil
 end
 
--- admin pages (AdminUI slice); several may register, each becomes one nav row in the second group
+-- admin pages (AdminUI slice); several may register, each becomes one row of the bottom list (W.navAdmin)
 function CUI.registerAdminPage(adm)
     if type(adm) ~= "table" then return false end
     local id = adm.id or "admin"
     W.register({
-        id = id, admin = true, group = "tail", label = adm.label or "IGUI_MQ_UI_NavAdmin", icon = adm.icon or "shieldCheck",
+        id = id, admin = true, group = "admin", label = adm.label or "IGUI_MQ_UI_NavAdmin", icon = adm.icon or "shieldCheck",
         impl = adm,
         build = function() end,
         layout = function() end,
@@ -103,15 +104,68 @@ local function insertByOrder(list, item, order)
 end
 
 -- load order is alphabetical (Admin*.lua first), so rows are placed by spec.order, not registration order
-function W.navGroups()
-    local main, tail = {}, {}
+local function navItems()
+    local by = { main = {}, tail = {}, admin = {} }
     for _, s in ipairs(W.specs) do
         if listed(s) then
             local item = { id = s.id, label = getText(s.label), icon = s.icon, order = s.order or 100 }
-            insertByOrder(s.group == "tail" and tail or main, item, item.order)
+            insertByOrder(by[s.group] or by.main, item, item.order)
         end
     end
-    return { { items = main }, { items = tail } }
+    return by
+end
+
+-- W.nav: main, then settings in its own group (an empty group is left out)
+function W.navGroups()
+    local by, out = navItems(), {}
+    if #by.main > 0 then out[#out + 1] = { items = by.main } end
+    if #by.tail > 0 then out[#out + 1] = { items = by.tail } end
+    return out
+end
+
+-- W.navAdmin: the admin rows, a list of their own at the bottom of the nav column (the framework NavList has
+-- no bottom anchoring or spacer row); {} for a non-admin
+function W.adminNavGroups()
+    local items = navItems().admin
+    return #items > 0 and { { items = items } } or {}
+end
+
+W.ADMIN_GAP = 12   -- at least this far below the last Settings row; else anchored 6 px above the bottom
+
+-- place the admin list at the bottom of the nav column, never over the rows above it
+function W.placeNav()
+    local nav, adm, win = W.nav, W.navAdmin, W.win
+    if nav == nil or adm == nil or win == nil then return end
+    local h = adm:getHeight()
+    adm:setX(0)
+    adm:setY(math.max(nav:getY() + nav:getHeight() + W.ADMIN_GAP, win.height - h - 6))
+end
+
+-- one selection across both lists: the one holding the page gets it, the other is cleared (silent; NavList
+-- ignores an id it does not list)
+local function markNav(id)
+    local spec = W.spec(id)
+    local onAdmin = spec ~= nil and spec.group == "admin"
+    W.nav:setSelected((not onAdmin) and id or nil, true)
+    W.navAdmin:setSelected(onAdmin and id or nil, true)
+end
+
+-- Down past W.nav's last row lands on W.navAdmin's first row; Up past W.navAdmin's first row lands on W.nav's
+-- last row. A NavList returns false at its edge and the Focus engine then stays on it for the keyboard (Focus.lua
+-- handle: moveInGroup on a single target), so the hop is wrapped onto our two instances only; the joypad asks the
+-- same onFocusKey first (Focus.onJoypadDir). Anything else, and a hidden W.navAdmin (not an admin), keeps the
+-- NavList's own behaviour.
+local function hopAtEdge(from, to, edgeKey, landKey)
+    local own = from.onFocusKey
+    if type(own) ~= "function" then return end
+    from.onFocusKey = function(self, key)
+        if own(self, key) then return true end
+        if key ~= edgeKey or not to:isVisible() then return false end
+        local Focus = W.UI and W.UI.Focus
+        if not (Focus and Focus.focusControl and Focus.focusControl(to, true)) then return false end
+        to:onFocusKey(landKey)   -- Home / End: the first / last usable row
+        return true
+    end
 end
 
 -- default size: content half the screen width (640..1000 px) beside the nav and 82 % of the screen height
@@ -166,6 +220,14 @@ function W.build(UI)
     W.nav = UI.NavList.new({ x = 0, y = top + 6, width = W.navW, groups = W.navGroups(), selected = W.current,
         theme = theme, target = W, onSelect = function(_, id) MinidoracatQuest.Window.select(id) end })
     win:addChild(W.nav)
+    local adminGroups = W.adminNavGroups()
+    W.navAdmin = UI.NavList.new({ x = 0, y = top + 6, width = W.navW, groups = adminGroups, theme = theme, target = W,
+        onSelect = function(_, id) MinidoracatQuest.Window.select(id) end })
+    W.navAdmin:setVisible(#adminGroups > 0)
+    win:addChild(W.navAdmin)
+    markNav(W.current)
+    hopAtEdge(W.nav, W.navAdmin, Keyboard.KEY_DOWN, Keyboard.KEY_HOME)
+    hopAtEdge(W.navAdmin, W.nav, Keyboard.KEY_UP, Keyboard.KEY_END)
     W.navKey = navKey()
     W.divider = ISPanel:new(W.navW, top, 1, h - top)
     W.divider:initialise()
@@ -180,6 +242,7 @@ function W.build(UI)
         pcall(ISLayoutManager.RegisterWindow, "MinidoracatQuestWindow", UI.Window, win)
     end
     W.placeReset()
+    W.placeNav()
 end
 
 local function contentRect()
@@ -228,7 +291,7 @@ function W.select(id)
         call(old, "onHide")
     end
     W.current = spec.id
-    if W.nav:getSelected() ~= spec.id then W.nav:setSelected(spec.id, true) end
+    markNav(spec.id)
     local page = W.pages[spec.id] or newPage(spec)
     page.parent:setVisible(true)
     W.layoutPage(page)
@@ -251,6 +314,7 @@ function W.open(id)
     if C.state == nil and not C.helloWaiting then C.hello() end
     W.syncNav()
     W.placeReset()   -- the default follows the screen size and the nav width (admin entry)
+    W.placeNav()
     W.select(id or W.current)
     return true
 end
@@ -287,6 +351,7 @@ function W.layout()
         call(page, "onResize")
     end
     W.placeReset()
+    W.placeNav()
 end
 
 function W.syncNav()
@@ -296,9 +361,13 @@ function W.syncNav()
         W.navDirty, W.navKey = false, key
         W.navW = W.navWidth()
         W.nav:setWidth(W.navW)
+        W.navAdmin:setWidth(W.navW)
         W.divider:setX(W.navW)
         W.nav:setGroups(W.navGroups())
-        W.nav:setSelected(W.current, true)
+        local adminGroups = W.adminNavGroups()
+        W.navAdmin:setGroups(adminGroups)
+        W.navAdmin:setVisible(#adminGroups > 0)
+        markNav(W.current)
         W.layout()
         local spec = W.spec(W.current)
         if spec ~= nil and not listed(spec) then W.select("daily") end

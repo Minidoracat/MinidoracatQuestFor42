@@ -35,9 +35,9 @@ function P.goal(b, page, x, y, w, s)
     local line = goalLine(g)
     local lineH = D.fontH(UIFont.Medium)
     local h = pad + D.chipH() + 6 + lineH + 6 + 8 + 8 + lh + 6 + #ruleLines * (lh + 2) + pad
-    b:card(x, y, w, h, g.reached and D.EXTRA.success or D.EXTRA.gold)
+    b:card(x, y, w, h, g.reached and D.EXTRA.success or D.EXTRA.info)
     local cy = y + pad
-    local tw = b:text(x + pad, cy + 3, getText("IGUI_MQ_UI_GoalTitle"), D.EXTRA.gold)
+    local tw = b:text(x + pad, cy + 3, getText("IGUI_MQ_UI_GoalTitle"), D.EXTRA.info)
     if tonumber(g.endsAt) then
         b:chip(x + pad + tw + 8, cy, getText("IGUI_MQ_UI_SettlesAt", D.dateTime(g.endsAt - 60000)), "textMuted")
     end
@@ -47,14 +47,17 @@ function P.goal(b, page, x, y, w, s)
     cy = cy + D.chipH() + 6
     b:fitText(x + pad, cy, line, inner, "text", UIFont.Medium)
     cy = cy + lineH + 6
-    b:bar(x + pad, cy, inner, 8, target > 0 and progress / target or 0, g.reached and D.EXTRA.success or D.EXTRA.gold)
+    b:bar(x + pad, cy, inner, 8, target > 0 and progress / target or 0, g.reached and D.EXTRA.success or D.EXTRA.info)
     cy = cy + 16
     b:text(x + pad, cy, getText("IGUI_MQ_UI_Progress", D.num(progress), D.num(target)), "textMuted")
-    b:textRight(x + w - pad, cy, getText("IGUI_MQ_UI_GoalMine", D.num(week.goalPart or 0)),
-        (tonumber(week.goalPart) or 0) >= (tonumber(g.minContrib) or 0) and D.EXTRA.success or "text")
+    -- reaching the minimum contribution shows a check too, not only the green color
+    local met = (tonumber(week.goalPart) or 0) >= (tonumber(g.minContrib) or 0)
+    local mw = b:textRight(x + w - pad, cy, getText("IGUI_MQ_UI_GoalMine", D.num(week.goalPart or 0)),
+        met and D.EXTRA.success or "text")
+    if met then b:icon(x + w - pad - mw - 20, cy, 16, "check", D.EXTRA.success, "v") end
     cy = cy + lh + 6
     for _, l in ipairs(ruleLines) do
-        b:text(x + pad, cy, l, "textFaint")
+        b:text(x + pad, cy, l, "textMuted")
         cy = cy + lh + 2
     end
     return y + h + GAP

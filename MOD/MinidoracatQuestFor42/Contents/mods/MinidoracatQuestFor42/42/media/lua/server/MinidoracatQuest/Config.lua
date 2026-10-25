@@ -170,6 +170,7 @@ local POOL = { ["*"] = { enabled = bool, target = target, pts = ptsV } }
 Cf.SCHEMA = {
     daily = { swapsPerDay = int(0, 10), pts = ptsV, rarePts = ptsV, sharedPts = ptsV, pool = POOL },
     weekly = { count = int(1, 3), pts = ptsV, pool = POOL },
+    quests = { playerList = bool },
     goal = { enabled = bool, pts = ptsV, growth = num(0.1, 10), rotation = statList, limits = limitsMap },
     streak = { need = int(1, 4), gracePerWeek = int(0, 7), milestones = milestones },
     newbie = { enabled = bool, pts = ptsV, title = titleId, days = int(1, 60) },

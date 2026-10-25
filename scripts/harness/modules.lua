@@ -22,6 +22,7 @@ return {
     { dir = "server", name = "MinidoracatQuest/Seasons" },
     { dir = "server", name = "MinidoracatQuest/Boards" },
     { dir = "server", name = "MinidoracatQuest/Balance" },
+    { dir = "server", name = "MinidoracatQuest/Report" },
     { dir = "server", name = "MinidoracatQuest/Towns" },
     { dir = "server", name = "MinidoracatQuest/Trackers" },
     { dir = "server", name = "MinidoracatQuest/API" },
@@ -41,6 +42,7 @@ return {
     { dir = "client", name = "MinidoracatQuest/AdminPanel" },
     { dir = "client", name = "MinidoracatQuest/AdminAchv" },
     { dir = "client", name = "MinidoracatQuest/AdminPages" },
+    { dir = "client", name = "MinidoracatQuest/AdminReport" },
     { dir = "client", name = "MinidoracatQuest/Hud" },
     { dir = "client", name = "MinidoracatQuest/Titles" },
 }

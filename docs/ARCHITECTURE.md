@@ -22,11 +22,11 @@
 | C4 | 改偏好 | 不限次數；今天的任務已經產生就從下次換日生效，還沒產生就立刻生效 |
 | C5 | 成就數 | 內建約 110 項（目標 105～115），各類項數以 `Catalog.lua` 為準 |
 | C6 | 職業 | 原版 25 個（含無業） |
-| C7 | 稱號 | 每一級都能設稱號（`titles[tier]`），內建只在第 4 級與部分隱藏成就給；facade 的 `title` 套在該成就最後一級 |
+| C7 | 稱號 | 每一級都能設稱號（`titles[tier]`），內建只在第 4 級（白金 IV；一般成就共 5 級，第 5 級只多積分）與部分隱藏成就給；facade 的 `title` 套在該成就最後一級 |
 | C8 | 共同目標輪替 | 5 種：擊殺、製作、開車里程、釣魚、收成，依週次輪流 |
 | C9 | 限時活動 | 管理員排程：名稱（純文字）、開始與結束（現實時間）、主題（11 個之一或 `all`）、倍率 1.5／2／3（1～5）。只乘「每日／每週任務」的積分，不影響成就與共同目標；同時最多 3 個 |
 | C10 | 城鎮 | 內建原版城鎮至少 12 個（範圍取自原版地圖資料），服主可在管理面板加自訂城鎮（名稱＋矩形） |
-| C11 | 難度 | 預設值寫在 `Catalog.lua`，不寫正式服數字。快速難度：輕鬆 ×0.6、普通 ×1、困難 ×1.6，只乘門檻與任務目標，不改積分 |
+| C11 | 難度 | 預設值寫在 `Catalog.lua`，不寫正式服數字。快速難度：輕鬆 ×0.6、普通 ×1、困難 ×1.6，只乘門檻與任務目標，不改積分。有上限的統計（`Catalog.scalable` 為假：單位 `level` 的技能等級／總等級／最高等級，與 `town.visited`）不乘，伺服器 `Achievements.scale` 與客戶端 `Client.scale` 同一規則 |
 | C14 | 事件記錄檔 | `Lua/MinidoracatQuest/<serverKey>/events-YYYYMMDD.json`，每行一個 JSON 物件（NDJSON 內容，沿用設計稿的 `.json` 副檔名，因為 `getFileWriter` 只允許 `.txt`／`.json`）。不壓縮；Lua 不能刪檔，保留天數交給服主（README 寫） |
 | C15 | 熱鍵 | 登記 `MinidoracatQuest_Toggle`，預設不綁（家族鍵表已沒有合格的單鍵）；Dock 入口帶 `bind` |
 | C16 | 賽季結算時刻 | 結算時刻＝某天的每日重置時刻。畫面寫成前一天 23:59（`endsAt - 60000` 再格式化），凍結時間寫重置時刻 |
@@ -77,6 +77,7 @@
 | `lua/server/MinidoracatQuest/Seasons.lua` | Systems | 賽季狀態機、改長度預覽與套用、結算審核、發獎、歷史 |
 | `lua/server/MinidoracatQuest/Boards.lua` | Systems | 榜單定義、重算排程、快取、分頁、隱藏帳號 |
 | `lua/server/MinidoracatQuest/Balance.lua` | Systems | 任務完成率、中位時間、調整建議 |
+| `lua/server/MinidoracatQuest/Report.lua` | Systems | 管理「報表」頁：每日總數（`root.daily`）、帳號快照（一 tick 一張分表）、匯出 JSON |
 | `lua/server/MinidoracatQuest/Trackers.lua` | Catalog | 遊戲事件、動作完成、每分鐘輪詢 → `Stats` |
 | `lua/server/MinidoracatQuest/Towns.lua` | Catalog | 城鎮範圍（內建＋自訂）、座標查城鎮 |
 | `lua/client/MinidoracatQuest/*.lua` | ClientUI | 狀態快取、Dock、主視窗、玩家各頁、兌換視窗、通知 |
@@ -88,7 +89,7 @@
 
 伺服器載入順序：每個模組自己 `require` 它用到的模組；指令由擁有該資料的模組在載入時用 `Server.define`／`Server.defineAdmin` 登記（`swap`、`prefs`、`board`、`exchange` 與賽季、活動、撤銷、隱藏、平衡、難度的管理 op 由 Systems 登記；`hello`、`watch`、`seen`、`title`、`anon`、`records` 與 `cfg.*`、`acct.view`、`anom.list`、`towns.here` 由 Core 登記）。`API.lua` 依序 `require` 全部伺服器模組（Core、Systems、Catalog 的檔名照上表），都成功後才賦值 `MinidoracatQuest.v1`。
 
-離線測試檔的擁有者：`scripts/smoke_harness.lua`、`scripts/harness/env.lua`、`scripts/harness/modules.lua` 是 Core 的；各切片只寫自己的情境檔 `scripts/harness/t_core.lua`、`t_systems.lua`、`t_catalog.lua`、`t_client.lua`、`t_admin.lua`（可以再 `dofile` 自己的子檔 `t_<切片>_*.lua`）。runner 依固定順序載入存在的情境檔。
+離線測試檔的擁有者：`scripts/smoke_harness.lua`、`scripts/harness/env.lua`、`scripts/harness/modules.lua` 是 Core 的；各切片只寫自己的情境檔 `scripts/harness/t_core.lua`、`t_systems.lua`、`t_catalog.lua`、`t_client.lua`、`t_admin.lua`、`t_report.lua`（可以再 `dofile` 自己的子檔 `t_<切片>_*.lua`）。runner 依固定順序載入存在的情境檔。
 
 ## 3. 資料
 
@@ -110,8 +111,9 @@ root = {
   goal = { week = "2026-W46", stat, target, progress = 0, minContrib, pts, reached = false, paid = false },
   weekTotals = { week = "2026-W45", totals = { [stat] = n } },  -- 上週全服量，算本週目標
   audit = { head = 0, items = {} },           -- 環形 500 筆 { at, kind, actor, user, detail }
-  balance = { },                              -- tid -> { day -> { given, done, minutes = { ... 最多 64 筆 } } }，保留 7 天
+  balance = { },                              -- tid -> { day -> { given, done, swaps, minutes = { ... 最多 64 筆 } } }，保留 14 天（週任務看上一個已結束的週）
   exchange = { day, coins = 0, days = {} },   -- 全服今天兌換量、最近 7 天
+  daily = { },                                -- 報表每日總數，保留 30 天（§6.5）：dayKey -> { active, fresh, dGiven, dDone, dPlayers, wGiven, wDone, swaps = { tid = n }, pts = { kind = n }, coins, tiers }
   events = { },                               -- 限時活動 { id, name, theme, mult, startMs, endMs }
 }
 ```
@@ -126,6 +128,7 @@ root = {
 Account = {
   v = 1,
   firstMs, seenMs,                              -- 第一次看到、最後上線
+  seenDay = nil,                                -- 報表：最後有活動的 dayKey（統計、任務進度、hello），一天只算一次 active
   total = {}, life = {}, season = {},           -- stat -> number；season 屬於第 sno 季
   sno = 1,
   points = { season = 0, total = 0, balance = 0 },
@@ -168,6 +171,7 @@ Quest = { tid, stat, theme, target, prog = 0, pts, state = "active", shared = ni
 DEFAULTS = {
   daily = { swapsPerDay = 1, pts = 15, rarePts = 20, sharedPts = 20, pool = { [tid] = { enabled, target = { min, max }, pts } } },
   weekly = { count = 3, pts = 60, pool = { [tid] = { enabled, target = { min, max }, pts } } },
+  quests = { playerList = false },                      -- 玩家在設定頁看得到各主題的任務（管理員一律看得到）；客戶端判斷，§7
   goal = { enabled = true, pts = 50, growth = 1.1, rotation = { "zombie.kills", "craft.count", "drive.km", "fish.caught", "farm.harvest" },
            limits = { [stat] = { min, max, minContrib } } },
   streak = { need = 3, gracePerWeek = 1, milestones = { { days = 3, pts = 15 }, { days = 7, pts = 40 }, { days = 14, pts = 80 }, { days = 30, pts = 150, title = "streak_30" } } },
@@ -223,12 +227,15 @@ stats[id] = { id = "zombie.kills", kind = "count" | "max", ceil = 120, unit = "c
 
 ```lua
 achievements[i] = { id = "zombie_kills", cat = "combat", stat = "zombie.kills",
-                    tiers = { 100, 1000, 5000, 20000 }, pts = { 10, 20, 30, 50 },
+                    tiers = { 100, 1000, 5000, 20000, 50000 }, pts = { 10, 20, 30, 50, 80 },
                     titles = { [4] = "zombie_kills_4" }, icon = "zombie_kills", hidden = nil,
                     scope = nil }   -- 選用：scope = "life" 表示看這條命的統計（單命類成就），省略＝total
 ```
 
 - 鍵：名稱 `IGUI_MQ_Ach_<id>`、說明 `IGUI_MQ_AchDesc_<id>`（`%1`＝門檻）、隱藏提示 `IGUI_MQ_AchHint_<id>`、稱號 `IGUI_MQ_Title_<titleId>`、等級 `IGUI_MQ_Tier_1`～`_4` 與 `IGUI_MQ_Tier_Legend`（`%1`＝羅馬數字）。
+- 內建一般成就 5 級：積分 10／20／30／50／80，稱號在第 4 級。數量類第 5 級＝第 4 級 ×2.5；技能等級 2／4／6／8／10（體能、力量 6～10）、技能總等級 300（上限 35×10＝350）、造訪城鎮第 5 級 11（12 個是隱藏成就 `h_all_towns`）、存活與室內睡覺天數 730、成就等級數 450（全部 91×5＋16＝471 級）。
+- 設定裡的 `pts` 比 `tiers` 短（4 級時代只改過積分的覆寫）時，缺的那幾級用內建積分補（`Catalog.fillPts`，伺服器、客戶端與管理面板同一規則）；`tiers` 只寫 4 個的覆寫照樣有效，那項成就就是 4 級。
+- 登入補發：`hello` 在匯入之後對整份清單跑一次 `Achievements.evaluate(acc, user, { noBroadcast = true })`，補上新預設或調低的門檻已經給的等級；積分照一般成就發（本季、累計、餘額），通知本人、不發全服通知。只往上補，已拿的等級不重算，所以不會重發。
 - 圖示 `media/ui/MinidoracatQuest/ach/<icon>.png`（128×128、透明底、只畫主體；等級框由 UI 畫）。缺檔時退回 UI 框架圖示或文字。
 - 新增等級的預設：門檻＝上一級 ×2.5（取整到 2 位有效數字），積分＝上一級 ×1.5（取整到 10）。
 - 隱藏成就只有 1 級，`hidden = true`，解鎖前客戶端只看到提示。
@@ -269,7 +276,7 @@ boards[i] = { id = "kills", cat = "combat", stat = "zombie.kills", periods = { "
 
 - `Store.ready()` → bool。`Store.root()` → 共用表。
 - `Store.account(user, create)` → acc 或 nil。create 為 true 時建新帳號並填預設欄位。
-- `Store.each(fn)`：逐帳號呼叫 `fn(user, acc)`（跨 16 張表）。只給榜單重算、結算與管理查詢用。
+- `Store.each(fn)`：逐帳號呼叫 `fn(user, acc)`（跨 16 張表）。只給榜單重算、結算與管理查詢用。`Store.eachIn(i, fn)`：只走第 i 張表（0～15），報表快照一 tick 走一張。
 - `Store.touch(user, acc)`：更新 `seenMs`，季數不同時懶重置本季欄位。
 
 ### 5.2 Identity（Core）
@@ -314,7 +321,7 @@ boards[i] = { id = "kills", cat = "combat", stat = "zombie.kills", periods = { "
 
 - `Server.define(name, spec)`：同 Safehouse `S.define`。`spec = { kind = "query" | "mutation", fields = { f = "type" | "type?" }, admin = bool, cooldownMs, run = function(ctx) end }`。
 - `Server.defineAdmin(op, spec)`：登記 `admin` 指令底下的一個 op。`spec` 同上（不用寫 `admin`，一律需要管理員），`fields` 是 `op` 以外的欄位；`kind = "mutation"` 的 op 成功後由 Server 統一寫稽核（`Audit.add("admin", actor, nil, { op = op })`）與事件記錄，回覆走 `admin` 推送 `{ op, ok, code, requestId, … }`。
-- `ctx = { player, user, args, now, admin, command }`；`run` 回 `true, data` 或 `false, code, data`。
+- `ctx = { player, user, args, now, admin, command, requestId }`；`run` 回 `true, data` 或 `false, code, data`。管理 op 回 `true, Server.LATER` 表示現在不回覆，由 op 之後自己送 `admin { op, ok, code, requestId, … }`（報表快照要跨 tick 建）。
 - 欄位型別：`int`、`num`、`bool`、`str`（≤ 64）、`text`（≤ 256）、`json`（≤ 32,000 bytes，伺服器端解碼成 table）。
 - 每人 5 秒 20 個指令；每指令冷卻預設 300 ms（`board` 0.5 秒、`exchange` 3 秒）；冷卻中直接丟、不回覆。客戶端查榜每次至少隔 0.6 秒（`Client.BOARD_GAP_MS`），連點時只送最後一個。mutation 用 `requestId` 冪等（60 秒）。
 - 管理員：SP 一律是；MP 看角色名是否在沙盒 `AdminRoles`（預設 `admin`），`getRole()` 為 nil 時不是。
@@ -329,7 +336,8 @@ boards[i] = { id = "kills", cat = "combat", stat = "zombie.kills", periods = { "
 - `Exchange.init()`：`OnServerStarted` 探測 `MinidoracatEconomy.v1` 並 `registerSource({ modId = "MinidoracatQuestFor42", nameKey = "IGUI_MQ_Name", displayName = { EN = "Quests & Achievements" }, currencies = { "survivor" }, reasonCodes = { "mq_exchange" } })`。經濟系統的管理台用 `IGUI_MinidoracatEconomy_Reason_<原因碼>` 顯示原因（`ECWidgets.lua` `U.reasonText`，找不到鍵才寫「其他模組的原因：<碼>」）；這個鍵放在本 MOD 的 16 種語言翻譯檔，原因碼加 `mq_` 前綴，避免和其他整合來源的碼共用同一個鍵。`Exchange.available()`。`Exchange.request(acc, user, amount)` → ok, code, { state, coins }。`Exchange.tick(now)`：排隊重試，有一筆結束就標記 `points` 與 `exchange` 要重送。
 - `Seasons.current()`、`Seasons.tick(now)`、`Seasons.previewLength(days)` → `{ endMs, nextStartMs }` 或 nil, code（新結算時刻至少在 24 小時後）、`Seasons.applyLength(days, actor)`、`Seasons.review()`、`Seasons.exclude(user, on, reason, actor)`、`Seasons.confirm(actor)`。
 - `Boards.dirty(stat)`、`Boards.dirtyAll()`（`Config.apply`／`undo` 動到 `boards.*` 時呼叫：所有榜在接下來的 tick 重算，之後照新間隔排）、`Boards.tick(now)`（每 tick 最多重排一個榜）、`Boards.page(boardId, period, user, admin)`、`Boards.setHidden(user, on, reason, actor)`。
-- `Balance.given(tid, now)`、`Balance.done(tid, startMs, doneMs)`、`Balance.report()`。
+- `Balance.given(tid, now)`、`Balance.swapped(tid, now)`（換掉的那個樣板）、`Balance.done(tid, startMs, doneMs)`、`Balance.report(now)`：完成率＝done ÷（given − swaps），分母 0 時 `rate` 為 nil；每日樣板看近 7 天，每週樣板只看上一個已結束的週；(given − swaps) ≥ `Balance.MIN_GIVEN`（10）才給建議。
+- `Report.add(field, key, n)`：今天那一列 `field += n`（key 不為 nil 時 `field[key] += n`）。`Report.seen(acc)`：`acc.seenDay` 不是今天時 `active + 1`。掛點：`Stats.add`、`hello` → `seen`；`Store.account` 建帳號 → `fresh`；`Quests` 產生每日（含全服、換來的）→ `dGiven`、每週 → `wGiven`，完成 → `dDone`／`wDone`，當天第一個每日完成 → `dPlayers`，`swap` → `swaps[tid]`；`Points.award`（`import` 除外）→ `pts[kind]`；`Exchange` 入帳 → `coins`；`Achievements` 非匯入解鎖 → `tiers`。全部 O(1)，換日時才重算 dayKey 並刪掉 30 天前的列。
 
 ### 5.9 Trackers、Towns（Catalog 擁有）
 
@@ -376,12 +384,14 @@ boards[i] = { id = "kills", cat = "combat", stat = "zombie.kills", periods = { "
 | `season.confirm` | — | — |
 | `event.add` | `name: text`、`theme: str`、`mult: num`、`startMs: num`、`endMs: num` | `id` |
 | `event.remove` | `id: int` | — |
-| `ex.status` | — | `enabled`、`rate`、`perDay`、`todayCoins`、`estimate`、`ecAvailable`、`ecCap`（拿不到為 nil） |
+| `ex.status` | — | `enabled`、`rate`、`perDay`、`todayCoins`、`estimate`（今天以前 7 個日曆天的平均，沒兌換的日子算 0；這 7 天都沒有兌換時用今天的量；乘上未來 24 小時最高的活動倍率）、`ecAvailable`、`ecCap`（拿不到為 nil） |
 | `anom.list` | `days: int` | `rows = { { at, user, stat, n, ceil } }` |
 | `acct.view` | `user: str` | 帳號摘要（三個積分、成就數、異常數、隱藏狀態） |
 | `achv.revoke` | `user: str`、`achId: str`、`tier: int`、`reason: text` | — |
 | `board.hide` | `user: str`、`on: bool`、`reason: text?` | — |
-| `balance.report` | — | `rows = { { tid, given, done, rate, medianMin, suggest } }` |
+| `balance.report` | — | `rows = { { tid, given, done, swaps, rate, medianMin, suggest } }`（`rate` 不算換掉的，分母 0 時 nil）、`minGiven` |
+| `report.get` | `days: int`（7 或 30） | §6.5 |
+| `report.export` | — | `path`（`Zomboid/Lua/` 底下的相對路徑）；寫不出來回 `FILE_ERROR` |
 | `towns.here` | — | 管理員目前座標與所在城鎮（加自訂城鎮用） |
 
 自訂成就、自訂城鎮、任務池、每週任務、共同目標、連續獎勵、兌換設定、廣播設定、稱號顯示（`titles.head`、`titles.chat`），都是 `cfg.preview`／`cfg.apply` 的路徑。
@@ -420,12 +430,43 @@ boards[i] = { id = "kills", cat = "combat", stat = "zombie.kills", periods = { "
 - `Net.send` 在 SP 直呼 `MinidoracatQuest.Client.receive(cmd, payload)`；客戶端的 `OnServerCommand` 處理函式也呼叫同一個 `receive`。
 - 客戶端第一次送 `hello` 要等到 `OnGameStart` 之後的第一個 `OnTick`。
 
+### 6.5 報表（`report.get`／`report.export`）
+
+- 帳號快照：`report.get`／`report.export` 遇到沒有快照或快照超過 5 分鐘時，開始一輪走訪（`Report.start`），`OnTickEvenPaused` 每 tick 走一張分表，16 tick 後一次回覆所有等待中的請求（`Server.LATER`）；5 分鐘內的請求直接用快照。快照同時算 7 天與 30 天兩個窗：窗內有活動的帳號是 `seenMs` 在窗內或 `seenDay` ≥ 窗的第一天。
+- `report.get` 回覆：
+
+```lua
+{ days, at,                                   -- at：快照時間
+  rows = { { day, active, fresh, dGiven, dDone, dPlayers, wGiven, wDone, swaps, pts, coins, tiers } },  -- days 列，舊的在前，最後一列是今天；swaps、pts 是當天合計
+  sum = { fresh, dGiven, dDone, dPlayers, wGiven, wDone, coins, tiers, swaps, pts,
+          swapsBy = { tid = n }, ptsBy = { kind = n },
+          dRate,                              -- dDone ÷ (dGiven − swaps)，分母 0 時 nil
+          wRate },                            -- 只算已結束的週（7 天窗 1 週、30 天窗 3 週）的 wDone ÷ wGiven
+  snap = { active, none, tierSum, streak7, exPlayers,   -- 窗內有活動的人數、其中沒有任何成就的、已解鎖級數合計、連續 ≥ 7 天、窗內兌換過的人
+           unspent, holders, top10 },         -- 全部帳號：餘額合計、餘額 > 0 的人數、前 10 %（無條件進位）持有的比例
+  achv = { { id, hidden, c = { n1, n2, … } } } }        -- 每個有效成就；c[k]＝窗內到第 k 級以上的人數；最高級人數多的在前
+```
+
+- `report.export` 寫 `Zomboid/Lua/MinidoracatQuest/<serverKey>/report-YYYY-MM-DD.json`（和 `config.json` 同一個資料夾，一天一個檔，同一天再匯出就覆寫），只有總數，沒有玩家名稱或帳號：
+
+```lua
+{ at, day, days = 30,
+  daily = { { day, active, fresh, dGiven, dDone, dPlayers, wGiven, wDone, coins, tiers, swaps = { tid = n }, pts = { kind = n } } },
+  sum = { … 同 report.get },
+  players = { active7, active30, noAchv, tierSum, streak7, exchanged },
+  achv = { [achId] = { n1, n2, … } },
+  points = { unspent, holders, top10share },
+  quests = { [tid] = { given, done, swaps, rate } } }   -- Balance.report 的窗（每日 7 天、每週上一個已結束的週）
+```
+
 ## 7. 客戶端
 
 - 接 UI 框架：`require "MinidoracatUI/V1"`，`MIN_REV = 22`，逐項探 `CAPABILITIES`（`window`、`controls`、`navList`、`scrollPanel`、`table`、`virtualList`、`tileGrid`、`toast`、`dock`、`dialog`、`dropdown`、`textWrap`）。缺框架或版本不足時只用 `HaloTextHelper` 顯示通知、視窗不開，不 error。
 - Dock：`{ id = "quest", order = 70, icon = "media/ui/MinidoracatQuest/dock_trophy.png", iconKey = …, bind = "MinidoracatQuest_Toggle", getBadge = unseen }`。
-- 視窗：左側 NavList（每日任務、每週任務、成就、排行榜、我的紀錄、兌換（只在 `state.exchange` 可兌換或 `hist` 有資料時，spec 的 `shown`）；分隔後：設定、管理（只有 `state.admin`）），右側內容；不透明視窗。列出的頁面一變（`Window.syncNav` 比對列出的頁面 id）就重建 NavList，目前那頁不再列出時回到每日任務。預設大小＝內容寬（螢幕寬一半，夾在 640～1000 px）＋NavList 寬、高為螢幕高 82 %（460～1000 px），都不超過螢幕減 40 px（`Window.defaultSize`）；玩家拖過的大小由 ISLayoutManager 記住，大小和預設不同時標題列出現「重設大小」，按下回到預設大小並置中。
+- 視窗：左側 NavList `Window.nav`（每日任務、每週任務、成就、排行榜、我的紀錄、兌換（只在 `state.exchange` 可兌換或 `hist` 有資料時，spec 的 `shown`）；分隔後：設定）；管理（只有 `state.admin`）是另一個 NavList `Window.navAdmin`，貼在左欄底部（`Window.placeNav`：y＝max(`nav` 底＋`ADMIN_GAP` 12 px, 視窗高－自身高－6)，視窗版面或列出的頁面一變就重放；UI 框架的 NavList 沒有置底，所以分成兩個）。非管理員時隱藏。兩個清單只有一個有選取：`Window.select` 把頁面 id 設給擁有它的清單、另一個清掉（`setSelected(nil, true)`），兩個清單的 onSelect 都走 `Window.select`。右側內容；不透明視窗。列出的頁面一變（`Window.syncNav` 比對列出的頁面 id）就重建兩個 NavList，目前那頁不再列出時回到每日任務。預設大小＝內容寬（螢幕寬一半，夾在 640～1000 px）＋NavList 寬、高為螢幕高 82 %（460～1000 px），都不超過螢幕減 40 px（`Window.defaultSize`）；玩家拖過的大小由 ISLayoutManager 記住，大小和預設不同時標題列出現「重設大小」，按下回到預設大小並置中。
+- 導覽的鍵盤與手把：NavList 到邊時 `onFocusKey` 回 false，Focus 引擎對鍵盤就停在原地，所以 `Window.lua` 只在這兩個實例上包 `onFocusKey`：`nav` 最後一列按下 → `Focus.focusControl(navAdmin)` 並停在它的第一列，`navAdmin` 第一列按上 → 回到 `nav` 最後一列；手把方向也先問同一個 `onFocusKey`（`Focus.onJoypadDir`）。`navAdmin` 隱藏（非管理員）時照原本行為。
 - 頁面資料來源：每日／每週／成就／我的紀錄（積分卡）／兌換用 `state`；我的紀錄表格送 `records`；排行榜送 `board`（狀態機 loading → ready／empty／error，5 秒逾時）；設定頁送 `prefs`／`title`／`anon`。兌換頁的「兌換倖存幣...」開兌換視窗（`ExchangeDialog`），使用者 2026-10-24 要求兌換與兌換紀錄從我的紀錄分出來。
+- 設定頁最後一段「各主題的任務」（預設收起）：`Client.questList()` 從 shared Catalog＋`catalog` 推送算出啟用的每日與每週樣板、乘過難度的目標範圍（和 `Quests` 的 `rollTarget` 同一捨入）與積分，不另送資料：預設值本來就在每個客戶端，`catalog.overrides` 也送給所有玩家，伺服器擋了也藏不住。`state.admin` 或 `quests.playerList` 為 true 才列出；設定關著時管理員看到的那段附註「只有管理員看得到」。套用設定後伺服器重送 `catalog`，清單跟著更新。
 - 開視窗送 `watch {on=true}`，關視窗送 `{on=false}`；打開每日頁或成就頁時送 `seen`。
 - 追蹤面板（`Hud.lua`）：`ISPanel` 衍生、放在最底層（`backMost`：每次 UI 更新引擎都把它移到最底，`UIManager.java:562-568`），所以每個視窗都蓋在它上面，包括比它早建立的物品欄與上次沒關的角色視窗，拖曳時 `ISPanel` 的 `bringToTop` 也一樣；用頁面同一套 canvas 指令繪製（`Draw.renderOps`），資料一變才重排，`render` 只走指令列。預設在原版左側欄右邊（`getPlayerData(0).equipped` 的右緣＋12），會碰到原版物品欄的標題列時（物品欄看得到、左右重疊、物品欄的 y 在面板標題列底線之上）改放在物品欄標題列下面 6 px；拖過的位置與收合狀態用 `ISLayoutManager` 記在 `layout.ini`（拖完或收合就寫）。顯示條件：MOD 選項開、有追蹤項目、角色活著、沒按 V（`ISUIHandler.allUIVisible`）、Esc 選單沒開；任務視窗開著也照樣顯示（使用者 2026-10-24：按「追蹤」要馬上看到），視窗蓋在它上面。每 500 ms 與資料變動時檢查，介面被藏起來時不自己出現。`hello` 時面板開著就送 `track {on=true}`，選項切換時送 on／off。卡片上的「追蹤」chip 送 `pin`；滿 5 個時其他 chip 停用並以 tooltip 說明。
 - 稱號（`Titles.lua`）：`titles` 推送存成 `byUser`。聊天：檔案載入時包住 `ISChat.addLineInChat`（原版在 `OnGameStart` 才把它掛到 `OnAddMessage`，`ISChat.lua:1176`），作者戴著稱號時把訊息換成代理，`getTextWithPrefix()` 在 `[作者]` 後面插入 ` <SPACE> <PUSHRGB:…> 「稱號」 <POPRGB> `（稱號裡的 `<`、`>` 先轉成 `&lt;`、`&gt;`），其他方法轉給原訊息。頭上：每 500 ms 從 `getOnlinePlayers()` 挑 40 格內、有稱號、活著、不在車上的玩家；`OnPreUIDraw` 每幀照原版規則（`IsoGameCharacter.renderlast`／`updateUserName`）檢查後在名字上方一行畫字（黑色陰影＋金色）。兩者都只在多人、伺服器開關 `titles.head`／`titles.chat` 與玩家 MOD 選項都開時生效。
@@ -455,7 +496,7 @@ boards[i] = { id = "kills", cat = "combat", stat = "zombie.kills", periods = { "
 - 每 tick：榜單最多重排一個；`Sync.tick` 每秒最多送一次；`Exchange.tick` 每小時；輪詢每分鐘、每 tick 最多處理 8 位在線玩家。
 - 客戶端每幀：追蹤面板只走排好的繪製指令；頭上的稱號只處理每 500 ms 挑出的候選人（每人幾次引擎查詢與兩次 `DrawStringCentre`）。實測（2026-10-24 E2E `title-mp --define perf=1`，畫面上 1 位戴稱號的玩家、GameProfiler 開關各 5 段 15 秒）：重畫介面的那幾幀多約 0.05 ms，攤到每幀約 0.013 ms；整幀時間的差距小於段與段之間的雜訊。
 - 封包：`board` ≤ 約 4 KB；`state` ≤ 約 8 KB；`catalog` ≤ 64 KB（自訂成就多時分頁送）。所有清單都有列數上限。
-- `Stats.add` 是熱路徑：不建 table、不組字串（稽核路徑除外）。
+- `Stats.add` 是熱路徑：不建 table、不組字串（稽核路徑除外）。報表掛點只比較快取的 dayKey 與加數字；只有開報表時才走訪帳號，一 tick 一張分表。
 
 ## 12. 測試
 

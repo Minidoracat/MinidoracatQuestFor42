@@ -97,6 +97,13 @@ function D.codeText(code)
     return getText("IGUI_MQ_UI_CodeGeneric", tostring(code))
 end
 
+-- thousands separator: "," or a no-break space per language (IGUI_MQ_UI_ThousandSep); "," when the key has no
+-- text (the offline harness). The decimal point stays ".".
+function D.sep()
+    local s = getText("IGUI_MQ_UI_ThousandSep")
+    return s ~= "IGUI_MQ_UI_ThousandSep" and s or ","
+end
+
 -- 1234567 -> "1,234,567"; non-integers keep one decimal
 function D.num(n)
     n = tonumber(n) or 0
@@ -111,9 +118,9 @@ function D.num(n)
     if tenth > 0 then frac = "." .. tostring(tenth) end
     local s = tostring(whole)
     if string.find(s, "[eE%.]") then s = string.format("%.0f", whole) end
-    local out = ""
+    local out, sep = "", #s > 3 and D.sep() or nil
     while #s > 3 do
-        out = "," .. string.sub(s, -3) .. out
+        out = sep .. string.sub(s, -3) .. out
         s = string.sub(s, 1, -4)
     end
     return (neg and "-" or "") .. s .. out .. frac
@@ -164,11 +171,16 @@ function D.achHint(a)
     return getText("IGUI_MQ_UI_AchHintGeneric")
 end
 
+-- quest name with arg as %1 (a number, or a range on the Settings quest list)
+function D.questText(tid, arg)
+    local t = C.defs().daily[tid]
+    if type(t) == "table" and type(t.nameKey) == "string" then return getText(t.nameKey, arg) end
+    return getText("IGUI_MQ_Q_" .. tostring(tid), arg)
+end
+
 function D.questName(q)
     if q == nil then return "" end
-    local t = C.defs().daily[q.tid]
-    if type(t) == "table" and type(t.nameKey) == "string" then return getText(t.nameKey, D.num(q.target or 0)) end
-    return getText("IGUI_MQ_Q_" .. tostring(q.tid), D.num(q.target or 0))
+    return D.questText(q.tid, D.num(q.target or 0))
 end
 
 -- ===== dates (sandbox TimezoneOffset; Kahlua os.date is fixed UTC, so compute the civil date ourselves) =====
@@ -488,14 +500,14 @@ function Pool:button(key, UI, theme, title, target, onClick, style, active)
 end
 
 -- tracker pin chip on a quest or achievement card: "Track" / "Tracking" (active); a click toggles the pin.
--- With LIMIT.MAX_PINS pinned the others turn gray and the hover hint says why (the server refuses them too).
+-- With LIMIT.MAX_PINS pinned the others stay enabled (focusable by keyboard and gamepad): the hover hint says
+-- why, and a click gets the server's TOO_MANY_PINS refusal as a toast (C.setPin).
 function D.pinChip(page, key, id)
     local on = C.isPinned(id)
     local full = not on and #C.pins() >= Q.Contract.LIMIT.MAX_PINS
     local b = page.pool:button(key, page.UI, page.theme, getText(on and "IGUI_MQ_UI_Tracking" or "IGUI_MQ_UI_Track"),
         page, D.onPinChip, "chip", on)
     b.internal = id
-    b:setEnabled(not full)
     b:setTooltip(full and D.codeText("TOO_MANY_PINS") or nil)
     return b
 end

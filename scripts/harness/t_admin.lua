@@ -205,5 +205,20 @@ return function(T)
     r = T.cmd(user, "admin", { op = "cfg.preview", changes = json })
     T.check(r == nil or r.ok == false, "non-admin cannot preview")
 
+    T.section("admin: quests.playerList (players see the per-theme quest list)")
+    T.check(Qs.Config.get().quests.playerList == false, "off by default")
+    T.cmd(user, "hello", {})
+    r = T.cmd(user, "admin", { op = "cfg.apply", changes = '[{"op":"set","path":"quests.playerList","value":true}]', summary = "x" })
+    T.check(r ~= nil and r.ok == false and Qs.Config.get().quests.playerList == false, "a player cannot turn it on")
+    r = T.cmd(admin, "admin", { op = "cfg.apply", changes = '[{"op":"set","path":"quests.playerList","value":1}]', summary = "x" })
+    T.check(r ~= nil and r.code == "BAD_CONFIG", "only true / false")
+    T.clearOutbox()
+    r = T.cmd(admin, "admin", { op = "cfg.apply", changes = '[{"op":"set","path":"quests.playerList","value":true}]', summary = "on" })
+    local cat = T.lastOf(user, "catalog")
+    T.check(r ~= nil and r.ok and Qs.Config.get().quests.playerList == true and cat ~= nil
+        and cat.overrides.quests.playerList == true, "an admin turns it on; the catalog push tells every player")
+    local hist = T.cmd(admin, "admin", { op = "cfg.get" }).history
+    T.check(hist[#hist].summary == "on", "the change is in the history")
+
     dofile("scripts/harness/t_admin_ui.lua")(T)
 end

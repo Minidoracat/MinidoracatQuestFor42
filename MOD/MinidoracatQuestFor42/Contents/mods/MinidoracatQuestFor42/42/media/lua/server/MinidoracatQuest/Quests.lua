@@ -29,6 +29,10 @@ Q.GROUPS = MQ.Contract.THEME_GROUPS
 Q.STAT = { daily = "quest.daily", weekly = "quest.weekly", streak = "streak.best", goal = "goal.done" }
 
 local function code(name) return MQ.Contract.CODE[name] end
+-- admin report day counters (Report.lua loads after this file)
+local function report(field, key, n)
+    if MQ.Report then MQ.Report.add(field, key, n) end
+end
 
 -- Feed a quest-type stat if the catalog defines it (Stats.add re-enters the listeners; these
 -- stats are never daily/weekly targets, so the recursion stops after one level).
@@ -199,6 +203,7 @@ local function genDay(acc, user, day, now, cfg)
         MQ.Balance.given(sh.tid, now)
     end
     acc.day = { key = day, quests = quests, swaps = cfg.daily.swapsPerDay, done = 0 }
+    report("dGiven", nil, (quests[1] and 1 or 0) + (quests[2] and 1 or 0) + (quests[3] and 1 or 0) + (quests[4] and 1 or 0))
 end
 
 local function genWeek(acc, user, week, now, cfg)
@@ -216,6 +221,7 @@ local function genWeek(acc, user, week, now, cfg)
         MQ.Balance.given(t.tid, now)
     end
     acc.week = { key = week, quests = quests, goalPart = 0 }
+    report("wGiven", nil, #quests)
 end
 
 -- ---------- streak (C23) ----------
@@ -351,11 +357,14 @@ local function complete(acc, user, q, kind, now, cfg)
     MQ.EventLog.write(week and "week_done" or "quest_done", user, { tid = q.tid, pts = pts })
     MQ.Sync.toast(user, { kind = week and "week" or "quest", tid = q.tid, target = q.target, pts = pts })
     if week then
+        report("wDone")
         Q.feed(user, Q.STAT.weekly, 1)
         return
     end
+    report("dDone")
     local d = acc.day
     d.done = (d.done or 0) + 1
+    if d.done == 1 then report("dPlayers") end
     if q.shared then
         local sh = MQ.Store.root().shared
         if sh and sh.day == d.key then sh.done = (sh.done or 0) + 1 end
@@ -512,7 +521,10 @@ function Q.swap(acc, user, slot)
     q.state = "swapped"
     d.quests[slot] = newQuest(t, rollTarget(t, cfg.daily.pool and cfg.daily.pool[t.tid], rng, diffMult(cfg)), dailyPts(cfg, t), now)
     d.swaps = d.swaps - 1
+    MQ.Balance.swapped(q.tid, now)
     MQ.Balance.given(t.tid, now)
+    report("swaps", q.tid)
+    report("dGiven")
     MQ.Sync.unpin(acc, user, "d" .. slot)   -- the pin was for the quest swapped out
     MQ.Sync.dirty(user, "day")
     return true

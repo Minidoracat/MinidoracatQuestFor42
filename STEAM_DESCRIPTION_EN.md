@@ -28,7 +28,7 @@ Daily and weekly quests, achievements, season leaderboards and titles; pair it w
 [*] [b]Server-wide quest and server goal[/b]: one daily quest everyone shares, and a weekly goal the whole server works on together
 [*] [b]Streaks and newcomer quests[/b]: milestone rewards for playing day after day, and a guided start for new players
 [*] [b]Timed events[/b]: the host schedules a period that multiplies quest points for a theme
-[*] [b]Achievements and titles[/b]: about 110 achievements in four tiers; high-tier unlocks are announced server-wide
+[*] [b]Achievements and titles[/b]: about 110 achievements in five tiers (a title at tier 4); high-tier unlocks are announced server-wide
 [*] [b]Leaderboards and seasons[/b]: 8 leaderboard categories, with rewards and titles by rank when a season ends
 [*] [b]Point exchange[/b]: with the Economy mod, turn points into Survivor Coins
 [*] [b]Admin panel[/b]: thresholds, quests, seasons and exchange are all tuned in game, and every change can be undone; the same settings can also be edited in a file on the server without joining

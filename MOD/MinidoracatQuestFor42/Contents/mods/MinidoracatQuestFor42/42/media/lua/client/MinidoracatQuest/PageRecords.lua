@@ -89,7 +89,7 @@ local function pointsCard(b, page, x, y, w, s)
         cy = cy + lh + 2
     end
     for _, l in ipairs(noteLines) do
-        b:text(x + pad, cy, l, "textFaint")
+        b:text(x + pad, cy, l, "textMuted")
         cy = cy + lh + 2
     end
     return y + h + GAP
@@ -162,7 +162,7 @@ local function statsTable(b, page, x, y, w, s)
         b:textRight(right[1], y + 4, r[4], tok)
         y = y + rh
     end
-    return b:para(x, y + 6, getText("IGUI_MQ_UI_RecordsNote"), w, "textFaint") + GAP
+    return b:para(x, y + 6, getText("IGUI_MQ_UI_RecordsNote"), w, "textMuted") + GAP
 end
 
 function P.layout(page)
@@ -179,6 +179,8 @@ function P.layout(page)
     end
     y = titleRow(b, page, x, y, w, s)
     y = pointsCard(b, page, x, y, w, s)
+    -- what the one-time import (Achievements Import.baseline) brought over from before the MOD was added
+    y = b:para(x, y - 2, getText("IGUI_MQ_UI_ImportNote"), w, "textMuted") + GAP
     y = statsTable(b, page, x, y, w, s)
     D.finish(page, y)
 end

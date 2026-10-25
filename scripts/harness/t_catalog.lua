@@ -120,6 +120,29 @@ return function(T)
     end
     T.check(#Cat.achievements >= 105 and #Cat.achievements <= 115, "achievement count 105..115 (" .. #Cat.achievements .. ")")
     T.check(perCat.skill == 37 and perCat.hidden == 16, "skill 37, hidden 16")
+    -- five default tiers: 10/20/30/50/80 points, title at IV only; tier V never over a stat's ceiling
+    local nTiers, nTitles, nPts, five = 0, 0, 0, true
+    for _, a in ipairs(Cat.achievements) do
+        nTiers = nTiers + #a.tiers
+        for _ in pairs(a.titles) do nTitles = nTitles + 1 end
+        for _, p in ipairs(a.pts) do nPts = nPts + p end
+        if not a.hidden then
+            local p = a.pts
+            five = five and #a.tiers == 5 and p[1] == 10 and p[2] == 20 and p[3] == 30 and p[4] == 50 and p[5] == 80
+                and a.titles[4] == a.id .. "_4" and a.titles[5] == nil
+            if string.sub(a.stat, 1, 6) == "level." then five = five and a.tiers[5] == 10 end
+        end
+    end
+    T.check(five, "regular achievements: 5 tiers, 10/20/30/50/80, title at IV only, skill levels top at 10")
+    T.check(nTiers == 471 and nTitles == 99 and nPts == 17770,
+        "471 tiers, 99 titles, 17,770 points (" .. nTiers .. ", " .. nTitles .. ", " .. nPts .. ")")
+    T.check(Cat.ach("skill_total").tiers[5] <= 10 * #Cat.perks and Cat.ach("towns").tiers[5] < Cat.ach("h_all_towns").tiers[1]
+        and Cat.ach("achv_tiers").tiers[5] <= nTiers, "tier V within the ceiling: skill total, towns, achievement tiers")
+    T.check(not Cat.scalable("level.Axe") and not Cat.scalable("skill.total") and not Cat.scalable("town.visited")
+        and Cat.scalable("zombie.kills"), "difficulty skips ceiling stats")
+    local filled = Cat.fillPts({ 1, 2, 3, 4 }, { 10, 20, 30, 50, 80 }, 5)
+    T.check(#filled == 5 and filled[4] == 4 and filled[5] == 80 and #Cat.fillPts({ 1, 2 }, { 10, 20, 30 }, 2) == 2,
+        "a 4-entry points override keeps the default tier V points")
 
     local tids, themeCount = {}, {}
     for _, list in ipairs({ Cat.daily, Cat.weekly }) do
@@ -429,7 +452,7 @@ return function(T)
     local vacc = Q.Store.account("vet", false)
     T.check(vacc.life["zombie.kills"] == 500 and (vacc.total["pacifist.days"] or 0) == 0 and vacc.achv.h_pacifist == nil,
         "a character that already killed is no pacifist")
-    T.check(vacc.points.season == 0 and vacc.points.balance == 0 and vacc.achv.skill_woodwork == 3
+    T.check(vacc.points.season == 0 and vacc.points.balance == 0 and vacc.achv.skill_woodwork == 4
         and vacc.achv.life_days == 3, "old levels and days unlock quietly: lifetime points only")
 
     -- safety: no client command can add progress

@@ -1,9 +1,10 @@
 -- MinidoracatQuest/AdminPages.lua: admin tabs other than achievements and history (spec 9.4, 11.2-11.4, 13.5-13.8).
--- basic (the guided first page: difficulty, season, rewards, exchange, newcomer quests and notices), quests (daily
--- and weekly pools by theme with whole-theme buttons, shared goal, streak, newbie, timed events), season (length
--- preview/apply, review, rewards), exchange, players (account view, revoke, hide, anomalies, per-minute limits),
--- balance, towns. Config edits go through the draft (AdminPanel); season/events/revoke/hide use their own ops
--- (ARCHITECTURE.md 6.2), and the sections holding them say so (IGUI_MQ_Admin_ImmediateNote).
+-- basic (the guided first page: difficulty, season, rewards, exchange, newcomer quests and notices), quests (the
+-- players-see-the-list switch, daily and weekly pools by theme with whole-theme buttons, shared goal, streak,
+-- newbie, timed events), season (length preview/apply, review, rewards), exchange, players (account view, revoke,
+-- hide, anomalies, per-minute limits), balance, towns. Config edits go through the draft (AdminPanel);
+-- season/events/revoke/hide use their own ops (ARCHITECTURE.md 6.2), and the sections holding them say so
+-- (IGUI_MQ_Admin_ImmediateNote).
 
 require "MinidoracatQuest/AdminPanel"
 
@@ -23,7 +24,7 @@ local function textOf(t)
     return (string.gsub(t, "%s+$", ""))
 end
 
--- "all" reads "All quests" in the admin (event theme); theme names come from Draw, like on the player pages
+-- "all" reads "All quests" everywhere in the admin (theme filter, event theme); theme names come from Draw, like on the player pages
 local function themeLabel(id)
     return id == "all" and getText("IGUI_MQ_Admin_ThemeAll") or MQ.Draw.themeName(id)
 end
@@ -59,7 +60,7 @@ end
 
 -- ===== basic: steps 1-5 on one page; each step edits the same paths as its own tab =====
 
-local function step(F, key, n, text) F:text(key, getText("IGUI_MQ_Admin_Step", n, text), "accent", UIFont.Medium) end
+local function step(F, key, n, text) F:head(key, getText("IGUI_MQ_Admin_Step", n, text)) end
 
 local function onToSeason(P) A.select(P, "season") end
 
@@ -128,7 +129,8 @@ local function pool(P, pg, F, kind, theme)
     local ptsW = math.max(50, A.textW("10000") + 20)
     local onW, dashW = 44, A.textW("-")
     local names = {}
-    for i, tpl in ipairs(MQ.Catalog[kind] or {}) do names[i] = poolName(tpl) end
+    -- measured with the "(changed)" mark, so a row that gets a drafted value does not move the fields
+    for i, tpl in ipairs(MQ.Catalog[kind] or {}) do names[i] = getText("IGUI_MQ_Admin_Changed", poolName(tpl)) end
     local nameW = A.colW(names, math.max(80, F.width - 2 * A.PAD - onW - 2 * numW - dashW - ptsW - 5 * A.GAP))
     local xName = A.PAD + onW + A.GAP
     local xTarget = xName + nameW + A.GAP
@@ -138,18 +140,23 @@ local function pool(P, pg, F, kind, theme)
         { text = getText("IGUI_MQ_Admin_ColTarget"), x = xTarget, token = "textMuted" },
         { text = getText("IGUI_MQ_Admin_ColPts"), x = xTarget + 2 * numW + dashW + 3 * A.GAP, token = "textMuted" },
     })
+    local by = P.S.draft.by
     local last
     for _, tpl in ipairs(templates(kind, theme)) do
         if theme == "all" and tpl.theme ~= last then
             last = tpl.theme
-            F:text(kind .. ":th:" .. last, MQ.Draw.themeName(last), "accent")
+            F:gap()
+            F:text(kind .. ":th:" .. last, MQ.Draw.themeName(last), "text")
         end
         local base = kind .. ".pool." .. tpl.tid
         local on = A.boolField(P, pg, base .. ".enabled", "", base .. ".enabled")
         on:setWidth(onW)
         -- a long name wraps inside its column (a long DE name used to drop under the fields and read as the next
-        -- row's, quest-ui-de-1023g)
-        local name = F:label("n:" .. base, poolName(tpl), nil, nil, nameW - A.GAP)
+        -- row's, quest-ui-de-1023g); a row with a drafted value says so in its name, in a colour other than the
+        -- gold of controls
+        local pend = by[base .. ".enabled"] ~= nil or by[base .. ".target"] ~= nil or by[base .. ".pts"] ~= nil
+        local name = F:label("n:" .. base, pend and getText("IGUI_MQ_Admin_Changed", poolName(tpl)) or poolName(tpl),
+            pend and "info" or nil, nil, nameW - A.GAP)
         name:setWidth(nameW)
         local a = A.numField(P, pg, base .. ".target.1", base .. ".target", { 1 }, "target", numW)
         local dash = F:label("d:" .. base, "-", "textMuted")
@@ -164,7 +171,7 @@ local function themeOptions()
     local nd, nw = {}, {}
     for _, t in ipairs(C.daily or {}) do nd[t.theme] = (nd[t.theme] or 0) + 1 end
     for _, t in ipairs(C.weekly or {}) do nw[t.theme] = (nw[t.theme] or 0) + 1 end
-    local opts = { { id = "all", label = getText("IGUI_MQ_Admin_ThemeCount", MQ.Draw.themeName("all"), #(C.daily or {}),
+    local opts = { { id = "all", label = getText("IGUI_MQ_Admin_ThemeCount", themeLabel("all"), #(C.daily or {}),
         #(C.weekly or {})) } }
     for _, th in ipairs(THEMES) do
         opts[#opts + 1] = { id = th, label = getText("IGUI_MQ_Admin_ThemeCount", MQ.Draw.themeName(th), nd[th] or 0, nw[th] or 0) }
@@ -183,11 +190,13 @@ local function onTheme(P, id, dd)
     A.layout(P)
 end
 
--- whole theme, daily and weekly: enabled on/off, or targets x mult on each template's step; into the draft
+-- whole theme, daily and weekly: enabled on/off, or targets x mult on each template's step; into the draft.
+-- The bar says what was done; a second x1.25 scales the drafted targets again, and the message gives the total
 local function onThemeBatch(P, b)
     local pg = P.pages.quests
     if not A.fold(P) then return end
-    local n = 0
+    local by = P.S.draft.by
+    local n, drafted = 0, false
     for _, kind in ipairs({ "daily", "weekly" }) do
         for _, tpl in ipairs(templates(kind, pg.theme)) do
             local base = kind .. ".pool." .. tpl.tid
@@ -197,6 +206,7 @@ local function onThemeBatch(P, b)
                     n = n + 1
                 end
             else
+                drafted = drafted or by[base .. ".target"] ~= nil
                 local t = AM.scaleTarget(AM.get(P.S, base .. ".target") or tpl.target, b.mult, tpl.step)
                 if t then
                     AM.draftSet(P.S.draft, base .. ".target", t)
@@ -207,21 +217,29 @@ local function onThemeBatch(P, b)
     end
     if n == 0 then return A.say(P, getText("IGUI_MQ_Admin_NoChanges"), "textMuted") end
     local th = MQ.Draw.themeName(pg.theme)
+    local s
     if b.on == true then
-        summary(P, getText("IGUI_MQ_Admin_SumThemeOn", th, n))
+        s = getText("IGUI_MQ_Admin_SumThemeOn", th, n)
     elseif b.on == false then
-        summary(P, getText("IGUI_MQ_Admin_SumThemeOff", th, n))
+        s = getText("IGUI_MQ_Admin_SumThemeOff", th, n)
     else
-        summary(P, getText("IGUI_MQ_Admin_SumThemeMult", th, n, AM.num(b.mult)))
+        s = getText("IGUI_MQ_Admin_SumThemeMult", th, n, AM.num(b.mult))
+    end
+    summary(P, s)
+    if b.mult then
+        pg.mults = pg.mults or {}
+        local total = (drafted and pg.mults[pg.theme] or 1) * b.mult
+        pg.mults[pg.theme] = total
+        if total ~= b.mult then s = getText("IGUI_MQ_Admin_MultTotal", s, AM.num(total)) end
     end
     pg.version = pg.version + 1   -- the fields show the draft now
-    A.say(P, getText("IGUI_MQ_Admin_InDraft"), "textMuted")
+    A.say(P, getText("IGUI_MQ_Admin_InDraftWhat", s), "textMuted")
     A.layout(P)
 end
 
 local function onEventRemove(P, b)
     local e = b.entry
-    A.ask(P, { title = getText("IGUI_MQ_Admin_EventRemove"), danger = true, confirm = getText("IGUI_MQ_Admin_EventRemove"),
+    A.ask(P, { title = getText("IGUI_MQ_Admin_EventRemoveConfirm"), danger = true, confirm = getText("IGUI_MQ_Admin_EventRemoveConfirm"),
         text = getText("IGUI_MQ_Admin_EventRemoveAsk", tostring(e.name)), onOk = function()
             A.send(P, "event.remove", { id = e.id }, function(res)
                 if not res.ok then return A.fail(P, res) end
@@ -271,11 +289,11 @@ local function layoutEvents(P, pg, F)
     local live = 0
     for i, e in ipairs(events) do
         if (e.endMs or 0) > getTimestampMs() then live = live + 1 end
-        F:text("e" .. i, getText("IGUI_MQ_Admin_EventRow", tostring(e.name), themeLabel(e.theme), AM.num(e.mult or 1),
-            A.time(e.startMs) .. " - " .. A.time(e.endMs)), "text")
         local rm = F:button("er" .. i, getText("IGUI_MQ_Admin_EventRemove"), onEventRemove, "danger")
         rm.entry = e
-        F:row({ rm })
+        -- the remove button ends its own event's line (under it, it sat nearer the next event)
+        F:row({ F:label("e" .. i, getText("IGUI_MQ_Admin_EventRow", tostring(e.name), themeLabel(e.theme), AM.num(e.mult or 1),
+            A.time(e.startMs) .. " - " .. A.time(e.endMs)), "text", nil, F.width - 2 * A.PAD - rm.width - A.GAP), rm })
     end
     if xp.data and #events == 0 then F:text("en", getText("IGUI_MQ_Admin_EventsNone"), "textMuted") end
     local themes = { { id = "all", label = themeLabel("all") } }
@@ -294,24 +312,32 @@ local function layoutEvents(P, pg, F)
     formRow(F, "ev:end", getText("IGUI_MQ_Admin_EvEnd"), lw, { dateField(P, F, "ev:end") })
     local add = F:button("ev:add", getText("IGUI_MQ_Admin_EventAdd"), onEventAdd, "primary")
     add:setEnabled(live < 3 and not A.busy(P))
+    -- apart from the form above and the draft buttons in the bar: this one sends at once
+    F:gap()
     F:row({ add })
     if live >= 3 then F:text("ev:max", getText("IGUI_MQ_Admin_EventsMax"), "warning") end
+end
+
+-- jump buttons to the sections under the two long pools; each scrolls its heading to the top. ScrollPanel:scrollTo
+-- only reveals (a heading below the view would land on the bottom edge); the native setYScroll clamps the range
+local JUMPS = { { "hg", "IGUI_MQ_Admin_GoalHead" }, { "hs", "IGUI_MQ_Admin_StreakHead" }, { "hn", "IGUI_MQ_Admin_NewbieHead" },
+    { "he", "IGUI_MQ_Admin_EventsHead" } }
+
+local function onJump(P, b)
+    local pg = P.pages.quests
+    local head = pg.flow.pool[b.target]
+    if head and head:isVisible() then pg.sp:setYScroll(-(head:getY() - A.PAD)) end
 end
 
 local function layoutQuests(P, pg, F)
     pg.theme = pg.theme or "all"
     local lw = A.labelWidth({ "daily.sharedPts", "daily.swapsPerDay", "weekly.count", "goal.enabled", "goal.pts", "goal.growth",
         "streak.need", "streak.gracePerWeek", "newbie.enabled", "newbie.pts" })
+    -- whether players see this list (enabled templates, ranges, points) at the bottom of their Settings page
+    form(P, pg, F, { { "quests.playerList", "bool" } })
     F:row({ F:label("thl", getText("IGUI_MQ_Admin_ThemeFilter")), F:dropdown("th", themeOptions(), pg.theme, onTheme) })
     F:text("dpn", getText("IGUI_MQ_Admin_PoolHelp"), "textMuted")
-    F:head("hd", getText("IGUI_MQ_Admin_DailyHead"))
-    -- daily.pts / rarePts / weekly.pts stay in config.json for pack quests: every built-in template has its own points
-    form(P, pg, F, { { "daily.sharedPts", "pts" }, { "daily.swapsPerDay", "swaps" } }, lw)
-    pool(P, pg, F, "daily", pg.theme)
-    F:gap()
-    F:head("hw", getText("IGUI_MQ_Admin_WeeklyHead"))
-    form(P, pg, F, { { "weekly.count", "weeklyCount" } }, lw)
-    pool(P, pg, F, "weekly", pg.theme)
+    -- the whole-theme buttons sit with the filter that picks the theme
     if pg.theme ~= "all" then
         local n = #templates("daily", pg.theme) + #templates("weekly", pg.theme)
         local row = { F:label("tbl", getText("IGUI_MQ_Admin_ThemeBatch", MQ.Draw.themeName(pg.theme), A.num(n))) }
@@ -325,10 +351,22 @@ local function layoutQuests(P, pg, F)
             b.on, b.mult = nil, m
             row[#row + 1] = b
         end
-        F:gap()
         F:row(row)
     end
-    F:gap()
+    local jumps = { F:label("jl", getText("IGUI_MQ_Admin_JumpTo"), "textMuted") }
+    for _, j in ipairs(JUMPS) do
+        local b = F:button("j:" .. j[1], getText(j[2]), onJump)
+        b.target = j[1]
+        jumps[#jumps + 1] = b
+    end
+    F:row(jumps)
+    F:head("hd", getText("IGUI_MQ_Admin_DailyHead"))
+    -- daily.pts / rarePts / weekly.pts stay in config.json for pack quests: every built-in template has its own points
+    form(P, pg, F, { { "daily.sharedPts", "pts" }, { "daily.swapsPerDay", "swaps" } }, lw)
+    pool(P, pg, F, "daily", pg.theme)
+    F:head("hw", getText("IGUI_MQ_Admin_WeeklyHead"))
+    form(P, pg, F, { { "weekly.count", "weeklyCount" } }, lw)
+    pool(P, pg, F, "weekly", pg.theme)
 
     F:head("hg", getText("IGUI_MQ_Admin_GoalHead"))
     form(P, pg, F, { { "goal.enabled", "bool" }, { "goal.pts", "pts" }, { "goal.growth", "growth" } }, lw)
@@ -350,7 +388,6 @@ local function layoutQuests(P, pg, F)
             A.numField(P, pg, "goal.limits." .. stat .. ".max", "goal.limits", { stat, "max" }, "target", numW),
             A.numField(P, pg, "goal.limits." .. stat .. ".minContrib", "goal.limits", { stat, "minContrib" }, "target", numW) })
     end
-    F:gap()
 
     F:head("hs", getText("IGUI_MQ_Admin_StreakHead"))
     form(P, pg, F, { { "streak.need", "need" }, { "streak.gracePerWeek", "grace" } }, lw)
@@ -363,11 +400,9 @@ local function layoutQuests(P, pg, F)
             A.numField(P, pg, "streak.milestones." .. i .. ".pts", "streak.milestones", { i, "pts" }, "pts"),
             F:label("ms:p" .. i, getText("IGUI_MQ_Admin_PtsUnit"), "textMuted") })
     end
-    F:gap()
 
     F:head("hn", getText("IGUI_MQ_Admin_NewbieHead"))
     form(P, pg, F, { { "newbie.enabled", "bool" }, { "newbie.pts", "pts" } }, lw)
-    F:gap()
     layoutEvents(P, pg, F)
 end
 
@@ -785,66 +820,84 @@ A.pages.players = { layout = layoutPlayers, load = loadAnom }
 
 -- ===== balance =====
 
+-- reply: rows { tid, given, done, swaps?, rate?, medianMin?, suggest? } and minGiven (both from the server: rate =
+-- done / (given - swaps), nil when nothing is left; a server before swaps sends neither swaps nor minGiven)
 local function loadBalance(P, pg)
     A.send(P, "balance.report", {}, function(res)
         pg.rows, pg.err = res.ok and (res.rows or {}) or nil, (not res.ok) and res or nil
+        pg.minGiven = res.minGiven
         A.layout(P)
     end)
 end
 
-local function suggestText(s)
+local function suggestOk(s) return type(s) == "table" and type(s.path) == "string" and AM.targetOk(s.value) end
+
+-- the range in effect now (draft, server or default) beside the suggested one
+local function suggestText(P, s)
     if type(s) ~= "table" or type(s.value) ~= "table" then return "-" end
-    return getText(s.kind == "hard" and "IGUI_MQ_Admin_TooHard" or "IGUI_MQ_Admin_TooEasy", A.num(s.value[1] or 0), A.num(s.value[2] or 0))
+    local cur = type(s.path) == "string" and AM.get(P.S, s.path)
+    if type(cur) ~= "table" then cur = {} end
+    return getText(s.kind == "hard" and "IGUI_MQ_Admin_TooHard" or "IGUI_MQ_Admin_TooEasy", A.num(cur[1] or 0),
+        A.num(cur[2] or cur[1] or 0), A.num(s.value[1] or 0), A.num(s.value[2] or 0))
 end
 
 local function onApplySuggest(P)
     local changes = {}
     for _, r in ipairs(P.pages.balance.rows or {}) do
         local s = r.suggest
-        if type(s) == "table" and type(s.path) == "string" and AM.targetOk(s.value) then
-            changes[#changes + 1] = { op = "set", path = s.path, value = { s.value[1], s.value[2] } }
-        end
+        if suggestOk(s) then changes[#changes + 1] = { op = "set", path = s.path, value = { s.value[1], s.value[2] } } end
     end
     if #changes == 0 then return A.say(P, getText("IGUI_MQ_Admin_NoSuggest"), "textMuted") end
     A.previewChanges(P, changes, getText("IGUI_MQ_Admin_SumSuggest", #changes))
 end
 
 local function layoutBalance(P, pg, F)
+    local minGiven = pg.minGiven or 10
     F:head("h", getText("IGUI_MQ_Admin_BalanceHead"))
-    F:text("n", getText("IGUI_MQ_Admin_BalanceNote"), "textMuted")
+    F:text("n", getText("IGUI_MQ_Admin_BalanceNote", A.num(minGiven)), "textMuted")
     if pg.rows == nil then return loadingText(P, F, "ld", pg) end
     -- daily and weekly rows share one list: the weekly ones say so ("Craft N items" is both)
     local weekly = {}
     for _, t in ipairs(MQ.Catalog.weekly or {}) do weekly[t.tid] = true end
-    local rateW = math.max(A.textW(getText("IGUI_MQ_Admin_ColRate")), A.textW("100%")) + 2 * A.GAP
-    local timeW = math.max(A.textW(getText("IGUI_MQ_Admin_ColMedian")), A.textW(getText("IGUI_MQ_Admin_Minutes", "000"))) + 2 * A.GAP
-    -- quest names get the width; a suggestion goes on its own line under its row (EN names were cut to
-    -- "Kill N zombies with f..." beside a suggestion column, quest-ui-en-1023c)
-    local nameW = math.max(60, F.width - 2 * A.PAD - rateW - timeW)
-    local x1 = A.PAD + nameW + rateW
-    local x2 = x1 + timeW
-    F:cells("hd", {
-        { text = getText("IGUI_MQ_Admin_ColQuest"), x = A.PAD, token = "textMuted" },
-        { text = getText("IGUI_MQ_Admin_ColRate"), x = x1, right = true, token = "textMuted" },
-        { text = getText("IGUI_MQ_Admin_ColMedian"), x = x2, right = true, token = "textMuted" },
-    })
-    local any = false
+    -- right-aligned number columns: given, completion, median time, swapped away; quest names get the rest and a
+    -- suggestion goes on its own line under its row (EN names were cut to "Kill N zombies with f..." beside a
+    -- suggestion column, quest-ui-en-1023c)
+    local cols = { { "IGUI_MQ_Admin_ColGiven", "10,000" }, { "IGUI_MQ_Admin_ColRate", "100%" },
+        { "IGUI_MQ_Admin_ColMedian", getText("IGUI_MQ_Admin_Minutes", "0,000") }, { "IGUI_MQ_Admin_ColSwaps", "10,000" } }
+    local x = F.width - A.PAD
+    for i = #cols, 1, -1 do
+        cols[i].x = x
+        x = x - math.max(A.textW(getText(cols[i][1])), A.textW(cols[i][2])) - 2 * A.GAP
+    end
+    local nameW = math.max(60, x - A.PAD)
+    local head = { { text = getText("IGUI_MQ_Admin_ColQuest"), x = A.PAD, token = "textMuted" } }
+    for _, c in ipairs(cols) do head[#head + 1] = { text = getText(c[1]), x = c.x, right = true, token = "textMuted" } end
+    F:cells("hd", head)
+    local n = 0
     for i, r in ipairs(pg.rows) do
-        any = any or r.suggest ~= nil
         local tid = tostring(r.tid)
         local name = A.questName(tid)
         if weekly[tid] then name = getText("IGUI_MQ_Admin_WeeklyTag", name) end
-        F:cells("r" .. i, {
-            { text = name, x = A.PAD, w = nameW - A.GAP },
-            { text = type(r.rate) == "number" and (math.floor(r.rate * 100 + 0.5) .. "%") or "-", x = x1, right = true },
-            { text = type(r.medianMin) == "number" and getText("IGUI_MQ_Admin_Minutes", A.num(math.floor(r.medianMin + 0.5))) or "-",
-                x = x2, right = true },
-        }, i % 2 == 0)
-        if r.suggest then F:text("sg" .. i, suggestText(r.suggest), "warning") end
+        local given, swaps = tonumber(r.given) or 0, tonumber(r.swaps) or 0
+        local rate = r.rate
+        if type(rate) ~= "number" and swaps == 0 and given > 0 then rate = (tonumber(r.done) or 0) / given end
+        local vals = { A.num(given), type(rate) == "number" and (math.floor(rate * 100 + 0.5) .. "%") or "-",
+            type(r.medianMin) == "number" and getText("IGUI_MQ_Admin_Minutes", A.num(math.floor(r.medianMin + 0.5))) or "-",
+            A.num(swaps) }
+        local cells = { { text = name, x = A.PAD, w = nameW - A.GAP } }
+        for k, c in ipairs(cols) do cells[#cells + 1] = { text = vals[k], x = c.x, right = true } end
+        F:cells("r" .. i, cells, i % 2 == 0)
+        if r.suggest then
+            if suggestOk(r.suggest) then n = n + 1 end
+            F:text("sg" .. i, suggestText(P, r.suggest), "warning")
+        elseif given - swaps < minGiven then
+            -- why a 0% row has no suggestion
+            F:text("sg" .. i, getText("IGUI_MQ_Admin_FewSamples", A.num(minGiven)), "textMuted")
+        end
     end
     if #pg.rows == 0 then F:text("none", getText("IGUI_MQ_Admin_BalanceNone"), "textMuted") end
-    local b = F:button("apply", getText("IGUI_MQ_Admin_ApplySuggest"), onApplySuggest)
-    b:setEnabled(any)
+    local b = F:button("apply", A.count("IGUI_MQ_Admin_ApplySuggest", n), onApplySuggest)
+    b:setEnabled(n > 0)
     F:row({ b })
 end
 

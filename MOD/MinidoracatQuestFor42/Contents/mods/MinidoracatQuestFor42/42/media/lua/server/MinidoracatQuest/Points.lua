@@ -34,6 +34,7 @@ function P.award(acc, user, amount, kind, ref, opts)
         pts.balance = pts.balance + amount
     end
     Q.EventLog.write("points", user, { kind = kind, ref = ref, n = amount })
+    if kind ~= "import" and Q.Report then Q.Report.add("pts", kind, amount) end
     if Q.Boards and Q.Boards.dirty then Q.Boards.dirty("@points") end
     if Q.Sync and Q.Sync.dirty then Q.Sync.dirty(user, "points") end
     return true

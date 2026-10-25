@@ -52,6 +52,7 @@ local function fillRoot(r, t)
     ensure(r, "balance", {})
     ensure(r, "exchange", { coins = 0, days = {} })
     ensure(r, "events", {})
+    ensure(r, "daily", {})
 end
 
 function St.shardTag(user)
@@ -127,6 +128,7 @@ function St.account(user, create)
         if not create or St.readOnly then return nil end
         acc = newAccount(now(), St.rootT.season.no)
         accounts[user] = acc
+        if Q.Report then Q.Report.add("fresh") end
         return acc
     end
     lazySeason(acc)
@@ -139,18 +141,21 @@ function St.touch(user, acc)
     lazySeason(acc)
 end
 
+-- fn(user, acc) for every account of shard i (0..SHARDS-1): the report snapshot walks one shard per tick
+function St.eachIn(i, fn)
+    local accounts = St.shards[i].accounts
+    if accounts then
+        for user, acc in pairs(accounts) do
+            lazySeason(acc)
+            fn(user, acc)
+        end
+    end
+end
+
 -- fn(user, acc) for every account in all 16 shards (board rebuild, settlement, admin queries only)
 function St.each(fn)
     if not St.ready() then return end
-    for i = 0, C.SHARDS - 1 do
-        local accounts = St.shards[i].accounts
-        if accounts then
-            for user, acc in pairs(accounts) do
-                lazySeason(acc)
-                fn(user, acc)
-            end
-        end
-    end
+    for i = 0, C.SHARDS - 1 do St.eachIn(i, fn) end
 end
 
 St.isEmpty = isEmpty

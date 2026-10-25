@@ -96,11 +96,48 @@ return function(T)
         function p:scrollTo(el) self.scrolledTo = el end
         return p
     end }
+    -- like the framework: height omitted = content height (24 px rows, 6 px between untitled groups); setSelected
+    -- ignores an id it does not list, nil clears
     fake.NavList = { new = function(o)
-        local n = control(o, 160, 200)
-        function n:setGroups(g) self.groups = g end
-        function n:setSelected(id) self.selected = id end
+        local n = control(o, 160, 0)
+        n.selected = nil
+        function n:setGroups(g)
+            self.groups = g
+            local h = 0
+            for i, gr in ipairs(g or {}) do h = h + (i > 1 and 6 or 0) + 24 * #gr.items end
+            if o.height == nil then self.height = h end
+            if self.selected ~= nil and not self:has(self.selected) then self.selected = nil end
+        end
+        function n:has(id)
+            for _, gr in ipairs(self.groups or {}) do
+                for _, it in ipairs(gr.items) do if it.id == id then return true end end
+            end
+            return false
+        end
+        function n:setSelected(id) if id == nil or self:has(id) then self.selected = id end end
         function n:getSelected() return self.selected end
+        function n:getContentHeight() return self.height end
+        -- cursor over the rows like the framework: Up / Down step and return false at the edge, Home / End jump
+        function n:rowCount()
+            local c = 0
+            for _, gr in ipairs(self.groups or {}) do c = c + #gr.items end
+            return c
+        end
+        function n:onFocusKey(key)
+            local cnt, cur = self:rowCount(), self.cursor
+            if key == Keyboard.KEY_DOWN or key == Keyboard.KEY_UP then
+                local nxt = (cur or (key == Keyboard.KEY_DOWN and 0 or cnt + 1)) + (key == Keyboard.KEY_DOWN and 1 or -1)
+                if nxt < 1 or nxt > cnt then return false end
+                self.cursor = nxt
+                return true
+            elseif key == Keyboard.KEY_HOME or key == Keyboard.KEY_END then
+                if cnt > 0 then self.cursor = key == Keyboard.KEY_HOME and 1 or cnt end
+                return true
+            end
+            return false
+        end
+        n:setGroups(o.groups)
+        if o.selected ~= nil and n:has(o.selected) then n.selected = o.selected end
         return n
     end }
     fake.Window = { new = function(o)
@@ -239,8 +276,61 @@ return function(T)
     check(#errors == 0, "full-state layouts and canvas render ran clean " .. tostring(errors[1]))
     check(seenSent, "opening daily / achievements with unseen > 0 sends seen")
     check(draws > 100, "canvas issued draw calls (" .. draws .. ")")
-    local nav = W.nav.groups
-    check(nav ~= nil and #nav[2].items >= 2, "admin row shown in the second nav group for admins")
+    local nav, na = W.nav.groups, W.navAdmin
+    local adminId = MQ.Admin and MQ.Admin.id or "admin"
+    check(#nav == 2 and #nav[2].items == 1 and nav[2].items[1].id == "settings" and not W.nav:has(adminId),
+        "W.nav: the main group, then Settings in its own group; no admin row in it")
+    check(na ~= nil and na:isVisible() and #na.groups == 1 and na.groups[1].items[1].id == adminId,
+        "the admin row is in its own list, W.navAdmin")
+    local navBottom = W.nav.y + W.nav.height
+    check(na.y > navBottom + 6 and na.y + na.height == W.win.height - 6,
+        "W.navAdmin sits at the bottom of the nav column, well below Settings (more than the group gap)")
+    W.win:setHeight(navBottom + 20)
+    W.layout()
+    check(na.y == navBottom + W.ADMIN_GAP, "in a short window it stays below Settings instead of covering it")
+    W.win:setHeight(dh)
+    W.layout()
+    check(na.y + na.height == W.win.height - 6, "and goes back to the bottom when the window grows")
+    -- the admin panel itself needs framework Tabs this fake lacks (t_admin_ui.lua drives it); only the nav here
+    local admSpec = W.spec(adminId)
+    local admShow, admHide = admSpec.onShow, admSpec.onHide
+    admSpec.onShow, admSpec.onHide = function() end, function() end
+    W.select(adminId)
+    check(W.current == adminId and na:getSelected() == adminId and W.nav:getSelected() == nil,
+        "selecting Admin marks only the admin list")
+    W.select("settings")
+    check(W.nav:getSelected() == "settings" and na:getSelected() == nil, "selecting Settings clears the admin list")
+    na.onSelect(na.target, adminId, na)
+    check(W.current == adminId and W.nav:getSelected() == nil, "a click in the admin list goes through Window.select")
+    W.nav.onSelect(W.nav.target, "daily", W.nav)
+    check(W.current == "daily" and na:getSelected() == nil and W.nav:getSelected() == "daily",
+        "a click in the main list clears the admin one")
+    admSpec.onShow, admSpec.onHide = admShow, admHide
+    check(#errors == 0, "selection across the two lists ran clean " .. tostring(errors[1]))
+    local focusedTo = nil
+    fake.Focus = { focusControl = function(c) if c:isVisible() then focusedTo = c return true end return false end }
+    W.nav:onFocusKey(Keyboard.KEY_END)
+    check(W.nav:onFocusKey(Keyboard.KEY_DOWN) == true and focusedTo == na and na.cursor == 1,
+        "keyboard / joypad Down on Settings (last row) moves focus to the admin list's first row")
+    focusedTo = nil
+    check(na:onFocusKey(Keyboard.KEY_UP) == true and focusedTo == W.nav and W.nav.cursor == W.nav:rowCount(),
+        "Up on the admin row moves focus back to Settings")
+    W.nav.cursor = 1
+    focusedTo = nil
+    check(W.nav:onFocusKey(Keyboard.KEY_DOWN) == true and W.nav.cursor == 2 and focusedTo == nil,
+        "Down inside the main list stays the list's own step")
+    check(na:onFocusKey(Keyboard.KEY_DOWN) == false and focusedTo == nil, "Down on the admin row: the old edge behaviour")
+    C.state.admin = false
+    W.onData()
+    check(#W.nav.groups == 2 and W.nav.groups[2].items[1].id == "settings" and not na:isVisible(),
+        "a player's nav ends with Settings; the admin list is hidden")
+    W.nav:onFocusKey(Keyboard.KEY_END)
+    focusedTo = nil
+    check(W.nav:onFocusKey(Keyboard.KEY_DOWN) == false and focusedTo == nil,
+        "a player: Down on Settings keeps the old behaviour (no hidden admin list to hop to)")
+    fake.Focus = nil
+    C.state.admin = true
+    W.onData()
     local function navHas(id)
         for _, g in ipairs(W.nav.groups) do
             for _, it in ipairs(g.items) do if it.id == id then return true end end
@@ -260,6 +350,102 @@ return function(T)
     C.state.exchange = ex0
     W.onData()
     check(navHas("exchange"), "Exchange comes back when exchange is available again")
+
+    T.section("client UI: player pages - swap ask, thousands separator, pins, prefs cap, import note")
+    local function drew(page, s)
+        for i = 1, page.canvas.n do if page.canvas.ops[i].s == s then return true end end
+        return false
+    end
+    W.select("daily")
+    local dp = W.pages.daily
+    MQ.PageDaily.layout(dp)
+    local asked = {}
+    fake.Dialog = { show = function(o) asked[#asked + 1] = o end }
+    local swap1, swap3 = dp.pool.items.q1swap, dp.pool.items.q3swap
+    check(swap1 ~= nil and swap1.style == nil and swap3 ~= nil, "swap is a normal (framed) button, not ghost")
+    local sent0 = #T.clientSent
+    swap1.onClick(swap1.target, swap1)
+    check(#asked == 1 and asked[1].danger == true and asked[1].text == "IGUI_MQ_UI_SwapAsk" and #T.clientSent == sent0,
+        "a quest with progress asks first (danger dialog) and sends nothing yet")
+    asked[1].onResult(true)
+    local last = T.clientSent[#T.clientSent]
+    check(#T.clientSent == sent0 + 1 and last.command == "swap" and last.args.slot == 1, "confirming sends the swap")
+    C.pending[dp.swapRid] = nil   -- no reply in this test: drop it so no NO_REPLY toast later
+    dp.swapRid = nil
+    swap3.onClick(swap3.target, swap3)
+    last = T.clientSent[#T.clientSent]
+    check(#asked == 1 and last.command == "swap" and last.args.slot == 3, "progress 0 swaps without asking")
+    C.pending[dp.swapRid] = nil
+    dp.swapRid = nil
+    check(drew(dp, "pause"), "a grace day carries an icon, not only a color")
+    local gtSep = getText
+    getText = function(key, ...) if key == "IGUI_MQ_UI_ThousandSep" then return "\194\160" end return gtSep(key, ...) end
+    local spaced = D.num(1234567)
+    getText = gtSep
+    check(spaced == "1\194\160234\194\160567" and D.num(1234567) == "1,234,567" and D.num(1234.5) == "1,234.5",
+        "D.num uses IGUI_MQ_UI_ThousandSep (no-break space), comma without the key, decimal point stays")
+    local AMs = MQ.AdminModel
+    AMs.SEP = "\194\160"
+    local amSpaced = AMs.num(1234567)
+    AMs.SEP = ","
+    check(amSpaced == "1\194\160234\194\160567" and AMs.num(1234567) == "1,234,567", "AM.num uses AM.SEP")
+    W.select("settings")
+    local sp = W.pages.settings
+    sp.draft = { "combat", "farm" }
+    MQ.PageSettings.layout(sp)
+    check(not drew(sp, "IGUI_MQ_Code_TOO_MANY_PREFS"), "no prefs reason line below the cap")
+    sp.draft = { "combat", "farm", "cook" }
+    MQ.PageSettings.layout(sp)
+    check(drew(sp, "IGUI_MQ_Code_TOO_MANY_PREFS"), "at 3/3 the reason line is drawn under the chips")
+    sp.draft = nil
+
+    T.section("client UI: per-theme quest list at the bottom of Settings")
+    local function opIndex(page, s)
+        for i = 1, page.canvas.n do if page.canvas.ops[i].s == s then return i end end
+        return nil
+    end
+    sp.listOpen = nil
+    MQ.PageSettings.layout(sp)
+    local hi, ni = opIndex(sp, "IGUI_MQ_UI_QuestList"), opIndex(sp, "IGUI_MQ_UI_ModOptionsNote")
+    local qb = sp.pool.items.questList
+    check(hi ~= nil and ni ~= nil and hi > ni and qb ~= nil and qb.visible and qb.title == "IGUI_MQ_UI_ListShow"
+        and not drew(sp, "IGUI_MQ_UI_QuestListRow"), "admin, setting off: the list is the last section, folded")
+    check(drew(sp, "IGUI_MQ_UI_QuestListAdminOnly") and opIndex(sp, "IGUI_MQ_UI_QuestListAdminOnly") > hi,
+        "while off the admin sees the only-admins note under the heading")
+    qb.onClick(qb.target, qb)
+    MQ.PageSettings.layout(sp)
+    check(sp.listOpen and drew(sp, "IGUI_MQ_UI_QuestListRow") and drew(sp, "IGUI_MQ_UI_QuestListRare")
+        and drew(sp, "IGUI_MQ_UI_QuestListCount") and sp.pool.items.questList.title == "IGUI_MQ_UI_ListHide",
+        "opened: theme lines with counts, then the quests with points, rare ones marked")
+    C.state.admin = false
+    MQ.PageSettings.layout(sp)
+    check(C.questList() == nil and not drew(sp, "IGUI_MQ_UI_QuestList") and not sp.pool.items.questList.visible,
+        "a player sees no list while the setting is off")
+    push("catalog", { rev = 2, packs = {}, overrides = { quests = { playerList = true }, difficulty = { mult = 1.6 },
+        daily = { pool = { d_kill = { target = { 20, 40 } }, d_kill_melee = { enabled = false } } } } })
+    MQ.PageSettings.layout(sp)
+    local ql = C.questList()
+    check(ql ~= nil and drew(sp, "IGUI_MQ_UI_QuestList") and not drew(sp, "IGUI_MQ_UI_QuestListAdminOnly"),
+        "setting on: the player gets the list, without the admins-only note")
+    local byTheme = {}
+    for _, e in ipairs(ql) do byTheme[e.theme] = e end
+    local combat, kill, melee = byTheme.combat, nil, false
+    for _, t in ipairs(combat.daily) do
+        if t.tid == "d_kill" then kill = t end
+        if t.tid == "d_kill_melee" then melee = true end
+    end
+    check(ql[1].theme == "combat" and #combat.daily == 9 and #combat.weekly == 4 and not melee,
+        "theme order; a disabled template leaves the list")
+    check(kill and kill.lo == 30 and kill.hi == 65 and kill.pts == 15,
+        "ranges come after the admin target override and the difficulty x1.6, on the template step (Quests rollTarget)")
+    check(byTheme.tailor.daily[1].rare == true and byTheme.tailor.daily[1].pts == 20, "rare templates carry their higher points")
+    push("catalog", { rev = 3, overrides = {}, packs = {} })
+    C.state.admin = true
+    sp.listOpen = nil
+    W.select("records")
+    MQ.PageRecords.layout(W.pages.records)
+    check(drew(W.pages.records, "IGUI_MQ_UI_ImportNote"), "records page draws the import note")
+    W.select("daily")
 
     T.section("client UI: leaderboard focus walks rank 1 -> 50 -> my row")
     local long = "Lena_Wanderer_of_Muldraugh_and_the_Whole_County"
@@ -400,8 +586,9 @@ return function(T)
     for key, el in pairs(W.pages.achievements.pool.items) do
         if string.sub(key, 1, 4) == "pin:" and el.visible then achChip = el end
     end
-    check(dchip and dchip.active and dchip.enabled and achChip and achChip.enabled == false and achChip.tooltip ~= nil,
-        "five pinned: their chips stay clickable, the others turn gray with the reason on hover")
+    check(dchip and dchip.active and dchip.enabled ~= false and achChip and achChip.enabled ~= false
+        and achChip.tooltip == "IGUI_MQ_Code_TOO_MANY_PINS",
+        "five pinned: every Track chip stays enabled (focusable); the unpinned ones say why on hover")
     W.close()
     push("delta", { pins = {} })
     check(not hp:isVisible() and #errors == 0, "nothing pinned: no panel")

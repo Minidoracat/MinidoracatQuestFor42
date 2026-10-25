@@ -64,7 +64,8 @@ return function(T)
         ScrollPanel = { new = widget({ contentWidth = function(self) return self.width - 12 end }) },
         Dialog = { show = function(opts) dialogs[#dialogs + 1] = opts end },
     }
-    local colors = setmetatable({}, { __index = function() return { r = 1, g = 1, b = 1, a = 1 } end })
+    -- every token reads white; .token tells which one a label was given
+    local colors = setmetatable({}, { __index = function(_, k) return { r = 1, g = 1, b = 1, a = 1, token = k } end })
 
     local Q = T.bootClient({})
     local A, AM, C = Q.Admin, Q.AdminModel, Q.Catalog
@@ -76,6 +77,9 @@ return function(T)
         return nil
     end
     local exWarn = "over_cap"
+    local balanceReply = { rows = { { tid = tid, given = 10, done = 2, rate = 0.2, medianMin = 55,
+        suggest = { kind = "hard", path = "daily.pool." .. tid .. ".target", value = { 2, 3 } } },
+        { tid = C.daily[2].tid, given = 3, done = 0, rate = 0 } } }
     local replies = {
         ["cfg.get"] = function() return { overrides = {}, history = { { id = 3, at = now, actor = "boss", summary = "x", n = 2 } }, rev = 3,
             file = { ok = false, at = now, source = "file", why = "target", path = "daily.pool.d_kill.target" },
@@ -101,8 +105,8 @@ return function(T)
         ["anom.list"] = function() return { rows = { { at = now, user = "Ricky", stat = "zombie.kills", n = 340, ceil = 120 } } } end,
         ["acct.view"] = function(args) return { user = args.user, points = { season = 1, total = 2, balance = 3 }, achvCount = 5,
             anomalies = 2, achv = { zombie_kills = 3 } } end,
-        ["balance.report"] = function() return { rows = { { tid = tid, given = 10, done = 2, rate = 0.2, medianMin = 55,
-            suggest = { kind = "hard", path = "daily.pool." .. tid .. ".target", value = { 2, 3 } } } } } end,
+        -- a server before swaps: no swaps, no minGiven (the page assumes 10); the second row has too few samples
+        ["balance.report"] = function() return balanceReply end,
         ["towns.here"] = function() return { x = 10500, y = 9800, z = 0 } end,
     }
     Q.Client.send = function(cmd, args, cb)
@@ -120,6 +124,7 @@ return function(T)
     T.check(P ~= nil and last("cfg.get") ~= nil and P.S.overrides ~= nil, "showing the admin page loads cfg.get")
     local function pool(id) return P.pages[id].flow.pool end
     local function press(id, key) local b = pool(id)[key]; T.check(b ~= nil and b:isVisible(), "button shown: " .. id .. "/" .. key); b.handler(P, b) end
+    local function barPress(key) local b = P.barFlow.pool[key]; T.check(b ~= nil and b:isVisible(), "bar button shown: " .. key); b.handler(P, b) end
     local function answer(ok, text) local d = dialogs[#dialogs]; dialogs[#dialogs] = nil; d.onResult(ok, text) end
 
     T.section("admin ui: every tab lays out and loads its data")
@@ -149,7 +154,14 @@ return function(T)
     local changes = pv and Q.Util.decode(pv.changes)
     T.check(changes and changes[1].path == "achievements." .. combat[1] .. ".tiers" and P.confirm ~= nil, "preview sent, confirm view shown")
     T.check(pool("achv")["cf:r1"] ~= nil and pool("achv")["cf:r1"].cells[2].strike == true, "old value struck through")
-    press("achv", "cf:apply")
+    local bar = P.barFlow.pool
+    T.check(bar["apply"]:isVisible() and bar["apply"].style == "primary" and bar["apply"]:isEnabled()
+        and bar["cancel"]:isVisible() and bar["cancel"].style == "normal" and not bar["preview"]:isVisible()
+        and not bar["reload"]:isVisible() and pool("achv")["cf:apply"] == nil,
+        "the confirm view's Apply (primary) and Cancel (normal) sit in the bar instead of preview and reload")
+    T.check(pool("achv")["cf:n"].y < pool("achv")["cf:r1"].y, "the note comes before the diff rows")
+    barPress("apply")
+    T.check(bar["preview"]:isVisible() and not bar["apply"]:isVisible(), "after apply the bar is back to preview and reload")
     local ap = last("cfg.apply")
     T.check(ap ~= nil and ap.changes == pv.changes and ap.summary == "IGUI_MQ_Admin_SumScale", "cfg.apply sends the previewed changes and a summary")
     T.check(P.confirm == nil and AM.draftCount(P.S.draft) == 0, "draft cleared after apply")
@@ -157,16 +169,16 @@ return function(T)
     T.section("admin ui: tier editor and new achievement")
     A.AchvPage.onEdit(P, { achId = "zombie_kills" })
     local apg = P.pages.achv
-    T.check(#apg.rows == 4 and pool("achv")["e:t1"]:getText() == tostring(apg.rows[1].tier), "editor filled from the achievement")
+    T.check(#apg.rows == 5 and pool("achv")["e:t1"]:getText() == tostring(apg.rows[1].tier), "editor filled from the achievement")
     press("achv", "e:add")
-    T.check(#apg.rows == 5 and pool("achv")["e:t5"]:getText() ~= "", "add tier fills the default")
-    pool("achv")["e:n5"]:setText("Undying")
+    T.check(#apg.rows == 6 and pool("achv")["e:t6"]:getText() ~= "", "add tier fills the default")
+    pool("achv")["e:n6"]:setText("Undying")
     local onBox = pool("achv")["e:on"]
     onBox.handler(P, false, onBox)
     press("achv", "e:save")
     local tiers = AM.get(P.S, "achievements.zombie_kills.tiers")
     local titles = AM.get(P.S, "achievements.zombie_kills.titles")
-    T.check(#tiers == 5 and titles[5] == "Undying" and apg.edit == nil, "editor result is in the draft")
+    T.check(#tiers == 6 and titles[6] == "Undying" and apg.edit == nil, "editor result is in the draft")
     T.check(AM.get(P.S, "achievements.zombie_kills.enabled") == false, "the editor's switch turns the achievement off in the draft")
     A.onDiscard(P)
     T.check(#dialogs == 1 and dialogs[1].danger and dialogs[1].confirmText == "IGUI_MQ_Admin_Discard" and AM.draftCount(P.S.draft) > 0,
@@ -193,7 +205,8 @@ return function(T)
     hard.handler(P, hard)
     T.check(last("diff.preview").preset == "hard" and P.confirm and P.confirm.estimate ~= nil, "diff.preview -> confirm with estimate")
     T.check(AM.get(P.S, "rewards.top1") == 700, "a value typed on Basic went into the draft before the difficulty preview")
-    press("basic", "cf:apply")
+    T.check(pool("basic")["cf:eh"].y < pool("basic")["cf:r1"].y, "the estimate table comes before the diff rows")
+    barPress("apply")
     T.check(Q.Util.decode(last("cfg.apply").changes)[1].path == "difficulty.preset", "difficulty applied through cfg.apply")
     T.check(AM.get(P.S, "rewards.top1") == 700 and pool("basic")["f:rewards.top1"]:getText() == "700",
         "applying the difficulty keeps the typed reward (still in the draft)")
@@ -220,17 +233,55 @@ return function(T)
         "a theme shows only its daily and weekly templates")
     T.check(P.S.draft.by["daily.pool.d_kill.target"] ~= nil and P.S.draft.by["daily.pool.d_kill.target"][1] == 25,
         "a value typed before picking a theme is in the draft")
+    T.check(pool("quests")["tb:o1"]:isVisible() and pool("quests")["tb:o1"].y < pool("quests")["hd"].y,
+        "the whole-theme buttons sit with the filter, above the daily table")
+    local gtq = getText
+    getText = function(key, ...)
+        local s = key
+        for i = 1, select("#", ...) do s = s .. "|" .. tostring((select(i, ...))) end
+        return s
+    end
     press("quests", "tb:o2")
     local off = 0
     for _, path in ipairs(P.S.draft.order) do if string.match(path, "%.enabled$") and P.S.draft.by[path] == false then off = off + 1 end end
     T.check(off == 5 and pool("quests")["f:daily.pool.d_sew.enabled"]:getChecked() == false,
         "Disable all: the 3 daily and 2 weekly tailoring templates, and the switches show it")
+    T.check(string.find(P.msg, "IGUI_MQ_Admin_InDraftWhat|IGUI_MQ_Admin_SumThemeOff|", 1, true) == 1
+        and string.find(P.msg, "|5", 1, true) ~= nil, "the bar says what Disable all did: theme and count")
+    local sewName = pool("quests")["n:daily.pool.d_sew"]
+    T.check(string.find(sewName.lines[1], "IGUI_MQ_Admin_Changed|", 1, true) == 1 and sewName.color.token == "info",
+        "a row with a drafted value is marked in its name and not in the gold of controls")
     press("quests", "tb:m2")
     local sew = AM.get(P.S, "daily.pool.d_sew.target")
     T.check(sew[1] == 3 and sew[2] == 5 and pool("quests")["f:daily.pool.d_sew.target.1"]:getText() == "3",
         "targets x1.25 on the template step; the fields show the draft")
+    local once = P.msg
+    T.check(string.find(once, "IGUI_MQ_Admin_SumThemeMult|", 1, true) ~= nil and string.find(once, "|1.25", 1, true) ~= nil
+        and string.find(once, "MultTotal", 1, true) == nil, "the bar says x1.25 and on how many quests")
+    press("quests", "tb:m2")
+    T.check(P.msg ~= once and string.find(P.msg, "IGUI_MQ_Admin_MultTotal|", 1, true) ~= nil and string.find(P.msg, "|1.56", 1, true) ~= nil,
+        "x1.25 twice: the bar gives the total x1.56, not the same message again")
+    getText = gtq
+    for _, k in ipairs({ "hg", "hs", "hn", "he" }) do
+        T.check(pool("quests")["j:" .. k] ~= nil and pool("quests")["j:" .. k]:isVisible(), "jump button to " .. k)
+    end
+    press("quests", "j:he")
+    local sy = P.pages.quests.sp:getYScroll()
+    T.check(sy < 0 and sy == -(pool("quests")["he"]:getY() - A.PAD), "the events jump scrolls their heading to the top")
     A.discard(P)
     th.handler(P, "all", th)
+
+    T.section("admin ui: players-see-the-list switch on the quests tab")
+    local plSw = pool("quests")["f:quests.playerList"]
+    T.check(plSw ~= nil and plSw:isVisible() and plSw:getChecked() == false and plSw.y < th.y,
+        "the switch sits at the top of the quests tab, above the theme filter, off by default")
+    plSw:setChecked(true)
+    A.onPreview(P)
+    changes = Q.Util.decode(last("cfg.preview").changes)
+    T.check(#changes == 1 and changes[1].path == "quests.playerList" and changes[1].value == true and P.confirm ~= nil,
+        "turning it on goes through the draft and the preview")
+    A.onConfirmCancel(P)
+    A.discard(P)
 
     T.section("admin ui: quest form checks before sending")
     A.select(P, "quests")
@@ -321,7 +372,10 @@ return function(T)
     T.check(ev and ev.name == "Fest" and ev.theme == "all" and ev.mult == 2 and ev.startMs == AM.dayStartMs("2099-01-01")
         and ev.endMs == AM.dayStartMs("2099-01-03") + 86400000, "event.add with day range in the sandbox timezone")
     press("quests", "er1")
-    T.check(dialogs[#dialogs].confirmText == "IGUI_MQ_Admin_EventRemove", "the remove dialog names the action")
+    T.check(dialogs[#dialogs].confirmText == "IGUI_MQ_Admin_EventRemoveConfirm" and dialogs[#dialogs].title == "IGUI_MQ_Admin_EventRemoveConfirm",
+        "the remove dialog names the action")
+    local er1, e1 = pool("quests")["er1"], pool("quests")["e1"]
+    T.check(math.abs((er1.y + er1.height / 2) - (e1.y + e1.height / 2)) <= 1, "the remove button is on its event's line")
     answer(true, "")
     T.check(last("event.remove").id == 1, "event.remove by id")
 
@@ -359,6 +413,22 @@ return function(T)
 
     T.section("admin ui: balance suggestions, towns, history")
     A.select(P, "balance")
+    local bp = pool("balance")
+    local hd = bp["hd"].cells
+    T.check(#hd == 5 and hd[2].text == "IGUI_MQ_Admin_ColGiven" and hd[3].text == "IGUI_MQ_Admin_ColRate"
+        and hd[4].text == "IGUI_MQ_Admin_ColMedian" and hd[5].text == "IGUI_MQ_Admin_ColSwaps", "balance columns: given, rate, time, swapped")
+    T.check(bp["r1"].cells[2].text == "10" and bp["r1"].cells[3].text == "20%" and bp["r1"].cells[5].text == "0"
+        and bp["sg1"].lines[1] == "IGUI_MQ_Admin_TooHard" and bp["sg2"]:isVisible() and bp["sg2"].lines[1] == "IGUI_MQ_Admin_FewSamples"
+        and bp["apply"].opts.title == "IGUI_MQ_Admin_ApplySuggest1",
+        "an older reply (no swaps, no minGiven): swaps 0, 10 assumed, the 3-sample row says why it has no suggestion")
+    balanceReply = { minGiven = 2, rows = { { tid = tid, given = 14, done = 1, swaps = 4, rate = 0.1, medianMin = 30,
+        suggest = { kind = "hard", path = "daily.pool." .. tid .. ".target", value = { 2, 3 } } },
+        { tid = C.daily[2].tid, given = 3, done = 0, swaps = 0, rate = 0 }, { tid = C.daily[3].tid, given = 2, done = 0, swaps = 2 } } }
+    P.pages.balance.loaded = false
+    A.select(P, "balance")
+    T.check(bp["r1"].cells[2].text == "14" and bp["r1"].cells[3].text == "10%" and bp["r1"].cells[5].text == "4"
+        and not bp["sg2"]:isVisible() and bp["r3"].cells[3].text == "-" and bp["sg3"].lines[1] == "IGUI_MQ_Admin_FewSamples",
+        "with swaps and minGiven: the server's rate, swaps shown, the threshold from the reply; all swapped away = no rate")
     press("balance", "apply")
     changes = Q.Util.decode(last("cfg.preview").changes)
     T.check(changes[1].path == "daily.pool." .. tid .. ".target" and changes[1].value[2] == 3 and P.confirm ~= nil, "suggestions previewed")

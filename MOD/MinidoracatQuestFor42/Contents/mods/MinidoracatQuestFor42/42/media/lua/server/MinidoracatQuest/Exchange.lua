@@ -68,6 +68,7 @@ local function bookCoins(coins, now)
         e.day, e.coins = day, 0
     end
     e.coins = (e.coins or 0) + coins
+    if MQ.Report then MQ.Report.add("coins", nil, coins) end
 end
 
 local function finish(acc, user, row, state, now)
@@ -192,11 +193,17 @@ function X.status(now)
     local cfg = MQ.Config.get().exchange
     local e = MQ.Store.root().exchange
     local todayCoins = e.day == MQ.Clock.dayKey(now) and e.coins or 0
-    local sum, n = 0, 0
-    for _, d in ipairs(e.days or {}) do
-        sum, n = sum + d.coins, n + 1
+    -- the 7 calendar days before today, a day without exchanges counting 0; the day still in e.day/e.coins (rolled
+    -- into e.days only at the next exchange) counts too. No paid day in the window: today's coins.
+    local byDay = {}
+    for _, d in ipairs(e.days or {}) do byDay[d.day] = d.coins end
+    if e.day then byDay[e.day] = e.coins or 0 end
+    local sum, any = 0, false
+    for k = 1, X.KEEP_DAYS do
+        local c = byDay[MQ.Clock.dayKey(now - k * 86400000)]
+        if c then sum, any = sum + c, true end
     end
-    local estimate = n > 0 and sum / n or todayCoins
+    local estimate = any and sum / X.KEEP_DAYS or todayCoins
     local mult = 1
     local events = {}
     for _, ev in ipairs(MQ.Store.root().events or {}) do

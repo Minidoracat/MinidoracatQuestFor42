@@ -26,8 +26,9 @@ A.TIER_STAT = "achv.tiers"
 local function code(name) return MQ.Contract.CODE[name] end
 
 -- Difficulty scales thresholds (C11): below 100 round to an integer, above to 2 significant digits;
--- the result stays strictly ascending.
-function A.scale(tiers, mult)
+-- the result stays strictly ascending. Stats with a ceiling (Catalog.scalable) keep their thresholds.
+function A.scale(tiers, mult, stat)
+    if stat ~= nil and not MQ.Catalog.scalable(stat) then mult = 1 end
     local out, prev = {}, 0
     for i, v in ipairs(tiers) do
         local s = v
@@ -54,7 +55,8 @@ local function merge(base, o, mult)
     local tiers = o.tiers or base.tiers
     return { id = base.id, cat = base.cat, stat = base.stat, icon = base.icon, hidden = base.hidden,
         scope = base.scope, name = base.name, nameKey = base.nameKey, custom = base.custom, base = tiers,
-        tiers = A.scale(tiers, mult), pts = o.pts or base.pts or {}, titles = o.titles or base.titles or {} }
+        tiers = A.scale(tiers, mult, base.stat), pts = MQ.Catalog.fillPts(o.pts or base.pts or {}, base.pts, #tiers),
+        titles = o.titles or base.titles or {} }
 end
 
 -- ---------- effective list (cached per effective config table and pack count) ----------
@@ -124,7 +126,7 @@ local function broadcastable(cfg, d, tier)
     return tier >= min or (#d.tiers < min and tier == #d.tiers)
 end
 
-local function unlock(acc, user, d, from, to, quiet, cfg, now)
+local function unlock(acc, user, d, from, to, quiet, cfg, now, noBroadcast)
     acc.titles = acc.titles or {}
     for t = from + 1, to do
         local pts = d.pts[t] or 0
@@ -135,7 +137,7 @@ local function unlock(acc, user, d, from, to, quiet, cfg, now)
             acc.unseen = (acc.unseen or 0) + 1
             MQ.EventLog.write("achv", user, { id = d.id, tier = t, pts = pts })
             MQ.Sync.toast(user, { kind = "achv", id = d.id, tier = t, pts = pts })
-            if broadcastable(cfg, d, t) then
+            if not noBroadcast and broadcastable(cfg, d, t) then
                 MQ.Sync.broadcastToast({ kind = "broadcast", who = not acc.anon and user or nil, id = d.id, tier = t,
                     titleId = title }, user)
             end
@@ -143,6 +145,7 @@ local function unlock(acc, user, d, from, to, quiet, cfg, now)
     end
     acc.achv[d.id] = to
     if to >= #d.tiers then MQ.Sync.unpin(acc, user, "a:" .. d.id) end   -- nothing left to track
+    if not quiet and MQ.Report then MQ.Report.add("tiers", nil, to - from) end
     MQ.Sync.dirty(user, "achv")
     if quiet then
         local total = 0
@@ -153,7 +156,8 @@ local function unlock(acc, user, d, from, to, quiet, cfg, now)
     end
 end
 
--- opts = { stat = id (only that stat's achievements), quiet = true (import: lifetime points only) }
+-- opts = { stat = id (only that stat's achievements), quiet = true (import: lifetime points only),
+--   noBroadcast = true (login catch-up: tiers a new default or a lowered threshold already gives; toast only) }
 function A.evaluate(acc, user, opts)
     opts = opts or {}
     local list, byStat = A.list()
@@ -171,7 +175,7 @@ function A.evaluate(acc, user, opts)
             if v >= nextT then
                 local to = cur
                 while d.tiers[to + 1] and v >= d.tiers[to + 1] do to = to + 1 end
-                unlock(acc, user, d, cur, to, opts.quiet, cfg, now)
+                unlock(acc, user, d, cur, to, opts.quiet, cfg, now, opts.noBroadcast)
                 n = n + to - cur
             end
         end

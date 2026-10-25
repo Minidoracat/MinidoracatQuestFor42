@@ -38,6 +38,7 @@ S.adminOps = S.adminOps or {}
 S.cache = S.cache or {}        -- user -> { map = { key -> { at, result } }, order = { key } }
 S.rate = S.rate or {}          -- user -> { start, n }
 S.cooldown = S.cooldown or {}  -- user -> { [command] = ms }
+S.LATER = S.LATER or {}       -- run returns true, S.LATER: no reply now; the op sends its "admin" reply itself
 S.unverified = S.unverified or {}
 
 -- spec = { kind = "query" | "mutation", fields = { f = "type" | "type?" }, admin = bool, cooldownMs, run(ctx) }
@@ -273,9 +274,11 @@ function S.onClientCommand(module, command, player, args)
     if not S.ready or not Q.Store.ready() or (mutation and Q.Store.readOnly) then
         res = { ok = false, code = CODE.NOT_READY }
     else
-        local ctx = { player = player, user = user, args = fields, now = now, admin = admin, command = command, op = op }
+        local ctx = { player = player, user = user, args = fields, now = now, admin = admin, command = command, op = op,
+            requestId = requestId }
         local ok, a, b = runSpec(spec, ctx)
         if ok == true then
+            if a == S.LATER then return end   -- the op replies later itself (Report: snapshot built over ticks)
             if not mutation and op == nil then return end   -- queries reply on their own
             res = merged({ ok = true, code = CODE.OK }, a)
             if mutation and op ~= nil then
@@ -350,8 +353,11 @@ S.define("hello", { kind = "query", run = function(ctx)
     local acc = Q.Store.account(ctx.user, true)
     if acc == nil then return false, CODE.NOT_READY end
     Q.Store.touch(ctx.user, acc)
+    if Q.Report then Q.Report.seen(acc) end
     if Q.Quests then safeCall("Quests.ensure", Q.Quests.ensure, acc, ctx.user, ctx.now) end
     if Q.Import then safeCall("Import.baseline", Q.Import.baseline, acc, ctx.user, ctx.player) end
+    -- tiers a new default (5-tier update) or a lowered threshold already gives: toast, no server-wide notice
+    if Q.Achievements then safeCall("Achievements.evaluate", Q.Achievements.evaluate, acc, ctx.user, { noBroadcast = true }) end
     Q.Net.send(ctx.player, "catalog", Q.Sync.catalog())
     Q.Net.send(ctx.player, "state", Q.Sync.state(ctx.user, acc))
     Q.Net.send(ctx.player, "titles", { full = true, map = Q.Sync.titles() })

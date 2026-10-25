@@ -298,9 +298,9 @@ The sandbox page "Minidoracat Quests & Achievements" has three options; everythi
 Open "Admin" on the left of the window (its own group at the bottom of the list); only roles listed in the "Admin roles" sandbox option see it, and the server checks every action again.
 [h3]How changes work[/h3]
 [list]
-[*] [b]Tabs[/b]: settings come first (General, Achievements, Quests, Season, Exchange, Towns); after the divider come operations (Players, Balance, History).
-[*] [b]Draft first[/b]: edits go into pending changes; press "Preview changes" to see old and new values, then apply. "Discard changes" asks before it discards.
-[*] [b]Instant buttons[/b]: timed events, the payout review and account actions skip the preview; those sections say so.
+[*] [b]Tabs[/b]: settings come first (General, Achievements, Quests, Season, Exchange, Towns); after the divider come operations (Players, Report, Balance, History).
+[*] [b]Draft first[/b]: edits go into pending changes; press "Apply" at the bottom to see old and new values, then confirm. "Discard changes" asks before it discards.
+[*] [b]Instant buttons[/b]: timed events, the payout review and account actions skip that confirmation; those sections say so.
 [*] [b]Unlocks are kept[/b]: higher thresholds only affect what comes next.
 [*] [b]Times[/b]: shown in the sandbox time zone.
 [/list]
@@ -324,7 +324,7 @@ Steps 1-5 cover the common settings; the other tabs hold the rest.
 [/list]
 [h3]Quests[/h3]
 [list]
-[*] [b]Players see each theme's quests[/b]: the switch at the top of the tab, off by default. While it is off only admins see the quests-by-theme list at the bottom of Settings, with a note that players cannot see it; turned on, players see it too. Like other settings it goes into pending changes, is previewed before it applies, and shows in History.
+[*] [b]Players see each theme's quests[/b]: the switch at the top of the tab, off by default. Off, only admins see the quests-by-theme list at the bottom of Settings, marked as hidden from players; on, players see it too. It goes through Apply and History like any setting.
 [*] [b]Theme filter[/b]: the list shows how many daily and weekly quests each theme has; with a theme picked, buttons beside the filter turn the whole group on or off, or multiply its targets by 0.8 or 1.25. The result goes into pending changes, the bar says what was done, and templates with pending changes show "(changed)". Buttons under the filter jump to the community goal, streak rewards, newcomer quests and timed events.
 [*] [b]Daily and weekly pools[/b]: on/off, target range and points per template; of two templates with the same name, the bigger one shows "(bulk)".
 [*] [b]Daily and weekly settings[/b]: points for the server-wide quest, swaps per day, weekly quests.
@@ -353,6 +353,14 @@ Steps 1-5 cover the common settings; the other tabs hold the rest.
 [*] [b]Look up an account[/b]: View on a row, or type the account, lists at the top of the page its three point numbers, achievements, anomalies this season and whether it is removed from the leaderboards.
 [*] [b]Revoke achievements[/b]: down to a chosen tier, or all of it.
 [*] [b]Remove from or return to the leaderboards[/b]: data is kept. Revoking and removing require a reason and record who did it.
+[/list]
+[h3]Report[/h3]
+[list]
+[*] [b]Scope[/b]: totals for the last 7 or 30 days, counts only, no individual players; recounted when the page opens and kept for 5 minutes.
+[*] [b]Usage[/b]: players with activity today and in the period, new accounts, daily and weekly completion, swaps, 7+ day streaks, and a pair of bars per day: players with activity and players who finished a daily quest.
+[*] [b]Points[/b]: paid out in the period and the share from each source, coins exchanged, unspent points and the share the top 10% hold.
+[*] [b]Achievements[/b]: players per tier of each achievement; those nobody unlocked come last (hidden ones counted, not named).
+[*] [b]Export JSON[/b]: report-YYYY-MM-DD.json beside config.json, one per day, with no player names or accounts.
 [/list]
 [h3]Balance[/h3]
 [list]

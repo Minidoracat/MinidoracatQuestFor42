@@ -41,7 +41,7 @@ local function onExport(P)
     end)
 end
 
--- ===== per-day bars: players with activity (muted) beside players who finished a daily quest (text) =====
+-- ===== per-day bars: players with activity (reportActive) beside players who finished a daily quest (reportDone) =====
 
 local Bars
 
@@ -59,7 +59,7 @@ local function barsClass()
         local rows, colors, fh = self.rows, self.theme.colors, self.fh
         local n = #rows
         if n == 0 then return end
-        local on, done, muted = colors.textMuted, colors.text, colors.textMuted
+        local on, done, muted = colors.reportActive, colors.reportDone, colors.textMuted
         local chartH = self.height - 2 * fh - 6
         local max = 1
         for i = 1, n do max = math.max(max, rows[i].active or 0, rows[i].dPlayers or 0) end
@@ -101,8 +101,8 @@ local function bars(P, F, rows)
         return b
     end)
     e.rows = rows
-    e.legend = { { c = colors.textMuted, text = getText("IGUI_MQ_Admin_ReportLegendActive") },
-        { c = colors.text, text = getText("IGUI_MQ_Admin_ReportLegendDone") } }
+    e.legend = { { c = colors.reportActive, text = getText("IGUI_MQ_Admin_ReportLegendActive") },
+        { c = colors.reportDone, text = getText("IGUI_MQ_Admin_ReportLegendDone") } }
     e:setX(A.PAD)
     e:setY(F.y)
     e:setWidth(F.width - 2 * A.PAD)
@@ -110,13 +110,13 @@ local function bars(P, F, rows)
     F.y = F.y + e.height + A.GAP
 end
 
--- big numbers in equal columns, the caption under each
+-- big numbers in equal columns, the caption under each; it[3] = the colour token of the bars a number belongs to
 local function kpis(F, items)
     local colW = math.floor((F.width - 2 * A.PAD) / #items)
     local h = 0
     for i, it in ipairs(items) do
         local x = A.PAD + (i - 1) * colW
-        local v = F:label("kv" .. i, it[1], "text", UIFont.Medium)
+        local v = F:label("kv" .. i, it[1], it[3] or "text", UIFont.Medium)
         local c = F:label("kc" .. i, it[2], "textMuted", nil, colW - A.GAP)
         v:setX(x)
         v:setY(F.y)
@@ -136,7 +136,7 @@ local function layoutAchv(P, F, data)
     local colW = math.max(A.textW("0,000"), A.textW("III")) + 2 * A.GAP
     local nameW = math.max(60, F.width - 2 * A.PAD - #ROMAN * colW)
     local head = { { text = getText("IGUI_MQ_Admin_ColAch"), x = A.PAD, token = "textMuted" } }
-    for k, t in ipairs(ROMAN) do head[#head + 1] = { text = t, x = A.PAD + nameW + k * colW, right = true, token = "textMuted" } end
+    for k, t in ipairs(ROMAN) do head[#head + 1] = { text = t, x = A.PAD + nameW + k * colW, right = true, token = "tier" .. k } end
     F:cells("ah", head)
     local none, hidden, i = {}, 0, 0
     for _, r in ipairs(data.achv or {}) do
@@ -189,10 +189,10 @@ local function layoutReport(P, pg, F)
 
     F:head("hu", getText("IGUI_MQ_Admin_ReportUsageHead"))
     kpis(F, {
-        { A.num(today.active or 0), getText("IGUI_MQ_Admin_ReportToday") },
-        { A.num(s.active or 0), getText("IGUI_MQ_Admin_ReportActive", data.days) },
+        { A.num(today.active or 0), getText("IGUI_MQ_Admin_ReportToday"), "reportActive" },
+        { A.num(s.active or 0), getText("IGUI_MQ_Admin_ReportActive", data.days), "reportActive" },
         { A.num(sum.fresh or 0), getText("IGUI_MQ_Admin_ReportFresh") },
-        { pct(sum.dRate), getText("IGUI_MQ_Admin_ReportDailyRate") },
+        { pct(sum.dRate), getText("IGUI_MQ_Admin_ReportDailyRate"), "reportDone" },
     })
     bars(P, F, rows)
     F:text("wk", getText("IGUI_MQ_Admin_ReportWeekLine", pct(sum.wRate), A.num(sum.swaps or 0), A.num(s.streak7 or 0)), "text")

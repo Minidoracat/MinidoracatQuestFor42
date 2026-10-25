@@ -667,7 +667,8 @@ function A.fold(P)
     return true
 end
 
--- bar "Preview changes": fold the page's form into the draft, then cfg.preview the whole draft
+-- bar "Apply" (key IGUI_MQ_Admin_Preview): fold the page's form into the draft, then cfg.preview the whole draft; the
+-- confirm view it opens is where the change is applied (renamed from "Preview changes" after the 2026-10-25 playtest)
 function A.onPreview(P)
     local pg = P.pages[P.current]
     local values = A.collect(P, pg)

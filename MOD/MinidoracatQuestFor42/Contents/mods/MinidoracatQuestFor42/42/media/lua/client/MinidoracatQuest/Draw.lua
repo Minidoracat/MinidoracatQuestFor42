@@ -47,6 +47,10 @@ D.EXTRA = {
     gold = rgb(0.91, 0.76, 0.35),
     legend = D.TIER[5],
     tier1 = D.TIER[1], tier2 = D.TIER[2], tier3 = D.TIER[3], tier4 = D.TIER[4], tier5 = D.TIER[5],
+    -- admin report: players with activity / players who finished a daily quest (bars, legend, their big numbers);
+    -- blue and orange stay apart for colour-blind readers (user's pick, 2026-10-25)
+    reportActive = rgb(0.45, 0.68, 1.0),
+    reportDone = rgb(1.0, 0.62, 0.30),
 }
 
 function D.theme(UI)

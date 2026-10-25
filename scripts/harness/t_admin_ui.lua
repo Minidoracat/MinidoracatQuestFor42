@@ -46,13 +46,20 @@ return function(T)
             return setmetatable({ opts = opts, x = opts.x or 0, y = opts.y or 0, width = opts.width or 80, height = opts.height or 20 }, W)
         end
     end
+    -- ISButton.new keeps target and onclick on the button itself and onMouseUp/forceClick call
+    -- self.onclick(self.target, self): a consumer field named target replaces what a click is sent to
+    local button = widget({ setTitle = function(self, s) self.opts.title = s end,
+        fitWidth = function(self) self.width = #tostring(self.opts.title) * 7 + 20 end,
+        setActive = function(self, b) self.active = b end, setStyle = function(self, s) self.style = s end })
     local dialogs = {}
     local UI = {
         CAPABILITIES = { textFieldInvalid = true, datePicker = false },
         Text = { fit = function(s) return s end, wrap = function(s) return { s } end },
-        Button = { new = widget({ setTitle = function(self, s) self.opts.title = s end,
-            fitWidth = function(self) self.width = #tostring(self.opts.title) * 7 + 20 end,
-            setActive = function(self, b) self.active = b end, setStyle = function(self, s) self.style = s end }) },
+        Button = { new = function(opts)
+            local b = button(opts)
+            b.target, b.onclick = opts.target, opts.onClick
+            return b
+        end },
         Checkbox = { new = widget({ setLabel = function() end, setChecked = function(self, b) self.opts.checked = b end,
             getChecked = function(self) return self.opts.checked == true end }) },
         TextField = { new = widget({ getText = function(self) return self.text or "" end, setText = function(self, s) self.text = s end,
@@ -123,8 +130,10 @@ return function(T)
     local P = A.instance
     T.check(P ~= nil and last("cfg.get") ~= nil and P.S.overrides ~= nil, "showing the admin page loads cfg.get")
     local function pool(id) return P.pages[id].flow.pool end
-    local function press(id, key) local b = pool(id)[key]; T.check(b ~= nil and b:isVisible(), "button shown: " .. id .. "/" .. key); b.handler(P, b) end
-    local function barPress(key) local b = P.barFlow.pool[key]; T.check(b ~= nil and b:isVisible(), "bar button shown: " .. key); b.handler(P, b) end
+    -- a press goes through the button's own onclick(target, button), the way the engine sends a click
+    local function click(b) b.onclick(b.target, b) end
+    local function press(id, key) local b = pool(id)[key]; T.check(b ~= nil and b:isVisible(), "button shown: " .. id .. "/" .. key); click(b) end
+    local function barPress(key) local b = P.barFlow.pool[key]; T.check(b ~= nil and b:isVisible(), "bar button shown: " .. key); click(b) end
     local function answer(ok, text) local d = dialogs[#dialogs]; dialogs[#dialogs] = nil; d.onResult(ok, text) end
 
     T.section("admin ui: every tab lays out and loads its data")

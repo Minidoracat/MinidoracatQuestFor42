@@ -347,9 +347,11 @@ end
 local JUMPS = { { "hg", "IGUI_MQ_Admin_GoalHead" }, { "hs", "IGUI_MQ_Admin_StreakHead" }, { "hn", "IGUI_MQ_Admin_NewbieHead" },
     { "he", "IGUI_MQ_Admin_EventsHead" } }
 
+-- b.jump, not b.target: ISButton sends a click to self.target (the panel), so a section key stored there made every
+-- jump index a string (playtest 1025b, "attempted index: quests of non-table")
 local function onJump(P, b)
     local pg = P.pages.quests
-    local head = pg.flow.pool[b.target]
+    local head = pg.flow.pool[b.jump]
     if head and head:isVisible() then pg.sp:setYScroll(-(head:getY() - A.PAD)) end
 end
 
@@ -380,7 +382,7 @@ local function layoutQuests(P, pg, F)
     local jumps = { F:label("jl", getText("IGUI_MQ_Admin_JumpTo"), "textMuted") }
     for _, j in ipairs(JUMPS) do
         local b = F:button("j:" .. j[1], getText(j[2]), onJump)
-        b.target = j[1]
+        b.jump = j[1]
         jumps[#jumps + 1] = b
     end
     F:row(jumps)

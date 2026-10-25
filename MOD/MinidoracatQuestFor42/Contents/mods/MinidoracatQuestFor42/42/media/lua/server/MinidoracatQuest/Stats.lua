@@ -116,9 +116,12 @@ function S.max(who, stat, value, opts)
     return true
 end
 
--- Import only: total = max(total, value); runs just the "achievements" listener, quietly.
-function S.seed(acc, user, stat, value)
-    if acc == nil or type(stat) ~= "string" or not C.isFinite(value) or value <= (acc.total[stat] or 0) then return false end
+-- Import only: total = max(total, value); life = true raises the life scope the same way (a count the character
+-- itself carries, e.g. its zombie kills). Runs just the "achievements" listener, quietly.
+function S.seed(acc, user, stat, value, life)
+    if acc == nil or type(stat) ~= "string" or not C.isFinite(value) then return false end
+    if life and value > (acc.life[stat] or 0) then acc.life[stat] = value end
+    if value <= (acc.total[stat] or 0) then return false end
     local old = acc.total[stat] or 0
     acc.total[stat] = value
     for _, l in ipairs(S.listeners) do

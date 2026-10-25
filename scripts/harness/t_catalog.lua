@@ -232,6 +232,7 @@ return function(T)
     T.check(Tr.installed == true, "installed on OnServerStarted")
     local p = human(T.player({ name = "alice", x = 10800, y = 9900, hours = 30 }))
     local function tot(stat) local a = Q.Store.account("alice", false) return a and a.total[stat] or 0 end
+    T.cmd(p, "hello")   -- the poll waits for the hello's import (Trackers.pollPlayer)
 
     -- crafting: result passed through; counted only when logic:performCurrentRecipe() returned true
     local act = { character = p, craftRecipe = recipe("Soup", "Cooking"), logic = logic(true, "Soup") }
@@ -408,11 +409,28 @@ return function(T)
 
     -- pacifist: a fresh life with no kills
     local b = human(T.player({ name = "bob", x = 500, y = 500, hours = 200 }))
+    T.cmd(b, "hello")
     T.advance(60000)
     T.tick(1)
     local bacc = Q.Store.account("bob", false)
     T.check(bacc ~= nil and bacc.total["pacifist.days"] == 8, "pacifist days")
     T.check(b ~= nil, "bob online")
+
+    -- mid-install veteran: nothing is polled before the hello, whose import unlocks old progress quietly; the
+    -- character's kills count for this life too, so a character that already killed is no pacifist
+    local v = human(T.player({ name = "vet", x = 600, y = 600, hours = 2400, kills = 500 }))
+    v.levels.Woodwork = 8
+    T.advance(60000)
+    T.tick(1)
+    T.check(Q.Store.account("vet", false) == nil, "no polling before hello")
+    T.cmd(v, "hello")
+    T.advance(60000)
+    T.tick(1)
+    local vacc = Q.Store.account("vet", false)
+    T.check(vacc.life["zombie.kills"] == 500 and (vacc.total["pacifist.days"] or 0) == 0 and vacc.achv.h_pacifist == nil,
+        "a character that already killed is no pacifist")
+    T.check(vacc.points.season == 0 and vacc.points.balance == 0 and vacc.achv.skill_woodwork == 3
+        and vacc.achv.life_days == 3, "old levels and days unlock quietly: lifetime points only")
 
     -- safety: no client command can add progress
     local before = tot("zombie.kills")

@@ -224,7 +224,8 @@ function Imp.baseline(acc, user, player)
     acc.imported = true
     local S = MQ.Stats
     local hours = player:getHoursSurvived() or 0
-    S.seed(acc, user, "zombie.kills", player:getZombieKills() or 0)
+    -- the vanilla count is this character's, so it is this life's too: pacifist.days must not see a killer as clean
+    S.seed(acc, user, "zombie.kills", player:getZombieKills() or 0, true)
     S.seed(acc, user, "life.days", math.floor(hours / 24))
     local sum, best = 0, 0
     for _, id in ipairs(MQ.Catalog.perks or {}) do

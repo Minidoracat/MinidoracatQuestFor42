@@ -409,7 +409,9 @@ function T.pollPlayer(p, now)
     local user = Q.Identity.principal(p)
     if user == nil then return end
     local St = Q.Store
-    local acc = St.ready() and not St.readOnly and St.account(user, true) or nil
+    local acc = St.ready() and not St.readOnly and St.account(user, false) or nil
+    -- not before hello: its import seeds old levels and days quietly; polled first, they would unlock out loud
+    if acc == nil or not acc.imported then return end
 
     local x, y = p:getX(), p:getY()
     local veh = p:getVehicle()
@@ -426,16 +428,16 @@ function T.pollPlayer(p, now)
     T.days[user] = days
     if days > 0 then
         Q.Stats.max(user, "life.days", days)
-        if acc ~= nil and (acc.life["zombie.kills"] or 0) == 0 then Q.Stats.max(user, "pacifist.days", days) end
+        if (acc.life["zombie.kills"] or 0) == 0 then Q.Stats.max(user, "pacifist.days", days) end
     end
 
     local town = Q.Towns.at(x, y)
-    if acc ~= nil and town ~= nil and acc.towns ~= nil and not acc.towns[town] then
+    if town ~= nil and acc.towns ~= nil and not acc.towns[town] then
         acc.towns[town] = true
         add(user, "town.visited")
     end
     if not T.start[user] then T.start[user] = town end
-    if acc ~= nil and acc.newbie ~= nil and not T.left[user] and T.start[user] ~= nil
+    if acc.newbie ~= nil and not T.left[user] and T.start[user] ~= nil
         and town ~= T.start[user] and holdsWeapon(p) then
         T.left[user] = true
         add(user, "newbie.leave")

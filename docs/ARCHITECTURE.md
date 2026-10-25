@@ -287,7 +287,7 @@ boards[i] = { id = "kills", cat = "combat", stat = "zombie.kills", periods = { "
 
 - `Stats.add(who, stat, n, opts)`：`who` 是 player 或 user 字串。`n` 必須是有限正數；超過每分鐘上限的部分丟掉並 `Audit.over`。依序更新 `total`／`life`／`season`（帳號層級統計跳過 `life`，§3.3；`Stats.max` 同），然後呼叫監聽者。`opts.quiet` 給匯入用（不通知）。
 - `Stats.max(who, stat, value, opts)`：三個範圍各取最大值。
-- `Stats.seed(acc, user, stat, value)`：匯入用，只寫 `total`（取最大值），不觸發任務、只觸發成就判定（安靜）。
+- `Stats.seed(acc, user, stat, value, life)`：匯入用，寫 `total`（取最大值）；`life` 為真時 `life` 也取最大值（角色自己帶的計數，例如擊殺數）。不觸發任務、只觸發成就判定（安靜）。
 - `Stats.resetLife(user)`。
 - `Stats.listen(name, fn)`：`fn(acc, user, stat, delta, opts)`；監聽者在 pcall 裡執行，錯誤寫 log 不中斷。Systems 在載入時登記 `quests`、`goal`、`newbie`、`achievements`、`boards`。
 
@@ -325,7 +325,7 @@ boards[i] = { id = "kills", cat = "combat", stat = "zombie.kills", periods = { "
 - `Quests.swap(acc, user, slot)` → ok, code。`Quests.setPrefs(acc, list)` → ok, code。
 - `Quests.tick(now)`：換日時處理全服任務、共同目標結算發獎（達成時貢獻 ≥ minContrib 的帳號各得 pts），並對開著視窗的玩家呼叫 `ensure`，視窗在重置那一刻就換成新任務。
 - `Achievements.list()`：合併內建、自訂、facade 的有效清單（含設定覆寫的門檻）。`Achievements.evaluate(acc, user, opts)`：判定所有統計相關的成就，`opts.quiet` 時不通知、不發本季積分（只發累計）。`Achievements.revoke(user, achId, toTier, reason, actor)`。
-- `Import.baseline(acc, user, player)`：每個帳號一次。
+- `Import.baseline(acc, user, player)`：每個帳號一次（`hello` 時）。目前角色的擊殺數、存活天數、35 個技能等級寫進 `total`，擊殺數也寫進 `life`（原版的擊殺數是這個角色的，不殺生天數靠它判斷）；符合的成就安靜解鎖。
 - `Exchange.init()`：`OnServerStarted` 探測 `MinidoracatEconomy.v1` 並 `registerSource({ modId = "MinidoracatQuestFor42", nameKey = "IGUI_MQ_Name", displayName = { EN = "Quests & Achievements" }, currencies = { "survivor" }, reasonCodes = { "mq_exchange" } })`。經濟系統的管理台用 `IGUI_MinidoracatEconomy_Reason_<原因碼>` 顯示原因（`ECWidgets.lua` `U.reasonText`，找不到鍵才寫「其他模組的原因：<碼>」）；這個鍵放在本 MOD 的 16 種語言翻譯檔，原因碼加 `mq_` 前綴，避免和其他整合來源的碼共用同一個鍵。`Exchange.available()`。`Exchange.request(acc, user, amount)` → ok, code, { state, coins }。`Exchange.tick(now)`：排隊重試，有一筆結束就標記 `points` 與 `exchange` 要重送。
 - `Seasons.current()`、`Seasons.tick(now)`、`Seasons.previewLength(days)` → `{ endMs, nextStartMs }` 或 nil, code（新結算時刻至少在 24 小時後）、`Seasons.applyLength(days, actor)`、`Seasons.review()`、`Seasons.exclude(user, on, reason, actor)`、`Seasons.confirm(actor)`。
 - `Boards.dirty(stat)`、`Boards.dirtyAll()`（`Config.apply`／`undo` 動到 `boards.*` 時呼叫：所有榜在接下來的 tick 重算，之後照新間隔排）、`Boards.tick(now)`（每 tick 最多重排一個榜）、`Boards.page(boardId, period, user, admin)`、`Boards.setHidden(user, on, reason, actor)`。
@@ -333,7 +333,7 @@ boards[i] = { id = "kills", cat = "combat", stat = "zombie.kills", periods = { "
 
 ### 5.9 Trackers、Towns（Catalog 擁有）
 
-- `Trackers.install()`：在 `OnServerStarted` 掛事件與包裝原版動作的 `complete()`／`ISBuildIsoEntity:create`；原動作先跑，紀錄包在 `Trackers.guard`（pcall，每個掛點第一次出錯印一行 `[MinidoracatQuestFor42] Trackers: <掛點> failed: …`，記在 `Trackers.failed`）。42.21 封窗是建造實體（CraftRecipe 分類 `Barricades`），`ISBuildIsoEntity:create` 依分類記 `barricade.count` 或 `build.count`。每分鐘輪詢在線玩家（開車與步行里程、存活天數、城鎮、室內睡覺、新手「帶武器離開起始城鎮」）；一段里程換算的速度超過步行 0.5 km／分鐘或開車 4 km／分鐘就視為瞬移、整段不記。
+- `Trackers.install()`：在 `OnServerStarted` 掛事件與包裝原版動作的 `complete()`／`ISBuildIsoEntity:create`；原動作先跑，紀錄包在 `Trackers.guard`（pcall，每個掛點第一次出錯印一行 `[MinidoracatQuestFor42] Trackers: <掛點> failed: …`，記在 `Trackers.failed`）。42.21 封窗是建造實體（CraftRecipe 分類 `Barricades`），`ISBuildIsoEntity:create` 依分類記 `barricade.count` 或 `build.count`。每分鐘輪詢在線玩家（開車與步行里程、存活天數、城鎮、室內睡覺、新手「帶武器離開起始城鎮」）；一段里程換算的速度超過步行 0.5 km／分鐘或開車 4 km／分鐘就視為瞬移、整段不記。輪詢只處理 `imported` 的帳號、不建帳號：`hello` 的匯入要先安靜解鎖舊進度，先輪詢的話技能等級與存活天數會照一般解鎖（全服通知、本季積分）。
 - `Towns.list()`、`Towns.at(x, y)` → townId 或 nil。
 
 ## 6. 網路協定

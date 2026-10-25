@@ -70,7 +70,7 @@
 | `lua/server/MinidoracatQuest/Net.lua` | Core | 送出（含 SP 直呼）、全服廣播、對在線帳號推播 |
 | `lua/server/MinidoracatQuest/Server.lua` | Core | 指令分派（照 Safehouse `S.define`）與玩家指令 `hello`／`watch`／`seen`／`title`／`anon`／`records`；管理 op `cfg.*`、`acct.view`、`anom.list`、`towns.here` |
 | `lua/server/MinidoracatQuest/Sync.lua` | Core | 組 `state`／`catalog`／`delta`，節流推送，通知佇列與合併 |
-| `lua/server/MinidoracatQuest/API.lua` | Core | `MinidoracatQuest.v1`（`registerPack`、`pack.add`），最後一個載入 |
+| `lua/server/MinidoracatQuest/API.lua` | Core | `MinidoracatQuest.v1`（`registerPack`、`pack.add`、`registerHordeKind`），最後一個載入 |
 | `lua/server/MinidoracatQuest/Quests.lua` | Systems | 每日（偏好）、全服任務、換任務、連續、每週、共同目標、新手、限時活動 |
 | `lua/server/MinidoracatQuest/Achievements.lua` | Systems | 等級判定、解鎖、稱號、通知、自訂成就、匯入舊進度、撤銷 |
 | `lua/server/MinidoracatQuest/Exchange.lua` | Systems | 經濟系統整合、排隊、重試、退回 |
@@ -80,16 +80,17 @@
 | `lua/server/MinidoracatQuest/Report.lua` | Systems | 管理「報表」頁：每日總數（`root.daily`）、帳號快照（一 tick 一張分表）、匯出 JSON |
 | `lua/server/MinidoracatQuest/Trackers.lua` | Catalog | 遊戲事件、動作完成、每分鐘輪詢 → `Stats` |
 | `lua/server/MinidoracatQuest/Towns.lua` | Catalog | 城鎮範圍（內建＋自訂）、座標查城鎮 |
-| `lua/client/MinidoracatQuest/*.lua` | ClientUI | 狀態快取、Dock、主視窗、玩家各頁、兌換視窗、通知 |
+| `lua/server/MinidoracatQuest/Hordes.lua` | Systems | 限時屍潮：時段與每小時擲骰、排定、預告、生成、擊殺歸屬、清除、發積分、管理 op `horde.*`、種類登記（§5.10） |
+| `lua/client/MinidoracatQuest/*.lua` | ClientUI | 狀態快取、Dock、主視窗、玩家各頁、兌換視窗、通知、屍潮的小地圖整合（`HordeMap.lua`） |
 | `lua/client/MinidoracatQuest/Admin*.lua` | AdminUI | 管理各頁 |
 | `ui/MinidoracatQuest/**.png` | Icons | 成就圖示、Dock 圖示 |
 | `sandbox-options.txt` | Core | §9 |
 
 `Translate/*` 不由各切片直接改，見 §10。
 
-伺服器載入順序：每個模組自己 `require` 它用到的模組；指令由擁有該資料的模組在載入時用 `Server.define`／`Server.defineAdmin` 登記（`swap`、`prefs`、`board`、`exchange` 與賽季、活動、撤銷、隱藏、平衡、難度的管理 op 由 Systems 登記；`hello`、`watch`、`seen`、`title`、`anon`、`records` 與 `cfg.*`、`acct.view`、`anom.list`、`towns.here` 由 Core 登記）。`API.lua` 依序 `require` 全部伺服器模組（Core、Systems、Catalog 的檔名照上表），都成功後才賦值 `MinidoracatQuest.v1`。
+伺服器載入順序：每個模組自己 `require` 它用到的模組；指令由擁有該資料的模組在載入時用 `Server.define`／`Server.defineAdmin` 登記（`swap`、`prefs`、`board`、`exchange` 與賽季、活動、撤銷、隱藏、平衡、難度、屍潮的管理 op 由 Systems 登記；`hello`、`watch`、`seen`、`title`、`anon`、`records` 與 `cfg.*`、`acct.view`、`anom.list`、`towns.here` 由 Core 登記）。`API.lua` 依序 `require` 全部伺服器模組（Core、Systems、Catalog 的檔名照上表，`Hordes` 在 `Towns` 之後），都成功後才賦值 `MinidoracatQuest.v1`。
 
-離線測試檔的擁有者：`scripts/smoke_harness.lua`、`scripts/harness/env.lua`、`scripts/harness/modules.lua` 是 Core 的；各切片只寫自己的情境檔 `scripts/harness/t_core.lua`、`t_systems.lua`、`t_catalog.lua`、`t_client.lua`、`t_admin.lua`、`t_report.lua`（可以再 `dofile` 自己的子檔 `t_<切片>_*.lua`）。runner 依固定順序載入存在的情境檔。
+離線測試檔的擁有者：`scripts/smoke_harness.lua`、`scripts/harness/env.lua`、`scripts/harness/modules.lua` 是 Core 的；各切片只寫自己的情境檔 `scripts/harness/t_core.lua`、`t_systems.lua`、`t_catalog.lua`、`t_client.lua`、`t_admin.lua`、`t_report.lua`、`t_hordes.lua`（屍潮伺服器）、`t_hordes_ui.lua`（屍潮客戶端）（可以再 `dofile` 自己的子檔 `t_<切片>_*.lua`）。runner 依固定順序載入存在的情境檔。
 
 ## 3. 資料
 
@@ -101,7 +102,7 @@
 root = {
   schema = 1,
   config = { overrides = {}, rev = 0 },      -- 管理員覆寫（§3.4），rev 每次套用 +1
-  history = { },                              -- 最近 20 筆 { id, at, actor, summary, changes = { { path, before, after } } }；伺服器自寫的摘要：`event.add <id> <name>`、`event.remove <id> <name>`、`season.length <天>`、`undo #<id>`，客戶端翻譯（舊列的活動摘要沒有 name，顯示 `#id`）
+  history = { },                              -- 最近 20 筆 { id, at, actor, summary, changes = { { path, before, after } } }；伺服器自寫的摘要：`event.add <id> <name>`、`event.remove <id> <name>`、`horde.now <id> <name>`、`horde.stop <id> <name>`（後兩個不能復原）、`season.length <天>`、`undo #<id>`，客戶端翻譯（舊列的活動摘要沒有 name，顯示 `#id`）
   season = { no = 1, startMs, endMs, lengthDays = 28, state = "running",   -- running | review | paying
              frozen = nil,                    -- { atMs, rows = { { user, pts, anomalies } } }
              excluded = {},                   -- user -> reason
@@ -115,8 +116,25 @@ root = {
   exchange = { day, coins = 0, days = {} },   -- 全服今天兌換量、最近 7 天
   daily = { },                                -- 報表每日總數，保留 30 天（§6.5）：dayKey -> { active, fresh, dGiven, dDone, dPlayers, wGiven, wDone, swaps = { tid = n }, pts = { kind = n }, coins, tiers }
   events = { },                               -- 限時活動 { id, name, theme, mult, startMs, endMs }
+  hordes = { seq = 0,                         -- 屍潮（§5.10）；設定在 config 的 hordes 組，這裡只放即時狀態
+             roll = { day, ws, slot = 0, n = 0 }, -- day：時段所屬的當地日期 "YYYY-MM-DD"；ws：那個時段的開始 ms；slot：已擲過的小時格數；n：今天自動排了幾場
+             cur = nil,                       -- 同時最多一場，形狀見下
+             log = { } },                     -- 結束的場次，新的在後，最多 20 筆（形狀見下）
 }
 ```
+
+屍潮 `cur`（排定時複製設定，之後改設定不影響這場）：
+
+```lua
+{ id, auto = bool, actor = user | "auto", name, x, y, z, town = townId | nil,   -- town：排定時的 Towns.at
+  mix = { { kind = "vanilla", n = 24, nameKey }, { kind = "runner", n = 6, nameKey } },  -- 權重 > 0 的已登記種類；都沒有時全是 vanilla
+  count, perZombie, split, limitMin, waitMin,
+  state = "planned" | "announced" | "waiting" | "active",
+  announceAt, startMs, expireAt (= startMs + waitMin), spawnAt, endsAt (= spawnAt + limitMin),
+  spawned = 0, left = 0, killed = 0, kills = { [user] = n }, tries = 0 }
+```
+
+`log[i]`：`{ id, auto, name, town, state = "success" | "failed" | "cancelled", why, startMs, spawnAt, endedAt, spawned, killed, pool, split, paid = { [user] = pts }, kills = { [user] = n }, announced = bool }`。`why`：失敗是 `time`（時限到）、`nobody`（`expireAt` 前沒人到 50 格內）、`admin`（管理員停止）、`restart`（進行中時伺服器重開）、`spawn`（連續 10 次生成 0 隻）；取消一律 `admin`。`announced = false` 是預告前就取消的場次，玩家看不到。殭屍物件只在記憶體（`Hordes.live`），不進存檔。
 
 - 帳號表 `MinidoracatQuest_A00`～`MinidoracatQuest_A15`：`{ schema = 1, accounts = { [user] = Account } }`。分表＝`Util.hash(user) % 16`，兩位數十進位補零。
 - 每張表的 `schema` 比程式新 → 整份唯讀、不改寫；比程式舊 → 就地升級。第一天就有 `schema`。
@@ -186,10 +204,14 @@ DEFAULTS = {
   boards = { inactiveDays = 180, rebuildSeasonMs = 300000, rebuildTotalMs = 1800000 },
   towns = { custom = { }, disabled = { } },              -- custom: { { id, name, rects = { { x1=, y1=, x2=, y2= } } } }
   ceilings = { },                                        -- stat -> 每分鐘上限覆寫
+  hordes = { enabled = false, from = "19:00", to = "23:00", chance = 30, maxPerDay = 1, leadMin = 15, waitMin = 60,
+             count = { 20, 40 }, kinds = { vanilla = 80, runner = 20 }, limitMin = 15, perZombie = 5, split = "share",
+             spots = { } },                              -- spots：{ { name, x, y, z } }；§5.10
 }
 ```
 
 - 修改單位是 change：`{ op = "set" | "del", path, value }`。`Config.validate` 依路徑家族檢查型別與範圍（門檻嚴格遞增且 1～1e9、積分 0～10000、等級最多 10、倍率 0.1～10、天數 7～180…）。
+- `hordes` 組：`enabled` 布林；`from`／`to` 字串 `H:MM` 或 `HH:MM`（時 0～23、分 0～59；`to < from` 跨午夜，相等＝整天）；`chance` 整數 0～100；`maxPerDay` 1～24；`leadMin` 0～120；`waitMin` 1～240；`count` `{ min, max }` 整數 1～100 且 min ≤ max（整組替換）；`kinds` 分支，鍵是種類 id（`[%w_:-]`，最長 64，外掛種類是 `<modId>:<id>`），值整數 0～100；`limitMin` 1～120；`perZombie` 0～1000；`split` `"share"` 或 `"each"`；`spots` 整組替換，最多 32 個 `{ name = 1～64 字不含控制字元, x = 0～100000, y = 0～100000, z = -32～31 }`，不能有其他鍵。`hordes` 底下的未知鍵一樣驗證失敗。
 - 套用時把每個 change 的舊值記進 `history`（最近 20 筆），復原就把舊值寫回，復原本身也是一筆歷史。
 - 已解鎖的成就不因門檻提高而收回（只影響之後）。
 - 限時活動 `events` 與賽季長度不走 `config`（它們有自己的狀態與指令），但同樣寫歷史與稽核。
@@ -198,9 +220,9 @@ DEFAULTS = {
 
 - 位置 `Lua/MinidoracatQuest/<serverKey>/`。`serverKey`：專用伺服器是 `getServerName()`；單人是 `sp_<getWorld():getWorld()>`（單人的 `getServerName()` 是空字串，`LuaManager.java:4099-4105`，而 `Zomboid/Lua` 整台電腦共用，家族 pitfalls「`Zomboid/Lua` 整台機器共用」）；`[%w_-]` 以外換成 `_`，取不到時用 `default`。
 - `identity.txt`：身分綁定表，照 Safehouse `Registry.lua` 的 append-only＋讀回確認。
-- `events-YYYYMMDD.json`：§1 C14。行格式 `{"t":<ms>,"k":"<kind>","u":"<user>",…}`，kind：`quest_done`、`week_done`、`goal_paid`、`streak`、`achv`、`points`、`exchange`、`season`、`admin`、`over`、`revoke`、`hide`。
+- `events-YYYYMMDD.json`：§1 C14。行格式 `{"t":<ms>,"k":"<kind>","u":"<user>",…}`，kind：`quest_done`、`week_done`、`goal_paid`、`streak`、`achv`、`points`、`exchange`、`season`、`admin`、`over`、`revoke`、`hide`、`horde`（屍潮結束：`{ id, state, why, spawned, killed }`，沒有 `u`）。
 - `config.json`：管理員覆寫（和 `root.config.overrides` 同一棵樹，排序、縮排兩格）。開服與每 60 秒（`Config.POLL_MS`，掛在 `Server.onTick`，沒人在線也跑）讀一次；文字變了就解析、驗證，整份可用才套用：每個和目前不同的頂層組 `set`、檔案沒寫的組 `del`，記一筆操作者與摘要都是 `config.json` 的變更紀錄（可以復原），稽核與事件記錄寫 `admin`／`cfg.file`。解析失敗或驗證不過時整份不套用，`Config.file.status` 記下 `why`、`line`（JSON 停在第幾行）或 `path`（完整欄位路徑）。面板的套用與復原都會把覆寫寫回這個檔（`source = "panel"`）；檔案不見時重新寫出。前導的 BOM 會略過。
-- `defaults.json`：每次開服重寫，`Catalog.DEFAULTS` 裡屬於 `Config.SCHEMA` 的組（不含 `season`），形狀和 `config.json` 相同。
+- `defaults.json`：每次開服重寫，`Catalog.DEFAULTS` 裡屬於 `Config.SCHEMA` 的組（不含 `season`，含 `hordes`），形狀和 `config.json` 相同。
 - `status.json`：`Config.file.status` 的檔案版：`ok`、`source`（`boot`／`file`／`panel`）、`at`、`time`（UTC）、`rev`，失敗時加 `why`、`line`、`path`。
 
 ## 4. Catalog（`shared/MinidoracatQuest/Catalog.lua`）
@@ -233,7 +255,8 @@ achievements[i] = { id = "zombie_kills", cat = "combat", stat = "zombie.kills",
 ```
 
 - 鍵：名稱 `IGUI_MQ_Ach_<id>`、說明 `IGUI_MQ_AchDesc_<id>`（`%1`＝門檻）、隱藏提示 `IGUI_MQ_AchHint_<id>`、稱號 `IGUI_MQ_Title_<titleId>`、等級 `IGUI_MQ_Tier_1`～`_4` 與 `IGUI_MQ_Tier_Legend`（`%1`＝羅馬數字）。
-- 內建一般成就 5 級：積分 10／20／30／50／80，稱號在第 4 級。數量類第 5 級＝第 4 級 ×2.5；技能等級 2／4／6／8／10（體能、力量 6～10）、技能總等級 300（上限 35×10＝350）、造訪城鎮第 5 級 11（12 個是隱藏成就 `h_all_towns`）、存活與室內睡覺天數 730、成就等級數 450（全部 91×5＋16＝471 級）。
+- 內建一般成就 5 級：積分 10／20／30／50／80，稱號在第 4 級。數量類第 5 級＝第 4 級 ×2.5；技能等級 2／4／6／8／10（體能、力量 6～10）、技能總等級 300（上限 35×10＝350）、造訪城鎮第 5 級 11（12 個是隱藏成就 `h_all_towns`）、存活與室內睡覺天數 730、成就等級數 450（全部 91×5＋17＝472 級）。
+- 隱藏成就 17 個；`h_horde`（統計 `horde.wins` ≥ 1，帶同名稱號）是第一次參與成功的屍潮（§5.10）。
 - 設定裡的 `pts` 比 `tiers` 短（4 級時代只改過積分的覆寫）時，缺的那幾級用內建積分補（`Catalog.fillPts`，伺服器、客戶端與管理面板同一規則）；`tiers` 只寫 4 個的覆寫照樣有效，那項成就就是 4 級。
 - 登入補發：`hello` 在匯入之後對整份清單跑一次 `Achievements.evaluate(acc, user, { noBroadcast = true })`，補上新預設或調低的門檻已經給的等級；積分照一般成就發（本季、累計、餘額），通知本人、不發全服通知。只往上補，已拿的等級不重算，所以不會重發。
 - 圖示 `media/ui/MinidoracatQuest/ach/<icon>.png`（128×128、透明底、只畫主體；等級框由 UI 畫）。缺檔時退回 UI 框架圖示或文字。
@@ -300,7 +323,7 @@ boards[i] = { id = "kills", cat = "combat", stat = "zombie.kills", periods = { "
 
 ### 5.5 Points（Core）
 
-- `Points.award(acc, user, amount, kind, ref, opts)`：`kind` ∈ `quest`、`shared`、`week`、`goal`、`streak`、`achv`、`newbie`、`season`、`import`、`admin`。
+- `Points.award(acc, user, amount, kind, ref, opts)`：`kind` ∈ `quest`、`shared`、`week`、`goal`、`streak`、`achv`、`newbie`、`season`、`import`、`admin`、`horde`（屍潮獎勵，`ref` 是 `horde:<id>`）。
   - 一般：本季、累計、餘額都加。
   - `import`：只加累計。`season`（賽季獎勵）：只加餘額。
   - 限時活動倍率由呼叫端算好再傳。寫事件記錄 `points`。標記 `points` 榜為 dirty。
@@ -310,8 +333,8 @@ boards[i] = { id = "kills", cat = "combat", stat = "zombie.kills", periods = { "
 
 - `Net.send(player, cmd, payload)`：MP 用 `sendServerCommand(player, MODULE, cmd, payload)`；SP 直呼 `MinidoracatQuest.Client.receive(cmd, payload)`。
 - `Net.toUser(user, cmd, payload)`：送給在線、身分通過的該帳號。`Net.broadcast(cmd, payload)`：送給所有身分通過的在線玩家。
-- `Sync.state(user, acc)` → `state` payload（§6.3）。`Sync.dirty(user, part)`：part ∈ `day`、`week`、`goal`、`points`、`achv`、`streak`、`newbie`、`trk`、`pins`、`all`；`user = nil` 標給所有開著視窗或追蹤面板的人。
-- `Sync.tick(now)`：每秒最多一輪，一輪只走一次在線名單。開著視窗（`watch`）的人收 `delta`，`delta` 帶不了的部分改送完整 `state`；只開追蹤面板（`track`）的人只收追蹤中的進度：有追蹤那一格的 `day`／`week`、`trk`、`pins`（`all`、`events` 仍送完整 `state`）；兩者都沒有的人只收 `unseen`。
+- `Sync.state(user, acc)` → `state` payload（§6.3）。`Sync.dirty(user, part)`：part ∈ `day`、`week`、`goal`、`points`、`achv`、`streak`、`newbie`、`trk`、`pins`、`hordes`、`all`；`user = nil` 標給所有開著視窗或追蹤面板的人。
+- `Sync.tick(now)`：每秒最多一輪，一輪只走一次在線名單。開著視窗（`watch`）的人收 `delta`，`delta` 帶不了的部分改送完整 `state`；只開追蹤面板（`track`）的人只收追蹤中的進度：有追蹤那一格的 `day`／`week`、`trk`、`pins`，以及 `hordes`（追蹤面板的屍潮列）（`all`、`events` 仍送完整 `state`）；兩者都沒有的人只收 `unseen`。
 - 追蹤：`Sync.track(user, on)`、`Sync.pin(acc, user, id, on)` → ok, code（加入時檢查 `Sync.pinValid`：今天／本週還在進行的格、還有下一級的非隱藏成就；滿 5 個回 `TOO_MANY_PINS`；拿掉一律成功）、`Sync.unpin(acc, user, id, prefix)`（換日 `"d"`、換週 `"w"` 用 prefix 一次清掉；`Quests.swap` 清掉那一格；`Achievements.unlock` 到最高級清掉該成就）。`Sync.trk(acc)` → `{ [achId] = { t, v } }`：追蹤中成就的已解鎖等級與數值（scope `life` 取這條命，其餘取累計）。`Stats.listen("track")` 只在變動的統計屬於追蹤中的成就時標 `trk`（`Sync.pinStats`，熱路徑只查表）。
 - 稱號：`Sync.titles()` → 在線玩家 `{ [user] = titleId }`；`Sync.titleChanged(user, acc)` 對所有人廣播 `titles { u, t }`（`hello`、`title` 指令、`Achievements.revoke` 拿掉戴著的稱號時）。
 - `Sync.toast(user, t)`：t＝`{ kind, … }`（§6.3），2 秒內同一人的 `achv` 合併。`Sync.broadcastToast(t, achiever)`：全服通知，每位成就者每分鐘最多 1 則；成就者匿名時，一般玩家收到的那份沒有 `titleId`（頭上與聊天的稱號會認出是誰），管理員那份帶 `a` 與 `titleId`。
@@ -344,6 +367,24 @@ boards[i] = { id = "kills", cat = "combat", stat = "zombie.kills", periods = { "
 - `Trackers.install()`：在 `OnServerStarted` 掛事件與包裝原版動作的 `complete()`／`ISBuildIsoEntity:create`；原動作先跑，紀錄包在 `Trackers.guard`（pcall，每個掛點第一次出錯印一行 `[MinidoracatQuestFor42] Trackers: <掛點> failed: …`，記在 `Trackers.failed`）。42.21 封窗是建造實體（CraftRecipe 分類 `Barricades`），`ISBuildIsoEntity:create` 依分類記 `barricade.count` 或 `build.count`。每分鐘輪詢在線玩家（開車與步行里程、存活天數、城鎮、室內睡覺、新手「帶武器離開起始城鎮」）；一段里程換算的速度超過步行 0.5 km／分鐘或開車 4 km／分鐘就視為瞬移、整段不記。輪詢只處理 `imported` 的帳號、不建帳號：`hello` 的匯入要先安靜解鎖舊進度，先輪詢的話技能等級與存活天數會照一般解鎖（全服通知、本季積分）。
 - `Towns.list()`、`Towns.at(x, y)` → townId 或 nil。
 
+### 5.10 Hordes（Systems 擁有）
+
+設定全在 `Config` 的 `hordes` 組（§3.4，`config.json` 一起同步），即時狀態在 `root.hordes`（§3.1）。
+
+- 時段與擲骰（純函式，harness 用固定時鐘測）：時區用沙盒 `TimezoneOffset`（小時），不用經濟系統的換日。當地日 `d`（UTC＋tz 的日數）的時段 `ws = d × DAY − tz × HOUR + from`、`we = ws + 長度`（`to > from`：`to − from`；`to < from`：`to + 1440 − from`；相等：1440 分）。`Hordes.windowOf(cfg, d, tz)` → ws, we；`Hordes.window(cfg, now, tz)` → d, ws, we, K（找 d+1、d、d−1 中第一個 `ws − leadMin ≤ now < we` 的，晚的那天優先；K＝`ceil(長度 ÷ 1 小時)`），不在任何時段回 nil；`Hordes.slot(ws, we, k, leadMin)` → 第 k 格的開始 `S = ws + k 小時`、結束 `min(S + 1 小時, we)`、擲骰時刻 `S − leadMin`。
+- `Hordes.roll(now, cfg, tz)`（每 tick）：`roll.day` 不是這個時段的日期就重設 `{ day, ws, slot = 0, n = 0 }`；同一天但時段開始（`ws`）變了（管理員改了 `from`）只把 `slot` 歸 0、`n` 保留，因為格數是從時段開始算的；擲骰時刻已到的格依序取走（`slot + 1`），下列情況跳過不擲：格已結束（停機錯過的小時不補擲）、`enabled` 關、沒有地點、已有 `cur`、`n ≥ maxPerDay`；否則 `ZombRand(100) < chance` 中了就在 `[max(S, now + leadMin), 格結束)` 挑整分鐘當開始時間（區間空的話不排）、`n + 1`。`Hordes.nextRoll(cfg, now, tz, roll)` → 下一次擲骰的時刻（管理頁），關閉或沒地點時 nil；它和 `horde.status` 用同一套重設規則看 `roll`，不改存檔。
+- `Hordes.plan(cfg, startMs, actor)`：隨機地點、隻數在 `count` 範圍、`Hordes.mix(kinds, count)`（已登記且權重 > 0 的種類，先取整再把餘數一隻一隻給權重大的，同權重依 id；沒有可用權重時全是 vanilla）、複製設定，`announceAt = startMs − leadMin`，`state = "planned"`。`actor` nil＝自動。
+- `Hordes.tick(now)`（`OnTickEvenPaused`，每秒最多一次）：Store 就緒後第一個 tick 跑 `Hordes.boot`（`cur` 是 `active` → 失敗 `restart`；殭屍留在世界上變一般殭屍），之後 `roll` 再 `step`：
+  - `planned`：到 `announceAt` → `announced`，全服通知 `soon`；已經到 `startMs`（預告 0 分或手動）→ 直接 `waiting`，通知 `open`。
+  - `announced`：到 `startMs` → `waiting`。
+  - `waiting`：到 `expireAt` → 失敗 `nobody`；有身分通過的在線玩家在地點 50 格內（2D，`Hordes.RANGE`）→ 每個種類 `pcall(kind.spawn, x, y, z, n)`，只收 `instanceof(z, "IsoZombie")`、每種最多 n 隻，記進 `Hordes.live[z] = { horde, onlineId }`（只在記憶體）。收到 > 0 隻 → `active`（`spawnAt`、`endsAt`），通知 `spawn`；0 隻 → `tries + 1`，第 10 次（`Hordes.MAX_TRIES`）失敗 `spawn`。
+  - `active`：活著＝這場的 `live` 項目裡 `onlineId` 還是生成時那個（不是 −1：`removeFromWorld` 會把它設成 −1；物件被引擎重用時會拿到新的）且 `not isDead()` 的；其餘從 `live` 拿掉（被引擎收起來的不追，變一般殭屍）。不看 `isExistInTheWorld()`：專用伺服器上剛生成的屍潮殭屍，所在格子的 moving objects 不列它，生成後 0～1.5 秒都是 false（E2E `quest-hz-1026e`）；第一版有這項，每一場都在下一個 tick 判成功、0 擊殺（`quest-hz-1026c`／`d`）。也不看 persistent outfit id：沒給外觀名稱生成的殭屍被標記「之後隨機穿衣」（`LuaManager.java:10661-10665`），穿上時會換 id。更新 `left`；活著 0 隻且 50 格內有玩家 → 成功；到 `endsAt` → 失敗 `time`。
+- `Hordes.onZombieDead(z)`（自己的 `OnZombieDead`，Trackers 照樣記一般擊殺）：`live[z]` 存在就拿掉（同一隻的第二次事件因此不算），還是同一隻時 `killed + 1`、`left − 1`；`getAttackedBy()` 是 IsoPlayer 時 `Identity.principal` 的帳號 `kills + 1`。燒死等沒有攻擊者的算清掉、不算任何人的擊殺。
+- `Hordes.finish(result, why, now)`：成功時參加者（擊殺 ≥ 1）各得 `share`：`max(1, floor(pool × n ÷ 有歸屬的擊殺總數 + 0.5))`、`each`：整個 `pool`（`pool = perZombie × spawned`；`pool` 為 0 時不發積分），`Points.award(…, "horde", "horde:<id>")`、`Stats.add(user, "horde.wins", 1)`、個人通知 `hordePaid`。`active` 時失敗 → 先拿掉 `live` 項目再對還活著的呼叫 `Hordes.clearZombie(z)`（`removeFromWorld` + `removeFromSquare`，唯一的清除函式；清除不算擊殺）。全服通知結果、事件記錄 `horde`、寫進 `log`、`cur = nil`。
+- 每次狀態改變、擊殺、`left` 改變、結束都 `Sync.dirty(nil, "hordes")`。
+- 種類：`Hordes.kinds[id] = { id, nameKey, spawn = fn(x, y, z, n) → ArrayList | Lua 陣列, modId? }`。內建 `vanilla`（`addZombiesInOutfitArea(x−5, y−5, x+5, y+5, z, n, nil, 50)`）與 `runner`（同上，再對每隻 `doSprinter()`；不用 `doZombieSpeed(1)`，它會擲骰），鍵 `IGUI_MQ_Horde_Kind_<id>`。`Hordes.registerKind(spec)`＝facade `registerHordeKind`（§8）。`Hordes.kindList()` → `{ { id, nameKey, builtin } }`，內建依 `Contract.HORDE_KINDS`，其餘依 id。
+- `Hordes.stateHordes(acc, user, now)`：Sync provider `hordes`，見 §6.3。
+
 ## 6. 網路協定
 
 模組名 `MinidoracatQuest`。客戶端 `sendClientCommand(player, "MinidoracatQuest", cmd, args)`，`args.protocol = 1`，mutation 另帶 `requestId`（8～64 字 `[%w_-]`）。
@@ -366,7 +407,7 @@ boards[i] = { id = "kills", cat = "combat", stat = "zombie.kills", periods = { "
 | `exchange` | mutation | `amount: int` | `result`（含 `state`＝`paid`／`queued`／`refunded`、`coins`）＋`state` |
 | `admin` | 依 op | `op: str`＋該 op 的欄位 | `admin` |
 
-錯誤碼（`Contract.CODE`，客戶端用 `IGUI_MQ_Code_<CODE>`）：`OK`、`PROTOCOL_MISMATCH`、`BAD_ARGS`、`IDENTITY_UNVERIFIED`、`NOT_READY`、`FORBIDDEN`、`RATE_LIMITED`、`NO_SWAPS`、`BAD_SLOT`、`BAD_THEME`、`TOO_MANY_PREFS`、`TOO_MANY_PINS`、`TITLE_LOCKED`、`EXCHANGE_OFF`、`EXCHANGE_MIN`、`EXCHANGE_DAY_LIMIT`、`NOT_ENOUGH_POINTS`、`ECONOMY_MISSING`、`BAD_BOARD`、`BAD_CONFIG`、`BAD_SEASON_LENGTH`、`TOO_SOON`、`NOT_FOUND`、`FILE_ERROR`、`INTERNAL`。
+錯誤碼（`Contract.CODE`，客戶端用 `IGUI_MQ_Code_<CODE>`）：`OK`、`PROTOCOL_MISMATCH`、`BAD_ARGS`、`IDENTITY_UNVERIFIED`、`NOT_READY`、`FORBIDDEN`、`RATE_LIMITED`、`NO_SWAPS`、`BAD_SLOT`、`BAD_THEME`、`TOO_MANY_PREFS`、`TOO_MANY_PINS`、`TITLE_LOCKED`、`EXCHANGE_OFF`、`EXCHANGE_MIN`、`EXCHANGE_DAY_LIMIT`、`NOT_ENOUGH_POINTS`、`ECONOMY_MISSING`、`BAD_BOARD`、`BAD_CONFIG`、`BAD_SEASON_LENGTH`、`TOO_SOON`、`NOT_FOUND`、`FILE_ERROR`、`INTERNAL`、`HORDE_BUSY`、`NO_SPOTS`。
 
 ### 6.2 管理 op（`admin = true`，mutation 都寫稽核與事件記錄）
 
@@ -393,6 +434,9 @@ boards[i] = { id = "kills", cat = "combat", stat = "zombie.kills", periods = { "
 | `report.get` | `days: int`（7 或 30） | §6.5 |
 | `report.export` | — | `path`（`Zomboid/Lua/` 底下的相對路徑）；寫不出來回 `FILE_ERROR` |
 | `towns.here` | — | 管理員目前座標與所在城鎮（加自訂城鎮用） |
+| `horde.status` | — | `cur`（完整的 `cur`，含 `planned`、`count`、`mix`、`kills`）、`roll = { day, slot, n, max, nextAt, enabled }`（照 `Hordes.roll` 的重設規則顯示：時段換了日期時 `slot`、`n` 為 0，時段開始變了時 `slot` 為 0）、`log`（最近 10 筆，新的在前）、`kinds = { { id, nameKey, builtin } }` |
+| `horde.now` | — | `id`；已有一場 `HORDE_BUSY`、沒有地點 `NO_SPOTS`。開始時間＝現在、立刻通知 `open`，不算進 `roll.n`；歷史 `horde.now <id> <name>`（不能復原） |
+| `horde.stop` | `id: int` | —；不是目前那場 `NOT_FOUND`。`planned`／`announced` → 取消（預告過才通知 `cancel`）；`waiting` → 失敗 `admin`；`active` → 失敗 `admin` 並清掉剩下的；歷史 `horde.stop <id> <name>`（不能復原） |
 
 自訂成就、自訂城鎮、任務池、每週任務、共同目標、連續獎勵、兌換設定、廣播設定、稱號顯示（`titles.head`、`titles.chat`），都是 `cfg.preview`／`cfg.apply` 的路徑。
 
@@ -414,13 +458,16 @@ boards[i] = { id = "kills", cat = "combat", stat = "zombie.kills", periods = { "
   season = { no, startMs, endsAt, state },
   exchange = { available, enabled, rate, perDay, used, min, queued, hist },   -- hist：排隊中的（新的在前，at＝申請時間）接著 ex.log，合計最多 10 筆；兌換頁的「兌換紀錄」
   events = { { name, theme, mult, endsAt } },
+  hordes = { cur = HordeView | nil, last = HordeLast | nil },   -- §5.10
   unseen,
   pins = { … }, trk = { [achId] = { t, v } } }     -- 追蹤面板（§5.6）
 ```
 
-- `delta`：`{ day = { [i] = { prog, state, ptsNow } }, week = { [i] = { prog, state, ptsNow } }, goal = { progress, reached }, points = { … }, unseen, trk = { … }, pins = { … } }`，只帶有變的欄位（`ptsNow` 只在完成時帶 `got`；活動開始或結束時 `Quests.watchEvents` 讓開著視窗的人收到完整 `state`）。只開追蹤面板的人不收 `goal`、`points`。
+- `delta`：`{ day = { [i] = { prog, state, ptsNow } }, week = { [i] = { prog, state, ptsNow } }, goal = { progress, reached }, points = { … }, unseen, trk = { … }, pins = { … }, hordes = { cur, last } }`，只帶有變的欄位（`ptsNow` 只在完成時帶 `got`；活動開始或結束時 `Quests.watchEvents` 讓開著視窗的人收到完整 `state`）。只開追蹤面板的人不收 `goal`、`points`；`hordes` 兩種人都收。
+- `HordeView`（`planned` 時不給玩家）：`{ id, name, town, x, y, z, state, kinds = { { id, nameKey } }, announceAt, startMs, expireAt, endsAt, spawned, left, killed, pool（生成後才有：perZombie × spawned）, perZombie, split, limitMin, mine（我的擊殺） }`，不帶隻數。`HordeLast`：最新一筆 `log`，結束後 10 分鐘內（`Hordes.LAST_MS`；預告前就取消的不給）：`{ id, name, town, state, why, endedAt, spawned, killed, pool, split, mine, got（我拿到的積分，沒參加為 nil） }`。
 - `titles`：`{ full = true, map = { [user] = titleId } }`（登入時，在線玩家）或 `{ u, t }`（一人換了稱號或剛登入；`t` 為 nil 表示不戴）。
 - `toast`：`{ kind = "achv", id, tier, pts }`、`{ kind = "achvMany", ids = { … 最多 3 }, n }`、`{ kind = "quest", tid, target, pts }`、`{ kind = "week", tid, target, pts }`（帶 `target`：視窗關著時客戶端的任務清單是登入時的快照，跨日後查不到新任務）、`{ kind = "goal", stat, pts }`、`{ kind = "streak", days, pts }`、`{ kind = "newbie", pts }`、`{ kind = "exchange", state, coins }`、`{ kind = "season", no, rank, pts }`、`{ kind = "broadcast", who, a, id, tier, titleId }`（`who` 為匿名時是 nil；`a` 是匿名者的帳號，只在送給管理員的那份，客戶端顯示「名字（匿名）」）。
+- 屍潮通知：全服 `{ kind = "horde", ev, id, name, town, … }`，`ev`：`soon`（`startMs`、`kinds = { { id, nameKey } }`，不帶隻數）、`open`（同 `soon`；預告 0 分或手動開始）、`spawn`（`endsAt`、`limitMin`、`spawned`、`pool`、`split`）、`win`（`spawned`、`killed`、`pool`、`split`、`n`＝參加人數）、`fail`（`why`、`left`）、`cancel`（只在預告過的場次）。個人 `{ kind = "hordePaid", id, name, town, pts, kills, pct }`（`pct` 只在 `share`）。
 - `board`：`{ board, period, status = "ok", season = { no, endsAt }, rows = { { r, n, a, v, t, d } … ≤ 50 }, me = { r, v, d } | nil, count }`。`n` 是名字（匿名時 nil，客戶端顯示「匿名倖存者」），`a` 是匿名那一列的帳號（只送給管理員，客戶端顯示「名字（匿名）」），`t` 稱號 id（匿名那一列只送給管理員：同一個稱號在頭上與聊天認得出是誰），`d` 名次變化（正＝上升，nil＝新上榜）。
 - `records`：`{ rows = { { stat, season, life, total } … }, points = { season, total, balance } }`。客戶端不列沒有定義的統計（pack 移除後留下的 id）。
 - `admin`：`{ op, ok, code, … }`。
@@ -470,10 +517,13 @@ boards[i] = { id = "kills", cat = "combat", stat = "zombie.kills", periods = { "
 - 開視窗送 `watch {on=true}`，關視窗送 `{on=false}`；打開每日頁或成就頁時送 `seen`。
 - 追蹤面板（`Hud.lua`）：`ISPanel` 衍生、放在最底層（`backMost`：每次 UI 更新引擎都把它移到最底，`UIManager.java:562-568`），所以每個視窗都蓋在它上面，包括比它早建立的物品欄與上次沒關的角色視窗，拖曳時 `ISPanel` 的 `bringToTop` 也一樣；用頁面同一套 canvas 指令繪製（`Draw.renderOps`），資料一變才重排，`render` 只走指令列。預設在原版左側欄右邊（`getPlayerData(0).equipped` 的右緣＋12），會碰到原版物品欄的標題列時（物品欄看得到、左右重疊、物品欄的 y 在面板標題列底線之上）改放在物品欄標題列下面 6 px；拖過的位置與收合狀態用 `ISLayoutManager` 記在 `layout.ini`（拖完或收合就寫）。顯示條件：MOD 選項開、有追蹤項目、角色活著、沒按 V（`ISUIHandler.allUIVisible`）、Esc 選單沒開；任務視窗開著也照樣顯示（使用者 2026-10-24：按「追蹤」要馬上看到），視窗蓋在它上面。每 500 ms 與資料變動時檢查，介面被藏起來時不自己出現。`hello` 時面板開著就送 `track {on=true}`，選項切換時送 on／off。卡片上的「追蹤」chip 送 `pin`；滿 5 個時其他 chip 停用並以 tooltip 說明。
 - 稱號（`Titles.lua`）：`titles` 推送存成 `byUser`。聊天：檔案載入時包住 `ISChat.addLineInChat`（原版在 `OnGameStart` 才把它掛到 `OnAddMessage`，`ISChat.lua:1176`），作者戴著稱號時把訊息換成代理，`getTextWithPrefix()` 在 `[作者]` 後面插入 ` <SPACE> <PUSHRGB:…> 「稱號」 <POPRGB> `（稱號裡的 `<`、`>` 先轉成 `&lt;`、`&gt;`），其他方法轉給原訊息。頭上：每 500 ms 從 `getOnlinePlayers()` 挑 40 格內、有稱號、活著、不在車上的玩家；`OnPreUIDraw` 每幀照原版規則（`IsoGameCharacter.renderlast`／`updateUserName`）檢查後在名字上方一行畫字（黑色陰影＋金色）。兩者都只在多人、伺服器開關 `titles.head`／`titles.chat` 與玩家 MOD 選項都開時生效。
+- 屍潮（伺服器見 §5.10）：管理「屍潮」分頁（`AdminHordes.lua`，排在「城鎮」後面）的狀態來自 `horde.status`，切進分頁、每次操作後與按「重新整理」時讀；設定全走變更草稿與底部「套用」，種類比例一種一格寫在 `hordes.kinds.<id>`，維持預設值的欄位不寫成變更；`horde.now`／`horde.stop` 先確認、按下就生效（像限時活動）。追蹤面板最上面一列是屍潮（預告、等人到場、進行中），不算 5 個追蹤名額、沒有 ×，沒有追蹤項目時有屍潮也顯示，倒數只在文字變了才重排。每日頁在限時活動下面放屍潮橫幅（預告、等人到場、進行中，結束後 10 分鐘內的成功／失敗／取消），這頁 30 秒才重畫，所以剩餘時間以分鐘計。`delta.hordes` 走通用的整份取代。`HordeMap.lua`：裝了小地圖才作用，地點前後左右各 10 格一塊區域加一個標記，資料變了才重建、其餘時候回同一張表；檔案載入時與 `OnGameStart` 各試一次註冊。
 
 ## 8. facade `MinidoracatQuest.v1`（伺服器）
 
-`{ API_MAJOR = 1, API_REVISION = 1, registerPack(spec) → pack | nil, code }`，`pack.add(player, statId, n) → true | false, code`。規則照設計稿：`modId` 為 `[A-Za-z0-9_-]` 最長 64；每個 MOD 統計 ≤ 32、成就 ≤ 64；每個 modId 每 tick 50 次；`n` 是 0～1000 的有限數；錯誤碼 `invalid_args`、`rate_limited`、`not_ready`。統計與成就 id 自動加 `<modId>:`；`board = true` 的統計進「職業」榜。
+`{ API_MAJOR = 1, API_REVISION = 2, registerPack(spec) → pack | nil, code, registerHordeKind(spec) → true | nil, "invalid_args" }`，`pack.add(player, statId, n) → true | false, code`。規則照設計稿：`modId` 為 `[A-Za-z0-9_-]` 最長 64；每個 MOD 統計 ≤ 32、成就 ≤ 64；每個 modId 每 tick 50 次；`n` 是 0～1000 的有限數；錯誤碼 `invalid_args`、`rate_limited`、`not_ready`。統計與成就 id 自動加 `<modId>:`；`board = true` 的統計進「職業」榜。
+
+`registerHordeKind`（rev 2）：`spec = { modId, id, nameKey, spawn }`；`modId` `^[%w_%-]+$` ≤ 64、`id` `^[%w_%-]+$` ≤ 32、`nameKey` `^[%w_]+$` ≤ 128、`spawn(x, y, z, n)` 是函式，回傳 ArrayList 或 Lua 陣列；鍵 `<modId>:<id>` 最長 64（`hordes.kinds` 權重鍵的上限）；每個 modId ≤ 8 種、全部外掛 ≤ 32 種；同一個鍵再登記就取代。Quest 管時間、計數與清除；`spawn` 在 pcall 裡呼叫，只收真的 IsoZombie。登記後 `hordes.kinds.<modId>:<id>` 預設權重 0。消費者用 `type(v1.registerHordeKind) == "function"` 探測。
 
 ## 9. 沙盒選項（頁 `MinidoracatQuest`）
 

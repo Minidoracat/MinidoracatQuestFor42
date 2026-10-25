@@ -165,6 +165,32 @@ local function townsDisabled(v)
     return true
 end
 
+-- "HH:MM", hour 0-23, minute 0-59 (horde window)
+local function clock(v)
+    local h, m = string.match(type(v) == "string" and v or "", "^(%d%d?):(%d%d)$")
+    if h == nil or tonumber(h) > 23 or tonumber(m) > 59 then return false, "time" end
+    return true
+end
+local hordeCount = int(1, 100)
+local function countRange(v)
+    if not isArray(v, 2) or #v ~= 2 or not hordeCount(v[1]) or not hordeCount(v[2]) or v[1] > v[2] then
+        return false, "count"
+    end
+    return true
+end
+local spotName, spotXY, spotZ = str(64), int(0, 100000), int(-32, 31)
+local function hordeSpots(v)
+    if not isArray(v, 32) then return false, "spots" end
+    for _, s in ipairs(v) do
+        if type(s) ~= "table" then return false, "spots" end
+        for k in pairs(s) do
+            if k ~= "name" and k ~= "x" and k ~= "y" and k ~= "z" then return false, "spots" end
+        end
+        if not spotName(s.name) or not spotXY(s.x) or not spotXY(s.y) or not spotZ(s.z) then return false, "spots" end
+    end
+    return true
+end
+
 -- Branch tables: named children, "*" = any id key ([%w_:-], <= 64), "#" = tier key 1..10. Functions are leaves.
 local POOL = { ["*"] = { enabled = bool, target = target, pts = ptsV } }
 Cf.SCHEMA = {
@@ -183,6 +209,10 @@ Cf.SCHEMA = {
     titles = { head = bool, chat = bool },
     boards = { inactiveDays = int(7, 365), rebuildSeasonMs = int(60000, 86400000), rebuildTotalMs = int(60000, 86400000) },
     towns = { custom = townsCustom, disabled = townsDisabled },
+    -- timed hordes (Hordes.lua); kinds: kindId ("vanilla", "runner", "<modId>:<id>") -> weight; spots whole-set only
+    hordes = { enabled = bool, from = clock, to = clock, chance = int(0, 100), maxPerDay = int(1, 24),
+        leadMin = int(0, 120), waitMin = int(1, 240), count = countRange, kinds = { ["*"] = int(0, 100) },
+        limitMin = int(1, 120), perZombie = int(0, 1000), split = oneOf({ "share", "each" }), spots = hordeSpots },
     ceilings = ceilingsMap,
     -- season.lengthDays only changes through the season ops (section 3.4); not a config path
 }

@@ -101,6 +101,7 @@ S("streak.best", "max", nil, "days", true)
 S("achv.tiers", "count", 1000, nil, true)
 S("goal.done", "count", 1000, nil, true)
 S("season.joined", "count", 1000, nil, true)
+S("horde.wins", "count", 10, nil, true)     -- hordes cleared with at least one kill of your own (Hordes.lua)
 for _, p in ipairs(Cat.perks) do S("level." .. p, "max", nil, "level") end
 for _, p in ipairs(Cat.perks) do S("xp." .. p, "count", 5000, "xp") end
 
@@ -208,7 +209,7 @@ A("weekly", "quest", "quest.weekly", { 3, 15, 50, 150, 375 })
 A("streak", "quest", "streak.best", { 3, 7, 30, 100, 250 })
 A("goal", "quest", "goal.done", { 1, 5, 15, 40, 100 })
 A("season", "quest", "season.joined", { 1, 3, 6, 12, 30 })
-A("achv_tiers", "quest", "achv.tiers", { 10, 50, 150, 300, 450 })   -- 91 x 5 + 16 hidden = 471 tiers
+A("achv_tiers", "quest", "achv.tiers", { 10, 50, 150, 300, 450 })   -- 91 x 5 + 17 hidden = 472 tiers
 
 H("h_first_blood", "zombie.kills", 1)
 H("h_unarmed", "zombie.kills.unarmed", 1, true)
@@ -226,6 +227,7 @@ H("h_night_fish", "fish.night", 1)
 H("h_peak", "skill.max", 10, true)
 H("h_all_towns", "town.visited", 12, true)
 H("h_first_hunt", "hunt.kills", 1)
+H("h_horde", "horde.wins", 1, true)
 
 -- Daily templates (section 4.4). rare = 20 pts by default; shared = false keeps it out of the shared pick.
 -- The xp.* ones count XP after the profession multiplier (x0.25 without the skill bonus, x1.66 at 3 levels), so they
@@ -424,4 +426,10 @@ Cat.DEFAULTS = {
     boards = { inactiveDays = 180, rebuildSeasonMs = 300000, rebuildTotalMs = 1800000 },
     towns = { custom = {}, disabled = {} },
     ceilings = {},
+    -- timed horde events (Hordes.lua). from / to: "HH:MM" in the sandbox TimezoneOffset, to < from runs past midnight,
+    -- to == from is all day; chance: % per hourly roll; count: { min, max } zombies; kinds: kindId -> weight;
+    -- perZombie x spawned = the reward pool; split "share" (by kill share) | "each" (every participant gets the pool)
+    hordes = { enabled = false, from = "19:00", to = "23:00", chance = 30, maxPerDay = 1, leadMin = 15, waitMin = 60,
+        count = { 20, 40 }, kinds = { vanilla = 80, runner = 20 }, limitMin = 15, perZombie = 5, split = "share",
+        spots = {} },
 }

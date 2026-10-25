@@ -1,10 +1,11 @@
 -- MinidoracatQuest/Sync.lua: state / catalog / delta payloads and throttled pushes (docs/ARCHITECTURE.md 5.6, 6.3).
--- Systems-owned state parts (day, week, goal, streak, newbie, season, exchange, events) come from providers:
+-- Systems-owned state parts (day, week, goal, streak, newbie, season, exchange, events, hordes) come from providers:
 -- Sync.provider(part, fn) with fn(acc, user, now) -> value; parts without a provider are left out.
 -- Pushes: players with the window open (watch) get at most one delta per second; parts other than
--- day/week/goal/points/unseen/trk/pins send a full state. Players with only the tracker panel on (track) get the
--- progress of what they pinned in the same deltas (day/week lists with a pinned slot, trk for pinned achievements,
--- pins); "all" / "events" still send them a full state. Players with neither only get unseen changes (Dock badge).
+-- day/week/goal/points/unseen/trk/pins/hordes send a full state. Players with only the tracker panel on (track) get
+-- the progress of what they pinned in the same deltas (day/week lists with a pinned slot, trk for pinned achievements,
+-- pins) and the horde part; "all" / "events" still send them a full state. Players with neither only get unseen
+-- changes (Dock badge).
 -- Pins: "d1".."d4" today's daily slots, "w1".."w3" this week's slots, "a:<achId>"; at most LIMIT.MAX_PINS, saved on
 -- the account; quest pins go at the reset (or a swap of that slot), an achievement pin when its last tier unlocks.
 -- Titles: { full, map = { user -> titleId } } of the online players at hello, then { u, t } to everyone on a change
@@ -26,8 +27,8 @@ local Y = Q.Sync or {}
 Q.Sync = Y
 local C, U = Q.Contract, Q.Util
 
-Y.PARTS = { "day", "week", "goal", "streak", "newbie", "season", "exchange", "events" }
-Y.DELTA_PARTS = { day = true, week = true, goal = true, points = true, unseen = true, trk = true, pins = true }
+Y.PARTS = { "day", "week", "goal", "streak", "newbie", "season", "exchange", "events", "hordes" }
+Y.DELTA_PARTS = { day = true, week = true, goal = true, points = true, unseen = true, trk = true, pins = true, hordes = true }
 Y.providers = Y.providers or {}
 Y.dirtyMap = Y.dirtyMap or {}    -- user -> { [part] = true }
 Y.watchers = Y.watchers or {}    -- user -> true
@@ -260,6 +261,14 @@ local function push(user, parts, player)
         any = true
     end
     if parts.pins then d.pins = acc.pins or {} end
+    -- the horde row of the tracker and the daily banner: window and tracker alike
+    if parts.hordes and Y.providers.hordes then
+        local ok, v = pcall(Y.providers.hordes, acc, user, Q.Clock.now())
+        if ok then
+            d.hordes = v
+            any = true
+        end
+    end
     if any then Q.Net.send(player, "delta", d) end
 end
 

@@ -53,6 +53,10 @@ local function fillRoot(r, t)
     ensure(r, "exchange", { coins = 0, days = {} })
     ensure(r, "events", {})
     ensure(r, "daily", {})
+    ensure(r, "hordes", {})                  -- timed hordes (Hordes.lua): cur = the one horde, log = last 20 results
+    ensure(r.hordes, "seq", 0)
+    ensure(r.hordes, "roll", { slot = 0, n = 0 })
+    ensure(r.hordes, "log", {})
 end
 
 function St.shardTag(user)

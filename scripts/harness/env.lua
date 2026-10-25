@@ -11,7 +11,10 @@ Quick reference
       OnServerStarted. sp = true: single player, loads shared+server+client in one process (isServer/isClient both
       false); replies reach MinidoracatQuest.Client.receive and are also recorded in T.outbox.
   T.bootClient{}           MP client: loads shared+client (T.mode = "client").
-  T.player{ name, admin, role, sid, x, y, z, num, oid, dead, noRole, offline }  online IsoPlayer
+  T.player{ name, admin, role, sid, x, y, z, num, oid, dead, noRole, offline }  online IsoPlayer (p.veh, p.hand)
+  T.zombie{ oid, outfit, attacker, inWorld }  IsoZombie; addZombiesInOutfitArea makes these (T.spawnCap limits how many
+      it returns, like unloaded squares; T.spawnCalls records the calls; they report isExistInTheWorld() false like
+      fresh zombies on a dedicated server, quest-hz-1026e); z:Kill(killer) fires OnZombieDead
   T.cmd(p, cmd, args, requestId)   fills protocol (+ requestId for mutations / admin mutation ops), advances 300 ms,
       fires OnClientCommand and returns the "result" or "admin" reply sent for it (nil when none).
   T.lastOf(p, cmd), T.sentTo(p, cmd), T.broadcastsOf(cmd), T.clientSent (sendClientCommand records)
@@ -238,6 +241,8 @@ function T.player(o)
     function p:isAnimal() return false end
     function p:getHoursSurvived() return self.hours end
     function p:getZombieKills() return self.kills end
+    function p:getVehicle() return self.veh end
+    function p:getPrimaryHandItem() return self.hand end
     function p:getPerkLevel(perk) return self.perks[perk] or 0 end
     -- Role.getName (IsoPlayer.java:7562 getRole, Role.java:41); SP getRole() is nil (pitfalls.md:124)
     function p:getRole()
@@ -251,6 +256,42 @@ function T.player(o)
 end
 function T.disconnect(p)
     for i, x in ipairs(T.online) do if x == p then table.remove(T.online, i) break end end
+end
+
+-- ===== zombies (IsoZombie) =====
+T.zombies, T.spawnCalls, T.spawnCap = {}, {}, nil
+T.nextZombieId = 1000
+function T.zombie(o)
+    o = o or {}
+    local z = { __class = "IsoZombie", oid = o.oid or T.nextZombieId, outfit = o.outfit or 655360, attacker = o.attacker,
+        dead = false, inWorld = o.inWorld ~= false, onSquare = true, sprinter = false }
+    T.nextZombieId = T.nextZombieId + 1
+    function z:getOnlineID() return self.oid end
+    function z:getPersistentOutfitID() return self.outfit end
+    function z:isDead() return self.dead end
+    function z:isExistInTheWorld() return self.inWorld end
+    function z:getAttackedBy() return self.attacker end
+    function z:getCurrentSquare() return nil end
+    function z:doSprinter() self.sprinter = true end
+    -- the server zombie's online id goes to -1 (IsoZombie.java:4335-4370)
+    function z:removeFromWorld() self.inWorld, self.oid = false, -1 end
+    function z:removeFromSquare() self.onSquare = false end
+    -- IsoGameCharacter.Kill: attacker set, then OnZombieDead (IsoZombie.onKilled)
+    function z:Kill(killer)
+        self.attacker, self.dead = killer, true
+        T.fire("OnZombieDead", self)
+    end
+    T.zombies[#T.zombies + 1] = z
+    return z
+end
+-- LuaManager.java:10433; returns an ArrayList, fewer when squares are not loaded (T.spawnCap). On the dedicated server
+-- these report isExistInTheWorld() false (their square's moving objects do not list them) for at least 1.5 s after the
+-- spawn: quest-hz-1026e HZDBG, online id and outfit id unchanged
+function addZombiesInOutfitArea(x1, y1, x2, y2, z, n, outfit, femaleChance)
+    T.spawnCalls[#T.spawnCalls + 1] = { x1 = x1, y1 = y1, x2 = x2, y2 = y2, z = z, n = n, outfit = outfit, female = femaleChance }
+    local list = {}
+    for i = 1, T.spawnCap and math.min(n, T.spawnCap) or n do list[i] = T.zombie{ inWorld = false } end
+    return T.javaList(list)
 end
 T.netEarly = {}
 local function early(what)
@@ -331,6 +372,7 @@ local function resetWorld(opts)
     T.unreadable = {}
     T.failWrites, T.silentWrites = false, false
     T.randQueue = {}
+    T.zombies, T.spawnCalls, T.spawnCap = {}, {}, nil
     T.steam = opts.steam or false
     T.nextOnlineId = 0
     T.missing = {}

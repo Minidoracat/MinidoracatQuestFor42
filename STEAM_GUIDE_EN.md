@@ -1,7 +1,7 @@
 <!-- Steam guide source (English): the full reference for this mod; the Workshop description only summarizes. Format and sync: pz-family-docs/release.md「完整說明：Steam 指南」 -->
 <!-- Placeholders until first release: GUIDE_ZH (Chinese guide id), WORKSHOP_ID (item id); fill them in per release-first.md「首發」steps 4 and 5 -->
 <!-- 標題：📖 Quests & Achievements Mod Guide: Quests, Achievements, Leaderboards & Admin Panel -->
-<!-- 摘要：Illustrated guide to Minidoracat Quests & Achievements: daily and weekly quests, the server-wide quest and weekly server goal, streaks, newcomer quests, timed events, achievements and titles, leaderboards and seasons, My records, exchanging points for Survivor Coins and player settings, plus installation, sandbox options, the admin panel, season payouts, Economy integration, data and backups for hosts, and the API for other mod authors. -->
+<!-- 摘要：Illustrated guide to Minidoracat Quests & Achievements: daily and weekly quests, the server-wide quest and weekly server goal, streaks, newcomer quests, timed events, hordes, achievements and titles, leaderboards and seasons, My records, exchanging points for Survivor Coins and player settings, plus installation, sandbox options, the admin panel, season payouts, Economy integration, data and backups for hosts, and the API for other mod authors. -->
 === 🚀 Quick start
 [b]繁體中文版：[/b][url=https://steamcommunity.com/sharedfiles/filedetails/?id=GUIDE_ZH]Minidoracat Quests & Achievements 完整說明[/url]
 
@@ -19,6 +19,7 @@ Daily and weekly quests, achievements, season leaderboards and titles; pair it w
 [list]
 [*] [b]Required[/b]: [url=https://steamcommunity.com/sharedfiles/filedetails/?id=3789836701]Minidoracat UI Library[/url]
 [*] [b]Optional[/b]: [url=https://steamcommunity.com/sharedfiles/filedetails/?id=3801482125]Minidoracat Economy[/url], to exchange points for Survivor Coins on multiplayer servers.
+[*] [b]Optional[/b]: [url=https://steamcommunity.com/sharedfiles/filedetails/?id=3763913359]Minidoracat MiniMap[/url], to show the horde area on the minimap.
 [/list]
 [h3]Where it works[/h3]
 [list]
@@ -103,6 +104,55 @@ Daily and weekly quests, achievements, season leaderboards and titles; pair it w
 [*] [b]Late is fine[/b]: if you reach the minimum contribution after the goal is reached, you are paid when you do.
 [*] [b]Your contribution[/b]: the page shows what you contributed this week and the minimum.
 [/list]
+=== 🧰 Hordes
+{{img:13-horde-en.jpg}}
+Once an admin sets up spots, the server starts hordes during a daily time window: a pack of zombies appears at a spot, and clearing it within the time limit pays points.
+[h3]How to take part[/h3]
+[olist]
+[*] [b]The warning[/b]: before it starts, everyone gets a "Horde warning" with the place, the start time and the kinds that may appear (for example Regular zombies and Sprinters), never the count. When an admin presses "Start one now", the message says it starts now.
+[*] [b]Get there[/b]: once it has started, the horde appears as soon as someone comes within 50 tiles of the spot, and the timer starts. The wait for players is limited; if nobody comes, the horde fails.
+[*] [b]Clear it[/b]: kill every zombie of this horde within the time limit while a player is within 50 tiles of the spot. Zombies killed by others or burnt count as cleared too.
+[*] [b]Get points[/b]: only players with a kill get points; see "Reward" below.
+[/olist]
+[h3]Where to see it[/h3]
+[list]
+[*] [b]Tracker panel[/b]: a horde row on top shows the place, the countdown and "Cleared N/M". It does not use one of the 5 slots, has no ×, and shows even when you track nothing. "Show the tracker panel" in the mod options must be on.
+[*] [b]Daily quests page[/b]: a horde banner under the timed events shows the current state; for 10 minutes after the end it shows the result, your kills and the points you got.
+[*] [b]Minimap[/b]: with Minidoracat MiniMap installed, the minimap marks the area around the spot.
+[*] [b]Notices[/b]: the warning, the horde appearing, cleared, failed and cancelled go to everyone; points you get come with a "Horde reward" notice.
+[/list]
+[h3]Reward[/h3]
+[list]
+[*] [b]Pool[/b]: zombies spawned × points per zombie (5 by default).
+[*] [b]Split[/b]: the admin picks "Split by kill share" (default, at least 1 point each) or "Full pool to everyone with a kill".
+[*] [b]Where it counts[/b]: season, all-time and balance, so it can be exchanged.
+[*] [b]Hidden achievement[/b]: the first horde you help clear unlocks a hidden achievement and the title "Horde Hunter".
+[*] [b]Kills still count[/b]: horde kills count for kill stats, quests and achievements as usual.
+[/list]
+[h3]Failing[/h3]
+[list]
+[*] [b]Time runs out[/b]: the zombies left are removed and nobody gets points.
+[*] [b]Other reasons[/b]: nobody came, an admin stopped it, the server restarted while it was running, or the horde could not appear at the spot. Zombies already out when the server restarts stay as normal zombies.
+[*] [b]Zombies that wander off[/b]: horde zombies that follow someone far away and get stored by the game become normal zombies; they no longer count for the horde, so there is no need to chase them.
+[/list]
+[h3]Admins: "Admin > Hordes"[/h3]
+{{img:14-admin-hordes-en.jpg}}
+[list]
+[*] [b]Spots[/b]: stand where a horde should appear, fill in "Spot name" and press "Add my current position"; up to 32 spots, one picked at random for each horde. Automatic hordes and "Start one now" need at least one spot.
+[*] [b]Schedule[/b]: "Automatic hordes" (off by default), "Window from" and "Window to" (HH:MM in the sandbox time zone; a "to" earlier than "from" runs past midnight, equal means all day), "Chance per hour", "Hordes per day at most", "Warning before start", "Wait for players". Inside the window the server rolls once an hour and, on a hit, schedules a horde within that hour.
+[*] [b]The horde[/b]: "Zombies (min - max)", "Kind weight" per kind (only kinds above 0 appear), "Time limit", "Points per zombie", "Reward split".
+[*] [b]Like other settings[/b]: spots and fields go into pending changes and take effect with "Apply" at the bottom; they are kept in History and written to config.json (see "Settings file config.json"). A horde already scheduled keeps the settings it was planned with.
+[*] [b]Now[/b]: the current horde's place, times, count and kinds. "Cancel this horde" before it starts, "Stop this horde" after (it fails, nobody gets points, its zombies are removed); both ask first.
+[*] [b]Start one now[/b]: skips the roll and starts a horde at a random spot at once, with the applied settings; it does not count toward the daily limit. With a horde already planned or running, cancel or stop it first. Starting and stopping are listed in History but cannot be undone.
+[*] [b]Today and recent results[/b]: "Today N / M hordes, next roll HH:MM", and the last 5 results with the reason for failures.
+[/list]
+[table]
+[tr][th]Setting[/th][th]Default[/th][/tr]
+[tr][td]Window[/td][td]19:00 to 23:00, 30% per hour, 1 horde per day at most[/td][/tr]
+[tr][td]Warning / wait for players[/td][td]15 min / 60 min[/td][/tr]
+[tr][td]The horde[/td][td]20 to 40 zombies, Regular zombies 80, Sprinters 20[/td][/tr]
+[tr][td]Time limit / points per zombie[/td][td]15 min / 5 points, split by kill share[/td][/tr]
+[/table]
 === 🧰 Achievements and titles
 {{img:03-achievements-en.jpg}}
 [h3]Categories[/h3]
@@ -115,7 +165,7 @@ Daily and weekly quests, achievements, season leaderboards and titles; pair it w
 [tr][td]Farming & Wilds[/td][td]Planting, harvesting, fishing, foraging, trapping, butchering, milking, shearing, collecting eggs, chopping trees[/td][/tr]
 [tr][td]Exploration[/td][td]Towns visited, walking, driving, reading, placing furniture[/td][/tr]
 [tr][td]Quests[/td][td]Daily, weekly, longest streak, server goals, seasons joined, achievement tiers[/td][/tr]
-[tr][td]Hidden[/td][td]16 achievements, only a hint until unlocked[/td][/tr]
+[tr][td]Hidden[/td][td]17 achievements, only a hint until unlocked[/td][/tr]
 [tr][td]Professions[/td][td]None built in; other mods add them through the API[/td][/tr]
 [/table]
 [h3]Tiers and points[/h3]
@@ -129,7 +179,7 @@ Daily and weekly quests, achievements, season leaderboards and titles; pair it w
 [tr][td]Hidden achievement (1 tier)[/td][td]30, some give a title[/td][/tr]
 [/table]
 [list]
-[*] [b]About 110 in total[/b]: 107 built in; a server may add custom achievements or achievements from other mods. Each category button shows unlocked/total.
+[*] [b]About 110 in total[/b]: 108 built in; a server may add custom achievements or achievements from other mods. Each category button shows unlocked/total.
 [*] [b]Next tier[/b]: every achievement shows the next tier's threshold and points.
 [*] [b]How the five tiers work[/b]: for counts, Legend V is 2.5 times Platinum IV; skill achievements are skill levels 2 / 4 / 6 / 8 / 10 (Fitness and Strength 6 to 10), so a skill title comes at level 8. Admins can add up to 10 tiers.
 [*] [b]One-life achievements[/b]: those marked "One life" use this life's stats and start over after death; the rest use your all-time totals across characters.
@@ -156,6 +206,7 @@ Daily and weekly quests, achievements, season leaderboards and titles; pair it w
 [list]
 [*] [b]Add[/b]: press "Track" on a daily or weekly quest card or an achievement card (press again to stop), up to 5; with 5 tracked, pressing "Track" on another card tells you to untrack one first.
 [*] [b]What it shows[/b]: at the top left, next to the vanilla sidebar: quests show progress/target, achievements the next tier's target, a done quest gets a check mark and the points it paid.
+[*] [b]Hordes[/b]: during a horde an extra row sits on top; it does not use one of the 5 slots (see "Hordes").
 [*] [b]Move and fold[/b]: drag the panel to move it and the game remembers where; the arrow in its title row folds it to one line.
 [*] [b]Untrack[/b]: point at a row and press the × that appears on its right.
 [*] [b]Removed on its own[/b]: daily quests at the daily reset, weekly quests at the weekly reset, a swapped quest, and an achievement that reached its top tier.
@@ -214,7 +265,7 @@ Daily and weekly quests, achievements, season leaderboards and titles; pair it w
 [/table]
 [table]
 [tr][th]Source[/th][th]Season[/th][th]All-time[/th][th]Balance[/th][/tr]
-[tr][td]Quests, achievements, streaks, server goal, newcomer quests[/td][td]+[/td][td]+[/td][td]+[/td][/tr]
+[tr][td]Quests, achievements, streaks, server goal, newcomer quests, hordes[/td][td]+[/td][td]+[/td][td]+[/td][/tr]
 [tr][td]Achievements imported when the mod was added mid-save[/td][td]-[/td][td]+[/td][td]-[/td][/tr]
 [tr][td]Season rewards[/td][td]-[/td][td]-[/td][td]+[/td][/tr]
 [tr][td]Exchanging for Survivor Coins[/td][td]-[/td][td]-[/td][td]minus[/td][/tr]
@@ -269,12 +320,12 @@ The server needs Minidoracat Economy (multiplayer only). The Exchange page on th
 The sandbox page "Minidoracat Quests & Achievements" has three options; everything else is set in the in-game admin panel or directly in config.json on the server (see "Settings file config.json").
 [table]
 [tr][th]Option[/th][th]Default[/th][th]Notes[/th][/tr]
-[tr][td]Time zone (UTC offset, hours)[/td][td]8[/td][td]-12 to 14; time zone for the daily reset and times on screen[/td][/tr]
+[tr][td]Time zone (UTC offset, hours)[/td][td]8[/td][td]-12 to 14; time zone for the daily reset, times on screen and the horde window[/td][/tr]
 [tr][td]Daily reset hour[/td][td]0[/td][td]0-23; local hour when daily quests reset; weekly quests reset at this hour on Monday[/td][/tr]
 [tr][td]Admin roles[/td][td]admin[/td][td]Role names that can open the admin panel, separated by commas or semicolons, case-sensitive; use English names, as non-English characters are corrupted on every server restart[/td][/tr]
 [/table]
 [list]
-[*] [b]With the Economy mod[/b]: when the Economy mod provides its day-change API, the daily and weekly reset follow the Economy mod's daily reward reset and the first two options no longer decide it.
+[*] [b]With the Economy mod[/b]: when the Economy mod provides its day-change API, the daily and weekly reset follow the Economy mod's daily reward reset and the first two options no longer decide it; the horde window still uses this time zone.
 [/list]
 [h3]Main admin panel defaults[/h3]
 [table]
@@ -291,6 +342,7 @@ The sandbox page "Minidoracat Quests & Achievements" has three options; everythi
 [tr][td]Season length[/td][td]28 days (7-180)[/td][/tr]
 [tr][td]Exchange[/td][td]On, 1 point = 1 Survivor Coin, 100 points per player per day, at least 10[/td][/tr]
 [tr][td]Server-wide notices[/td][td]On, from tier 3, 1 per player per minute[/td][/tr]
+[tr][td]Hordes[/td][td]Automatic hordes off (settings in "Hordes")[/td][/tr]
 [tr][td]Not ranked[/td][td]Offline for 180 days[/td][/tr]
 [/table]
 === ⚙️ Admin panel
@@ -298,9 +350,9 @@ The sandbox page "Minidoracat Quests & Achievements" has three options; everythi
 Open "Admin" on the left of the window (its own group at the bottom of the list); only roles listed in the "Admin roles" sandbox option see it, and the server checks every action again.
 [h3]How changes work[/h3]
 [list]
-[*] [b]Tabs[/b]: settings come first (General, Achievements, Quests, Season, Exchange, Towns); after the divider come operations (Players, Report, Balance, History).
+[*] [b]Tabs[/b]: settings come first (General, Achievements, Quests, Season, Exchange, Towns, Hordes); after the divider come operations (Players, Report, Balance, History). For Hordes see "Hordes".
 [*] [b]Draft first[/b]: edits go into pending changes; press "Apply" at the bottom to see old and new values, then confirm. "Discard changes" asks before it discards.
-[*] [b]Instant buttons[/b]: timed events, the payout review and account actions skip that confirmation; those sections say so.
+[*] [b]Instant buttons[/b]: timed events, horde start/cancel/stop, the payout review and account actions skip that confirmation; those sections say so.
 [*] [b]Unlocks are kept[/b]: higher thresholds only affect what comes next.
 [*] [b]Times[/b]: shown in the sandbox time zone.
 [/list]
@@ -388,6 +440,7 @@ The admin panel settings (except timed events and the season length) are also ke
 [*] [b]An error stops the whole file[/b]: with broken JSON, a value out of range or a misspelt name, the current settings stay; status.json, the server console and the panel's History tab show the line where the JSON stopped or the field with the error (for example daily.pool.d_kill.target).
 [*] [b]Panel changes rewrite the file[/b]: after an apply or undo in the panel the server writes the settings in effect back to config.json, so manual edits it has not read yet are overwritten. A deleted file is written again.
 [*] [b]Not in the panel[/b]: leaderboards (boards), community goal rotation (goal.rotation), newcomer title and days (newbie.title, newbie.days) change only in this file.
+[*] [b]Hordes (hordes)[/b]: every setting of the Hordes tab: enabled, from, to ("HH:MM"), chance, maxPerDay, leadMin, waitMin, count ([min, max]), kinds (kind id to weight; built in: vanilla, runner), limitMin, perZombie, split (share or each), spots (up to 32 {name, x, y, z}, always written whole). Ranges are in the GitHub README.
 [*] [b]Restoring a world save[/b]: the server applies config.json at start, so the settings follow the file, not the older save.
 [*] [b]Settings from the 4-tier days still work[/b]: an achievement whose tiers list has 4 numbers keeps 4 tiers; a pts list of 4 numbers (points changed, tiers not) pays the default 80 for tier 5.
 [/list]
@@ -435,7 +488,7 @@ Example: the daily quest "Kill N zombies" (d_kill) gets a target of 30 to 60 and
 === ⚙️ Data and backups
 [table]
 [tr][th]Contents[/th][th]Location[/th][/tr]
-[tr][td]Setting overrides, seasons, server-wide quest and server goal, timed events, audit (last 500)[/td][td]Global ModData shared table MinidoracatQuest in the world save[/td][/tr]
+[tr][td]Setting overrides, seasons, server-wide quest and server goal, timed events, hordes (the current one and the last 20 results), audit (last 500)[/td][td]Global ModData shared table MinidoracatQuest in the world save[/td][/tr]
 [tr][td]Each account's stats, quests, points, achievements, titles, preferences, tracked items, exchange queue and last 10 exchanges[/td][td]Global ModData account tables MinidoracatQuest_A00-A15 (16 tables)[/td][/tr]
 [tr][td]Account to Steam account bindings[/td][td]Zomboid/Lua/MinidoracatQuest/<server name>/identity.txt[/td][/tr]
 [tr][td]Daily event log (one line per event)[/td][td]Same folder, events-YYYYMMDD.json, one per day[/td][/tr]
@@ -448,7 +501,7 @@ Example: the daily quest "Kill N zombies" (d_kill) gets a target of 30 to 60 and
 [*] [b]Backups[/b]: back up the world save together with Lua/MinidoracatQuest/<server name>/. Without identity.txt, names on a Steam server are bound again only when each player comes back online. When you restore only the world save, the settings still follow config.json in that folder.
 [/list]
 === ⚙️ For mod authors
-Other mods can add stats, achievements, daily quests and Professions leaderboards on the server through MinidoracatQuest.v1. For a full example and field limits, see "給其他 MOD 的 API" (API for other mods) in the GitHub README:
+Other mods can add stats, achievements, daily quests, Professions leaderboards and horde kinds on the server through MinidoracatQuest.v1. For a full example and field limits, see "給其他 MOD 的 API" (API for other mods) in the GitHub README:
 https://github.com/Minidoracat/MinidoracatQuestFor42#給其他-mod-的-api
 [list]
 [*] [b]Detect[/b]: use it only when MinidoracatQuest.v1 exists and API_MAJOR == 1; skip it when the mod is not installed.
@@ -457,6 +510,8 @@ https://github.com/Minidoracat/MinidoracatQuestFor42#給其他-mod-的-api
 [*] [b]Limits[/b]: per mod 32 stats, 64 achievements and 32 quests; 50 pack.add calls per tick; n up to 1000.
 [*] [b]Translations[/b]: names use translation keys your mod ships, so clients need your mod too.
 [*] [b]Admins[/b]: can tune or disable your achievements and quests in the admin panel like any other.
+[*] [b]Horde kinds[/b]: registerHordeKind (from API_REVISION 2; check with type that it is a function) registers a kind of zombie; your mod only spawns them, this mod handles timing, counting and clearing. 8 kinds per mod, 32 in all; a new kind's weight starts at 0 until an admin raises it.
+[*] [b]Spawned zombies[/b]: only appearance, health, walk type and speed and some state flags of a server-spawned zombie reach clients, so set them when you spawn it; strength, sight and hearing are worked out on each computer, and modData does not sync.
 [/list]
 === ⚠️ Known limitations
 [list]
@@ -468,6 +523,9 @@ https://github.com/Minidoracat/MinidoracatQuestFor42#給其他-mod-的-api
 [*] [b]Split screen[/b]: players 2-4 do not earn progress; the tracker panel and head titles are for player 1 only.
 [*] [b]Head titles approximate the vanilla rules[/b]: players in a vehicle get none. When the server shows names only on mouse-over (the vanilla default), the mod checks the floor square under the mouse and the squares around it, plus the player's body; vanilla uses the object under the mouse, so pointing at a wall or a tall object can differ by one square.
 [*] [b]Chat titles[/b]: only lines that arrive while the author wears a title get one; a title changed or taken off later does not always update lines already shown. A mod that rewrites the whole vanilla chat window may keep them from appearing.
+[*] [b]Horde zombies that wander off become normal[/b]: a zombie away from every player is stored by the game and the mod cannot recognise it when it comes back, so it stops counting for the horde and is not removed when time runs out.
+[*] [b]A server restart fails a running horde[/b]: zombies already out stay as normal zombies and nobody gets points; a horde whose zombies have not appeared yet carries on.
+[*] [b]Removed zombies can linger for a few seconds[/b]: when time runs out or an admin stops a horde, the player in charge of those zombies (usually the closest one) may still see them for up to about 8 seconds.
 [*] [b]Mid-save import is partial[/b]: only kills, days survived and skill levels; crafting, distance, fishing and the rest count from when the mod is added.
 [*] [b]Player identity[/b]: on Steam servers a name is bound to its Steam account the first time it comes online; switching Steam accounts makes you a different player, and there is no way to unbind yet. No-Steam servers cannot stop someone respawning under another player's name; a modified client may take a name that has not come online to be bound yet.
 [*] [b]Event logs keep growing[/b]: see "Data and backups".
@@ -507,6 +565,11 @@ https://github.com/Minidoracat/MinidoracatQuestFor42#給其他-mod-的-api
 [list]
 [*] Other players do not see your name or title on this mod's leaderboards or in server-wide notices; admins do. A modified client can also read the save data; see "Known limitations".
 [*] Your title over your head and in chat still shows; an anonymous leaderboard row has no title, so nobody can match your title to your rank.
+[/list]
+[h3]The horde never appears?[/h3]
+[list]
+[*] After the start time, someone has to come within 50 tiles of the spot; from then on the tracker panel and the daily quests page show its coordinates.
+[*] Admins: automatic hordes are off by default and need at least one spot; "Admin > Hordes" shows today's count and the next roll.
 [/list]
 [h3]How do I become an admin?[/h3]
 [list]

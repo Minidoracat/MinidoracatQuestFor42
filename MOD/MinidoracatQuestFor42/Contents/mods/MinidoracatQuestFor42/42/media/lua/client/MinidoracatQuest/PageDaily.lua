@@ -1,6 +1,6 @@
--- MinidoracatQuest/PageDaily.lua: daily page (spec 1.3, 2, 3, 5, 6): event banners, header with streak and reset
---   chips, newbie card, three personal quest cards (theme tag, points, bar, swap), the server-wide card, and the
---   streak block (seven weekday dots, milestones). questCard is shared with the weekly page.
+-- MinidoracatQuest/PageDaily.lua: daily page (spec 1.3, 2, 3, 5, 6): event banners, the horde banner, header with
+--   streak and reset chips, newbie card, three personal quest cards (theme tag, points, bar, swap), the server-wide
+--   card, and the streak block (seven weekday dots, milestones). questCard is shared with the weekly page.
 
 if isServer() then return end
 
@@ -129,6 +129,58 @@ local function events(b, x, y, w, s)
     return y
 end
 
+-- horde banner (plan r10 state screens): announced / waiting / active from state.hordes.cur, else the last result
+-- for LAST_MS after it ended. Returns token, title, body, rightText | nil. The page ticks every 30 s, so the
+-- countdowns here are coarse (the tracker panel counts by the second)
+P.LAST_MS = 600000
+function P.hordeBanner(s, now)
+    local hs = type(s) == "table" and type(s.hordes) == "table" and s.hordes or {}
+    local h = D.hordeLive(hs.cur)
+    if h ~= nil then
+        local place = D.hordePlace(h)
+        if h.state == "announced" then
+            return D.EXTRA.hordeSoon, getText("IGUI_MQ_Horde_Title_soon", place),
+                getText("IGUI_MQ_Horde_MayAppear", D.hordeKinds(h.kinds)), getText("IGUI_MQ_Horde_StartsAt", D.clock(h.startMs))
+        end
+        if h.state == "waiting" then
+            return D.EXTRA.hordeSoon, getText("IGUI_MQ_Horde_Title_wait", place),
+                getText("IGUI_MQ_Horde_WaitBody", tostring(h.x), tostring(h.y)),
+                getText("IGUI_MQ_UI_Left", D.duration((tonumber(h.expireAt) or now) - now))
+        end
+        local n = tonumber(h.spawned) or 0
+        return D.EXTRA.horde, getText("IGUI_MQ_Horde_Title_active", place),
+            getText(h.split == "each" and "IGUI_MQ_Horde_ActiveBody_each" or "IGUI_MQ_Horde_ActiveBody_share",
+                D.num(math.max(0, n - (tonumber(h.left) or 0))), D.num(n), D.num(tonumber(h.pool) or 0)),
+            getText("IGUI_MQ_UI_Left", D.duration((tonumber(h.endsAt) or now) - now))
+    end
+    local l = hs.last
+    if type(l) ~= "table" or now - (tonumber(l.endedAt) or 0) >= P.LAST_MS then return nil end
+    local place = D.hordePlace(l)
+    if l.state == "success" then
+        local got, mine = tonumber(l.got) or 0, D.num(tonumber(l.mine) or 0)
+        if got <= 0 then
+            return D.EXTRA.success, getText("IGUI_MQ_Horde_Title_win", place),
+                getText("IGUI_MQ_Horde_WinOthers", D.num(tonumber(l.killed) or 0), D.num(tonumber(l.spawned) or 0)), nil
+        end
+        local pool = tonumber(l.pool) or 0
+        -- share: the server split pool by kill share, so got / pool is this player's share
+        local body = (l.split ~= "each" and pool > 0)
+            and getText("IGUI_MQ_Horde_WinMine_share", mine, tostring(math.floor(got * 100 / pool + 0.5)))
+            or getText("IGUI_MQ_Horde_WinMine_each", mine)
+        return D.EXTRA.success, getText("IGUI_MQ_Horde_Title_win", place), body, getText("IGUI_MQ_UI_PlusPoints", D.num(got))
+    end
+    if l.state == "cancelled" then
+        return "textMuted", getText("IGUI_MQ_Horde_Title_cancel", place), getText("IGUI_MQ_Horde_CancelBody"), nil
+    end
+    return "errorText", getText("IGUI_MQ_Horde_Title_fail", place), D.hordeWhy(l.why), getText("IGUI_MQ_Horde_NoReward")
+end
+
+local function horde(b, x, y, w, s)
+    local token, title, body, right = P.hordeBanner(s, C.serverNow())
+    if token == nil then return y end
+    return b:banner(x, y, w, token, title, body, right)
+end
+
 local function newbie(b, x, y, w, s)
     local nb = s.newbie
     if type(nb) ~= "table" then return y end
@@ -241,6 +293,7 @@ function P.layout(page)
         return
     end
     y = events(b, x, y, w, s)
+    y = horde(b, x, y, w, s)
     local st = type(s.streak) == "table" and s.streak or {}
     local chips = {}
     if (tonumber(st.days) or 0) > 0 then chips[#chips + 1] = { getText("IGUI_MQ_UI_StreakDays", tostring(st.days)), "textMuted" } end

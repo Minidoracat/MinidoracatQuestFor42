@@ -155,6 +155,36 @@ function E.toastText(t)
         local body = getText("IGUI_MQ_UI_ToastDescPts", D.achName(a), a.tiers and D.achDesc(a, t.tier) or "")
         if t.titleId ~= nil then body = getText("IGUI_MQ_UI_ToastBroadcastTitle", body, D.titleText(t.titleId)) end
         return title, body, D.EXTRA.info
+    elseif k == "horde" then
+        return E.hordeToast(t)
+    elseif k == "hordePaid" then
+        local kills = D.num(t.kills or 0)
+        return getText("IGUI_MQ_Horde_Paid", D.num(t.pts or 0)),
+            t.pct ~= nil and getText("IGUI_MQ_Horde_WinMine_share", kills, tostring(t.pct))
+                or getText("IGUI_MQ_Horde_WinMine_each", kills), D.EXTRA.success
+    end
+    return nil
+end
+
+-- server-wide horde toasts (t.ev); the warning names the kinds that may appear, never how many
+function E.hordeToast(t)
+    local place, ev = D.hordePlace(t), t.ev
+    local each = t.split == "each"
+    if ev == "soon" then
+        return getText("IGUI_MQ_Horde_Title_soon", place), getText("IGUI_MQ_Horde_SoonBody", D.clock(t.startMs), D.hordeKinds(t.kinds)),
+            D.EXTRA.hordeSoon
+    elseif ev == "open" then
+        return getText("IGUI_MQ_Horde_Title_wait", place), getText("IGUI_MQ_Horde_OpenBody", D.hordeKinds(t.kinds)), D.EXTRA.hordeSoon
+    elseif ev == "spawn" then
+        return getText("IGUI_MQ_Horde_Title_spawn", place), getText(each and "IGUI_MQ_Horde_SpawnBody_each" or "IGUI_MQ_Horde_SpawnBody_share",
+            tostring(t.limitMin or 0), D.num(t.pool or 0)), D.EXTRA.horde
+    elseif ev == "win" then
+        return getText("IGUI_MQ_Horde_Title_win", place), getText(each and "IGUI_MQ_Horde_WinBody_each" or "IGUI_MQ_Horde_WinBody_share",
+            D.num(t.n or 0), D.num(t.pool or 0)), D.EXTRA.success
+    elseif ev == "fail" then
+        return getText("IGUI_MQ_Horde_Title_fail", place), D.hordeWhy(t.why, t.left), nil
+    elseif ev == "cancel" then
+        return getText("IGUI_MQ_Horde_Title_cancel", place), getText("IGUI_MQ_Horde_CancelBody"), nil
     end
     return nil
 end

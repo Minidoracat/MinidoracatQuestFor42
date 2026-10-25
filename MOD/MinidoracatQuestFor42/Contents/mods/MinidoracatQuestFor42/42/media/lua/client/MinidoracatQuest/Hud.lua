@@ -1,10 +1,11 @@
 -- MinidoracatQuest/Hud.lua: the tracker panel (design round 7: a floating panel, only what the player pinned).
---   Up to LIMIT.MAX_PINS pinned quests / achievements with their progress, top left beside the vanilla sidebar.
---   Drag to move; the arrow collapses it to the title row (both go to layout.ini); hovering a row shows an x that
---   unpins it. Hidden while nothing is pinned, the player is dead, the Esc menu is up or V hid the UI; it stays while
---   the main window is open, so a Track press shows up at once (user 2026-10-24), and windows draw over it (backMost).
---   It never shows itself while the UI is hidden: the vanilla V / Esc toggle restores what it hid.
---   Data: state.pins and state.trk, kept fresh by the server while the panel is on ("track"; Sync.lua).
+--   Up to LIMIT.MAX_PINS pinned quests / achievements with their progress, top left beside the vanilla sidebar,
+--   and above them one horde row while a horde is announced, waits for players or runs (not a pin, not counted).
+--   Drag to move; the arrow collapses it to the title row (both go to layout.ini); hovering a pin row shows an x
+--   that unpins it. Hidden while there is nothing to show, the player is dead, the Esc menu is up or V hid the UI;
+--   it stays while the main window is open, so a Track press shows up at once (user 2026-10-24), and windows draw
+--   over it (backMost). It never shows itself while the UI is hidden: the vanilla V / Esc toggle restores what it hid.
+--   Data: state.pins, state.trk and state.hordes, kept fresh by the server while the panel is on ("track"; Sync.lua).
 --   Texts and widths are laid out when the data changes; render only walks the op list (Draw canvas).
 
 if isServer() then return end
@@ -26,10 +27,34 @@ H.PAD = 8
 H.show = H.show ~= false     -- MOD option "ShowHud" (Entry.lua)
 
 -- ===== model (harness tests these) =====
--- one row per pin that still names something: { id, tag, name, prog, target, done, pts, color }
-function H.rows(state, defs)
+-- the horde row: { id = "horde", horde = true, tag, name, time, line, prog?, target? } or nil.
+-- announced: the start clock; waiting: time left for someone to come; active: time left and cleared / spawned
+function H.hordeRow(state, now)
+    local hs = type(state) == "table" and type(state.hordes) == "table" and state.hordes or nil
+    local h = hs and D.hordeLive(hs.cur)
+    if h == nil then return nil end
+    now = now or C.serverNow()
+    local r = { id = "horde", horde = true, tag = getText("IGUI_MQ_Horde_Tag"), name = D.hordePlace(h), state = h.state }
+    if h.state == "active" then
+        local n = tonumber(h.spawned) or 0
+        r.prog, r.target = math.max(0, n - (tonumber(h.left) or 0)), n
+        r.time = D.countdown((tonumber(h.endsAt) or now) - now)
+        r.line = getText("IGUI_MQ_Horde_HudCleared", D.num(r.prog), D.num(n))
+    elseif h.state == "waiting" then
+        r.time = D.countdown((tonumber(h.expireAt) or now) - now)
+        r.line = getText("IGUI_MQ_Horde_HudWait", tostring(h.x), tostring(h.y))
+    else
+        r.time = D.clock(h.startMs)
+        r.line = getText("IGUI_MQ_Horde_MayAppear", D.hordeKinds(h.kinds))
+    end
+    return r
+end
+
+-- the horde row first, then one row per pin that still names something: { id, tag, name, prog, target, done, pts, color }
+function H.rows(state, defs, now)
     local out = {}
     if type(state) ~= "table" then return out end
+    out[1] = H.hordeRow(state, now)
     local trk = type(state.trk) == "table" and state.trk or {}
     local achv = type(state.achv) == "table" and state.achv or {}
     for _, id in ipairs(type(state.pins) == "table" and state.pins or {}) do
@@ -97,11 +122,23 @@ function H.persist()
     end
 end
 
--- ===== layout: background, title row (star, name, count, arrow), one row per pin =====
+-- ===== layout: background, title row (star, name, pin count, arrow), the horde row, one row per pin =====
+-- the horde row has no x (not a pin) and draws in the horde red; p.hordeTime is what onTick compares
+local function hordeRowOps(b, r, y, w, pad, lh)
+    local nameX = pad + b:chip(pad, y, r.tag, D.EXTRA.horde) + 6
+    local tw = b:textRight(w - pad, y + 3, r.time, D.EXTRA.horde)
+    b:fitText(nameX, y + 3, r.name, w - pad - tw - 8 - nameX, "text")
+    local ly = y + D.chipH() + 2
+    if r.target == nil then return b:fitText(pad, ly, r.line, w - 2 * pad, "textMuted") end
+    local pw = b:textRight(w - pad, ly, r.line, "textMuted")
+    b:bar(pad, ly + math.floor((lh - 4) / 2), w - 2 * pad - pw - 8, 4, r.target > 0 and r.prog / r.target or 0, D.EXTRA.horde)
+end
+
 function H.layout(p)
     H.dirty = false
     local rows = H.rows(C.state, C.defs())
-    p.rows, p.hits = rows, {}
+    local pins = rows[1] ~= nil and rows[1].horde and #rows - 1 or #rows
+    p.rows, p.hits, p.hordeTime = rows, {}, rows[1] ~= nil and rows[1].horde and rows[1].time or nil
     local b = D.begin(p)
     local pad, w, lh = H.PAD, p.width, D.fontH()
     local th = H.titleH()
@@ -113,7 +150,7 @@ function H.layout(p)
     b:border(0, 0, w, h, "border")
     b:icon(pad, pad - 1, 14, "markerStar", D.EXTRA.gold, "*")
     local tw = b:text(pad + 20, pad - 3, getText("IGUI_MQ_UI_HudTitle"), "text")
-    b:text(pad + 28 + tw, pad - 3, getText("IGUI_MQ_UI_Count", tostring(#rows), tostring(Q.Contract.LIMIT.MAX_PINS)),
+    b:text(pad + 28 + tw, pad - 3, getText("IGUI_MQ_UI_Count", tostring(pins), tostring(Q.Contract.LIMIT.MAX_PINS)),
         "textMuted")
     b:arrow(w - pad - 8, pad + math.floor(lh / 2) - 4, not p.collapsed, "textMuted")
     if not p.collapsed then
@@ -121,8 +158,10 @@ function H.layout(p)
         local xRight = w - pad - 16   -- room for the hover x
         for _, r in ipairs(rows) do
             local top = y
-            local nameX = pad + b:chip(pad, y, r.tag, "textMuted") + 6
-            if r.done then
+            local nameX = not r.horde and pad + b:chip(pad, y, r.tag, "textMuted") + 6
+            if r.horde then
+                hordeRowOps(b, r, y, w, pad, lh)
+            elseif r.done then
                 local pw = b:textRight(xRight, y + 3, getText("IGUI_MQ_UI_PlusPoints", D.num(r.pts)), D.EXTRA.success)
                 b:icon(xRight - pw - 16, y + 3, 14, "check", D.EXTRA.success, "v")
                 b:fitText(nameX, y + 3, r.name, xRight - pw - 24 - nameX, "textMuted")
@@ -135,7 +174,7 @@ function H.layout(p)
                     r.color or "accent")
             end
             y = y + H.rowH(r)
-            p.hits[#p.hits + 1] = { id = r.id, y0 = top - 2, y1 = y - 2, xx = w - pad - 12, ty = top + 3 }
+            if not r.horde then p.hits[#p.hits + 1] = { id = r.id, y0 = top - 2, y1 = y - 2, xx = w - pad - 12, ty = top + 3 } end
         end
     end
     p:setHeight(h)
@@ -250,8 +289,11 @@ local function uiHidden()
     return ms ~= nil and ms.inGame == true and ms:isReallyVisible() == true
 end
 
+-- something to show: a pin, or a horde players can see (same hide rules for both)
 function H.wanted()
-    if not H.show or C.state == nil or #C.pins() == 0 or uiHidden() then return false end
+    if not H.show or C.state == nil or uiHidden() then return false end
+    local hs = C.state.hordes
+    if #C.pins() == 0 and D.hordeLive(type(hs) == "table" and hs.cur or nil) == nil then return false end
     local p = getSpecificPlayer(0)
     return p ~= nil and not p:isDead()
 end
@@ -278,10 +320,16 @@ function H.setShown(on)
     H.sync()
 end
 
+-- every 500 ms; a shown horde countdown lays the panel out again only when its text changed (once a second while it runs)
 function H.onTick()
     local now = getTimestampMs()
     if H.lastSync ~= nil and now - H.lastSync < H.SYNC_MS then return end
     H.lastSync = now
+    local p = H.panel
+    if p ~= nil and p.hordeTime ~= nil then
+        local r = H.hordeRow(C.state)
+        if r == nil or r.time ~= p.hordeTime then H.dirty = true end
+    end
     H.sync()
 end
 

@@ -2,6 +2,7 @@
 -- Last module in the require chain: it requires every server module and assigns v1 only when all of them loaded,
 -- so a consumer that sees v1 sees a working mod. Consumers probe v1.API_MAJOR == 1.
 --   v1.registerPack(spec) -> pack | nil, code      pack.add(player, statId, n) -> true | false, code
+--   v1.registerHordeKind(spec) -> true | nil, "invalid_args"   (API_REVISION 2; Hordes.registerKind)
 -- Codes: invalid_args, rate_limited, not_ready. Stat/achievement/quest ids get the "<modId>:" prefix.
 -- Registered packs live in MinidoracatQuest.Packs[modId] (shape below); Stats.def resolves pack stats from it.
 
@@ -11,7 +12,7 @@ local MODULES = {
     "Contract", "Util", "Sandbox", "Store", "Identity", "Clock", "Audit", "EventLog", "Config", "Stats", "Points",
     "Net", "Sync", "Server",
     "Quests", "Achievements", "Exchange", "Seasons", "Boards", "Balance", "Report",
-    "Trackers", "Towns",
+    "Trackers", "Towns", "Hordes",
 }
 for _, name in ipairs(MODULES) do require("MinidoracatQuest/" .. name) end
 
@@ -146,7 +147,7 @@ for _, name in ipairs(MODULES) do
     if type(Q[name]) ~= "table" then missing[#missing + 1] = name end
 end
 if #missing == 0 then
-    Q.v1 = { API_MAJOR = 1, API_REVISION = 1, registerPack = A.registerPack }
+    Q.v1 = { API_MAJOR = 1, API_REVISION = 2, registerPack = A.registerPack, registerHordeKind = Q.Hordes.registerKind }
 else
     Q.v1 = nil
     Q.Util.log("facade not published, missing modules: " .. table.concat(missing, ","))

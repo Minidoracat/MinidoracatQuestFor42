@@ -15,7 +15,11 @@ AM.RANGE = {
     need = { 1, 4, true }, grace = { 0, 7, true }, msDays = { 1, 365, true }, minTier = { 1, 10, true },
     perMinute = { 0, 60, true }, growth = { 0.1, 10 }, weeklyCount = { 1, 3, true }, swaps = { 0, 10, true },
     eventMult = { 1, 5 }, coord = { 0, 100000, true }, ceil = { 1, 1e6, true },
+    -- hordes.* (Config.SCHEMA.hordes)
+    hordeChance = { 0, 100, true }, hordePerDay = { 1, 24, true }, hordeLead = { 0, 120, true }, hordeWait = { 1, 240, true },
+    hordeCount = { 1, 100, true }, hordeWeight = { 0, 100, true }, hordeLimit = { 1, 120, true }, hordePerZombie = { 0, 1000, true },
 }
+AM.MAX_SPOTS = 32
 AM.MAX_TIERS = 10
 AM.DEL = {}   -- draft marker: path removed (falls back to defaults)
 
@@ -29,6 +33,15 @@ function AM.check(text, rangeKey)
     if v == nil or v ~= v then return nil, "IGUI_MQ_Admin_ErrNumber", r[1], r[2] end
     if (r[3] and v ~= math.floor(v)) or v < r[1] or v > r[2] then return nil, "IGUI_MQ_Admin_ErrRange", r[1], r[2] end
     return v
+end
+
+-- "HH:MM" like the server's clock validator (one-digit hour allowed, hour 0-23, minute 0-59) -> trimmed text | nil.
+-- The text is kept as typed, so a value read back from the server compares equal
+function AM.clock(text)
+    local t = string.match(tostring(text or ""), "^%s*(.-)%s*$")
+    local h, m = string.match(t, "^(%d%d?):(%d%d)$")
+    if h == nil or tonumber(h) > 23 or tonumber(m) > 59 then return nil end
+    return t
 end
 
 -- thousands separator: AdminPanel sets it from IGUI_MQ_UI_ThousandSep (Draw.sep) when the panel opens; "," offline
@@ -362,7 +375,8 @@ function AM.formToDraft(S, values)
             byPath[f.path] = f.part and (AM.copy(AM.get(S, f.path)) or {}) or fv.value
         end
         local v = fv.value
-        if f.part and f.default ~= nil and v == f.default then v = nil end
+        -- at its default an unset key stays unset: a part is dropped from its map, a whole path is not written
+        if f.default ~= nil and v == f.default and (f.part or AM.get(S, f.path) == nil) then v = nil end
         if f.part then setPart(byPath[f.path], f.part, v) else byPath[f.path] = v end
     end
     local n = 0

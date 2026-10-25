@@ -51,6 +51,9 @@ D.EXTRA = {
     -- blue and orange stay apart for colour-blind readers (user's pick, 2026-10-25)
     reportActive = rgb(0.45, 0.68, 1.0),
     reportDone = rgb(1.0, 0.62, 0.30),
+    -- hordes (plan r10): red while it runs, orange while it is announced or waits for players
+    horde = rgb(1.0, 0.48, 0.35),
+    hordeSoon = rgb(0.94, 0.63, 0.31),
 }
 
 function D.theme(UI)
@@ -632,4 +635,56 @@ function D.eventMult(theme)
         end
     end
     return best
+end
+
+-- ===== hordes (state.hordes = { cur, last }; toasts kind "horde") =====
+local LIVE = { announced = true, waiting = true, active = true }
+
+-- the current horde while players see it (announced / waiting / active), else nil
+function D.hordeLive(cur)
+    if type(cur) == "table" and LIVE[cur.state] then return cur end
+    return nil
+end
+
+-- built-in towns by key, custom ones (config towns.custom, in every client's catalog push) by their name
+function D.townName(id)
+    if id == nil then return nil end
+    local t = D.textOrNull("IGUI_MQ_Town_" .. tostring(id))
+    if t ~= nil then return t end
+    local towns = C.defs().cfg.towns
+    for _, c in ipairs(type(towns) == "table" and type(towns.custom) == "table" and towns.custom or {}) do
+        if type(c) == "table" and c.id == id then return tostring(c.name) end
+    end
+    return nil
+end
+
+-- "<spot> - <town>" (IGUI_MQ_Horde_Place), or the spot name alone outside any town
+function D.hordePlace(h)
+    local name, town = tostring(h.name or ""), D.townName(h.town)
+    if town == nil then return name end
+    return getText("IGUI_MQ_Horde_Place", name, town)
+end
+
+-- the kinds that may appear ({ { id, nameKey } }), never a count
+function D.hordeKinds(kinds)
+    local names = {}
+    for _, k in ipairs(type(kinds) == "table" and kinds or {}) do
+        names[#names + 1] = type(k.nameKey) == "string" and D.textOrNull(k.nameKey) or tostring(k.id)
+    end
+    return table.concat(names, getText("IGUI_MQ_UI_ListSep"))
+end
+
+-- why a horde failed; "time" names how many were removed when the toast says
+function D.hordeWhy(why, left)
+    left = tonumber(left)
+    if why == "time" and left ~= nil and left > 0 then return getText("IGUI_MQ_Horde_Why_timeLeft", D.num(left)) end
+    return D.textOrNull("IGUI_MQ_Horde_Why_" .. tostring(why)) or ""
+end
+
+-- "12:34" / "1:02:03" (the tracker counts down by the second)
+function D.countdown(ms)
+    local s = math.max(0, math.ceil((tonumber(ms) or 0) / 1000))
+    local h, m = math.floor(s / 3600), math.floor(s % 3600 / 60)
+    if h > 0 then return string.format("%d:%02d:%02d", h, m, s % 60) end
+    return string.format("%d:%02d", m, s % 60)
 end

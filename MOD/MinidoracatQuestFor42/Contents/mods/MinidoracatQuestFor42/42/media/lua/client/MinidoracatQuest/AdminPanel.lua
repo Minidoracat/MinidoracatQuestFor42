@@ -1,6 +1,6 @@
 -- MinidoracatQuest/AdminPanel.lua: admin page shell inside the quest window (ARCHITECTURE.md 6.2, 7; spec 13).
 -- Sub-tabs + one ScrollPanel per tab + bottom bar (pending draft, preview, reload, status). Pages register
--- in A.pages (AdminAchv.lua, AdminPages.lua). Every config edit goes into a local draft first and is only
+-- in A.pages (AdminAchv.lua, AdminPages.lua, AdminHordes.lua). Every config edit goes into a local draft first and is only
 -- applied through cfg.preview -> "Apply changes?" view -> cfg.apply. The server re-checks everything.
 -- Host contract (QuestClientUI): ClientUI.registerAdminPage(spec); spec.show(host)/hide()/resize(w, h)/onReply(p);
 -- host = { UI, theme, parent, x, y, width, height, D = MinidoracatQuest.Draw }; Client.send("admin", args, cb).
@@ -16,7 +16,7 @@ MQ.Admin = A
 local AM = MQ.AdminModel
 
 -- settings first (Basic is the guided first page), then the operations tabs from A.TAB_BREAK on
-A.TABS = { "basic", "achv", "quests", "season", "exchange", "towns", "players", "report", "balance", "history" }
+A.TABS = { "basic", "achv", "quests", "season", "exchange", "towns", "hordes", "players", "report", "balance", "history" }
 A.TAB_BREAK = "players"
 A.pages = A.pages or {}   -- id -> { layout = fn(P, pg, F), load = fn(P, pg)? }
 A.PAD, A.GAP = 10, 6
@@ -388,6 +388,9 @@ function A.pathLabel(P, path)
     local kind, tid
     kind, tid, f = string.match(path, "^(%a+)%.pool%.([^%.]+)%.(%a+)$")
     if kind then return A.questName(tid) .. " - " .. A.fieldName(f) end
+    -- per-kind horde weights (AdminHordes.lua names the kinds, pack kinds by the nameKey horde.status gave)
+    local kid = string.match(path, "^hordes%.kinds%.(.+)$")
+    if kid and A.hordeKindName then return A.fLabel("hordes.kinds") .. " - " .. A.hordeKindName(P, kid) end
     return getTextOrNull("IGUI_MQ_Admin_F_" .. string.gsub(path, "%.", "_")) or path
 end
 
@@ -433,7 +436,7 @@ function A.diffRows(P, rows)
     local out = {}
     for _, r in ipairs(type(rows) == "table" and rows or {}) do
         local label = A.pathLabel(P, tostring(r.path))
-        if isNumList(r.before) and isNumList(r.after) then
+        if isNumList(r.before) and isNumList(r.after) and r.path ~= "hordes.count" then
             local n = math.max(#r.before, #r.after)
             for i = 1, n do
                 if r.before[i] ~= r.after[i] then
@@ -444,7 +447,11 @@ function A.diffRows(P, rows)
         elseif r.path == "ceilings" and type(r.before) == "table" and type(r.after) == "table" then
             ceilRows(out, label, r.before, r.after)
         else
-            out[#out + 1] = { label = label, before = A.valueText(r.before), after = A.valueText(r.after) }
+            local b, a = r.before, r.after
+            if r.path == "hordes.split" then
+                b, a = b and getText("IGUI_MQ_Admin_HordeSplit_" .. tostring(b)), a and getText("IGUI_MQ_Admin_HordeSplit_" .. tostring(a))
+            end
+            out[#out + 1] = { label = label, before = A.valueText(b), after = A.valueText(a) }
         end
     end
     return out
@@ -580,6 +587,32 @@ function A.boolField(P, pg, key, label, path, part)
     return f.el
 end
 
+-- "HH:MM" text bound to a config path (AM.clock checks it like the server)
+function A.clockField(P, pg, key, path)
+    local f = field(pg, key)
+    f.path, f.kind = path, "clock"
+    f.el = pg.flow:field("f:" .. key, textW("00:00") + 30, "HH:MM", 5)
+    if f.at ~= pg.version then
+        f.at = pg.version
+        local v = AM.get(P.S, path)
+        f.el:setText(type(v) == "string" and v or "")
+        markError(P, f.el, nil)
+    end
+    return f.el
+end
+
+-- dropdown bound to a config path; options = { { id, label } }. Flow:dropdown re-selects on every layout, so the
+-- pick made since the last resync is kept
+function A.pickField(P, pg, key, path, options)
+    local f = field(pg, key)
+    f.path, f.kind = path, "pick"
+    local sel = AM.get(P.S, path)
+    if f.el ~= nil and f.at == pg.version then sel = f.el:getSelected() or sel end
+    f.at = pg.version
+    f.el = pg.flow:dropdown("f:" .. key, options, sel, nil)
+    return f.el
+end
+
 -- ===== forms: a label column + controls, shared by every tab =====
 
 function A.fLabel(path) return getTextOrNull("IGUI_MQ_Admin_F_" .. string.gsub(path, "%.", "_")) or path end
@@ -625,6 +658,12 @@ function A.collect(P, pg)
         if f.gen == pg.flow.gen and f.path then
             if f.kind == "bool" then
                 values[#values + 1] = { field = f, value = f.el:getChecked() }
+            elseif f.kind == "pick" then
+                values[#values + 1] = { field = f, value = f.el:getSelected() }
+            elseif f.kind == "clock" then
+                local v = AM.clock(f.el:getText())
+                markError(P, f.el, v == nil and getText("IGUI_MQ_Admin_HordeErrClock") or nil)
+                if v == nil then bad = true else values[#values + 1] = { field = f, value = v } end
             else
                 local v, key, lo, hi = AM.check(f.el:getText(), f.range)
                 markError(P, f.el, v == nil and getText(key, AM.num(lo), AM.num(hi)) or nil)
@@ -632,8 +671,8 @@ function A.collect(P, pg)
                     bad = true
                 else
                     values[#values + 1] = { field = f, value = v }
-                    -- target {min, max}: min <= max
-                    if f.part and (f.part[1] == 1 or f.part[1] == 2) and string.match(f.path, "%.target$") then
+                    -- target / horde count {min, max}: min <= max
+                    if f.part and (f.part[1] == 1 or f.part[1] == 2) and (string.match(f.path, "%.target$") or f.path == "hordes.count") then
                         local t = pairsOf[f.path] or {}
                         pairsOf[f.path] = t
                         t[f.part[1]] = { v, f }
@@ -1010,6 +1049,7 @@ end
 -- codes; event rows carry the event name after the id ("event.add 3 Fest"), older rows only the id -> "#3"
 local SERVER_SUMMARY = { { "^event%.add (%d+)(.*)$", "IGUI_MQ_Admin_HistEventAdd", true },
     { "^event%.remove (%d+)(.*)$", "IGUI_MQ_Admin_HistEventRemove", true },
+    { "^horde%.now (%d+)(.*)$", "IGUI_MQ_Admin_HordeHistNow", true }, { "^horde%.stop (%d+)(.*)$", "IGUI_MQ_Admin_HordeHistStop", true },
     { "^season%.length (%d+)$", "IGUI_MQ_Admin_HistSeasonLength" }, { "^undo #(%d+)$", "IGUI_MQ_Admin_HistUndo" },
     { "^(config%.json)$", "IGUI_MQ_Admin_HistFile" } }
 function A.summaryText(s)

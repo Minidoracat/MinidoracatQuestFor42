@@ -35,7 +35,7 @@ C.CODE = {}
 for _, k in ipairs({ "OK", "PROTOCOL_MISMATCH", "BAD_ARGS", "IDENTITY_UNVERIFIED", "NOT_READY", "FORBIDDEN",
     "RATE_LIMITED", "NO_SWAPS", "BAD_SLOT", "BAD_THEME", "TOO_MANY_PREFS", "TITLE_LOCKED", "EXCHANGE_OFF",
     "EXCHANGE_MIN", "EXCHANGE_DAY_LIMIT", "NOT_ENOUGH_POINTS", "ECONOMY_MISSING", "BAD_BOARD", "BAD_CONFIG",
-    "BAD_SEASON_LENGTH", "TOO_SOON", "NOT_FOUND", "FILE_ERROR", "INTERNAL", "TOO_MANY_PINS" }) do
+    "BAD_SEASON_LENGTH", "TOO_SOON", "NOT_FOUND", "FILE_ERROR", "INTERNAL", "TOO_MANY_PINS", "HORDE_BUSY", "NO_SPOTS" }) do
     C.CODE[k] = k
 end
 
@@ -50,7 +50,10 @@ C.ACH_CATS = { "combat", "survival", "skill", "production", "nature", "explore",
 C.BOARD_CATS = { "overall", "combat", "survival", "skill", "life", "explore", "quest", "job" }
 
 C.POINT_KINDS = { quest = true, shared = true, week = true, goal = true, streak = true, achv = true,
-    newbie = true, season = true, import = true, admin = true }
+    newbie = true, season = true, import = true, admin = true, horde = true }
+
+-- Built-in horde kinds (Hordes.lua spawns them); other mods add "<modId>:<id>" kinds through v1.registerHordeKind.
+C.HORDE_KINDS = { "vanilla", "runner" }
 
 function C.isFinite(n)
     return type(n) == "number" and n * 0 == 0

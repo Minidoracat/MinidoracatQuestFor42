@@ -64,10 +64,34 @@ local function step(F, key, n, text) F:head(key, getText("IGUI_MQ_Admin_Step", n
 
 local function onToSeason(P) A.select(P, "season") end
 
+-- number fields two per line: the first column keeps the tab's label width so it lines up with the other steps,
+-- the second gets its own; Flow:row wraps the second pair onto the next line when the window is too narrow
+local function formPairs(P, pg, F, rows, lw)
+    local second = {}
+    for i = 2, #rows, 2 do second[#second + 1] = rows[i][1] end
+    local lw2 = A.labelWidth(second)
+    for i = 1, #rows, 2 do
+        local line = {}
+        for j = i, math.min(i + 1, #rows) do
+            local path, range = rows[j][1], rows[j][2]
+            local w = j == i and lw or lw2
+            if j > i then
+                local s = F:label("sp:" .. path, "", nil, nil, 2 * A.GAP)
+                s:setWidth(2 * A.GAP)
+                line[#line + 1] = s
+            end
+            local l = F:label("l:" .. path, A.fLabel(path), nil, nil, w - A.GAP)
+            l:setWidth(w)
+            line[#line + 1] = l
+            line[#line + 1] = A.numField(P, pg, path, path, nil, range)
+        end
+        F:row(line)
+    end
+end
+
 local function layoutBasic(P, pg, F)
     local lw = A.labelWidth({ "rewards.top1", "rewards.top3", "rewards.top10", "rewards.participation", "exchange.enabled",
         "exchange.rate", "exchange.perDay", "newbie.enabled", "broadcast.enabled", "broadcast.minTier" })
-    F:head("h", getText("IGUI_MQ_Admin_BasicHead"))
     F:text("n", getText("IGUI_MQ_Admin_BasicNote"), "textMuted")
 
     -- 1. difficulty: its own preview with the estimate (the confirm view), like it was on the achievements tab
@@ -87,7 +111,7 @@ local function layoutBasic(P, pg, F)
     end
 
     step(F, "s3", 3, getText("IGUI_MQ_Admin_RewardsHead"))
-    form(P, pg, F, { { "rewards.top1", "pts" }, { "rewards.top3", "pts" }, { "rewards.top10", "pts" },
+    formPairs(P, pg, F, { { "rewards.top1", "pts" }, { "rewards.top3", "pts" }, { "rewards.top10", "pts" },
         { "rewards.participation", "pts" } }, lw)
 
     -- 4. exchange: without the economy mod this step only says so

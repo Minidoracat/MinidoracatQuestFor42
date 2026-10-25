@@ -10,7 +10,7 @@
 [*] [b]必裝：[/b][url=https://steamcommunity.com/sharedfiles/filedetails/?id=3789836701]Minidoracat UI Library[/url]
 [*] [b]選用：[/b][url=https://steamcommunity.com/sharedfiles/filedetails/?id=3801482125]Minidoracat Economy[/url]（多人伺服器把積分換成倖存幣）
 [*] 單人與多人皆可用；多人遊戲需要伺服器啟用本 MOD
-[*] [b]中途加入／移除：[/b]都可以；中途加入會自動匯入擊殺、存活天數與技能等級（匯入的成就不發倖存幣），移除後進度留在存檔，裝回即恢復
+[*] [b]中途加入／移除：[/b]都可以；中途加入會自動匯入目前角色的擊殺、單命存活天數與技能等級（匯入的成就不發倖存幣），其他統計從裝上那天開始算；移除後進度留在存檔，裝回即恢復
 [*] [b]介面語言：[/b]繁體中文、简体中文、English、日本語、한국어、Русский、Español、Português、Türkçe、Français、Polski、Deutsch（翻譯有問題請回報）
 [/list]
 

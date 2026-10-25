@@ -10,7 +10,7 @@ Daily and weekly quests, achievements, season leaderboards and titles; pair it w
 [*] [b]Required:[/b] [url=https://steamcommunity.com/sharedfiles/filedetails/?id=3789836701]Minidoracat UI Library[/url]
 [*] [b]Optional:[/b] [url=https://steamcommunity.com/sharedfiles/filedetails/?id=3801482125]Minidoracat Economy[/url] (exchange points for Survivor Coins on multiplayer servers)
 [*] Works in single player and multiplayer; in multiplayer the server must enable this mod
-[*] [b]Add/remove mid-save:[/b] safe either way; adding it imports your zombie kills, days survived and skill levels (achievements from the import pay no coins), and removing it leaves your progress in the save, back as soon as you reinstall
+[*] [b]Add/remove mid-save:[/b] safe either way; adding it imports your current character's zombie kills, days survived in this life and skill levels (achievements from the import pay no coins), and every other stat counts from the day you add it; removing it leaves your progress in the save, back as soon as you reinstall
 [*] [b]Languages:[/b] 繁體中文, 简体中文, English, 日本語, 한국어, Русский, Español, Português, Türkçe, Français, Polski, Deutsch (please report any translation issues)
 [/list]
 

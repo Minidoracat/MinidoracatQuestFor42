@@ -223,8 +223,8 @@ return function(T)
     press("quests", "tb:o2")
     local off = 0
     for _, path in ipairs(P.S.draft.order) do if string.match(path, "%.enabled$") and P.S.draft.by[path] == false then off = off + 1 end end
-    T.check(off == 4 and pool("quests")["f:daily.pool.d_sew.enabled"]:getChecked() == false,
-        "Disable all: the 3 daily and 1 weekly tailoring templates, and the switches show it")
+    T.check(off == 5 and pool("quests")["f:daily.pool.d_sew.enabled"]:getChecked() == false,
+        "Disable all: the 3 daily and 2 weekly tailoring templates, and the switches show it")
     press("quests", "tb:m2")
     local sew = AM.get(P.S, "daily.pool.d_sew.target")
     T.check(sew[1] == 3 and sew[2] == 5 and pool("quests")["f:daily.pool.d_sew.target.1"]:getText() == "3",

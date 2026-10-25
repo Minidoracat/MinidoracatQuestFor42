@@ -38,7 +38,7 @@ Daily and weekly quests, achievements, season leaderboards and titles; pair it w
 [h3]Today's 4 quests[/h3]
 [list]
 [*] [b]3 personal quests[/b]: drawn from 11 themes, never two on the same stat in one day.
-[*] [b]1 server-wide quest[/b]: one a day with the same target for everyone; the page shows how many players finished it today. Experience quests are never the server-wide quest: XP is multiplied by profession bonuses, so matching professions are much faster.
+[*] [b]1 server-wide quest[/b]: one a day with the same target for everyone; the page shows how many players finished it today. Experience quests are never the server-wide quest (XP is multiplied by profession bonuses, so matching professions are much faster), and neither are quests not everyone can do: a set weapon type, driving, hunting or night fishing.
 [*] [b]Progress[/b]: counts from the moment the quest appears; earlier play does not count.
 [*] [b]Reset[/b]: at the daily reset; unfinished quests expire. The top of the page shows the time left.
 [/list]
@@ -467,7 +467,7 @@ https://github.com/Minidoracat/MinidoracatQuestFor42#給其他-mod-的-api
 [/list]
 [h3]I added the mod to an old save. Does my earlier progress count?[/h3]
 [list]
-[*] Each account's zombie kills, days survived and skill levels are imported the first time it appears, and matching achievements unlock quietly.
+[*] Your current character's zombie kills, days survived in this life and skill levels are imported the first time each account appears, and matching achievements unlock quietly; everything else counts from the day the mod is added.
 [*] Points from imported achievements only go to "earned all-time"; they do not count for the season and cannot be exchanged.
 [*] Accounts that had survived more than 24 hours skip the newcomer quests.
 [/list]

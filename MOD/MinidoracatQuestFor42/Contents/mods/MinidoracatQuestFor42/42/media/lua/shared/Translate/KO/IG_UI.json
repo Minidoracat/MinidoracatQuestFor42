@@ -416,6 +416,7 @@
   "IGUI_MQ_Admin_HordeSpotsHead": "지점",
   "IGUI_MQ_Admin_HordeSpotsNote": "좀비 떼가 나타날 곳에 서서 현재 위치를 추가하십시오. 지점은 플레이어 기지에서 50칸보다 멀리 두십시오. 근처에 사는 사람은 좀비 떼를 피할 수 없습니다. 지점은 설정이므로 아래 '적용'을 눌러야 저장됩니다.",
   "IGUI_MQ_Admin_HordeSpotsNone": "아직 지점이 없습니다. 자동 좀비 떼와 '좀비 떼 시작'에는 지점이 하나 이상 필요합니다.",
+  "IGUI_MQ_Admin_HordeSpotsUnapplied": "추가한 지점이 아직 적용되지 않았습니다. 아래 '적용'을 누른 다음 '좀비 떼 시작'을 누르십시오.",
   "IGUI_MQ_Admin_HordeSpotsMax": "지점은 최대 32곳입니다.",
   "IGUI_MQ_Admin_HordeSpotName": "지점 이름",
   "IGUI_MQ_Admin_HordeSpotHere": "현재 위치 추가",

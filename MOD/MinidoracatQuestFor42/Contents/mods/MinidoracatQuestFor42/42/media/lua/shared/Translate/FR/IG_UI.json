@@ -416,6 +416,7 @@
   "IGUI_MQ_Admin_HordeSpotsHead": "Lieux",
   "IGUI_MQ_Admin_HordeSpotsNote": "Placez-vous là où une horde doit apparaître et ajoutez votre position. Gardez les lieux à plus de 50 cases des bases de joueurs : ceux qui y vivent ne peuvent pas éviter la horde. Les lieux font partie des réglages : appuyez sur Appliquer ci-dessous pour les enregistrer.",
   "IGUI_MQ_Admin_HordeSpotsNone": "Aucun lieu : les hordes automatiques et « Lancer une horde » en demandent au moins un.",
+  "IGUI_MQ_Admin_HordeSpotsUnapplied": "Les nouveaux lieux ne sont pas encore appliqués : appuyez sur Appliquer ci-dessous, puis sur « Lancer une horde ».",
   "IGUI_MQ_Admin_HordeSpotsMax": "32 lieux au maximum.",
   "IGUI_MQ_Admin_HordeSpotName": "Nom du lieu",
   "IGUI_MQ_Admin_HordeSpotHere": "Ajouter ma position",

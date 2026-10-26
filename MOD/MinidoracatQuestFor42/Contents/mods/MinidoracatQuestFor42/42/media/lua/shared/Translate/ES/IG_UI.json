@@ -416,6 +416,7 @@
   "IGUI_MQ_Admin_HordeSpotsHead": "Puntos",
   "IGUI_MQ_Admin_HordeSpotsNote": "Colócate donde deba aparecer una horda y añade tu posición. Deja los puntos a más de 50 casillas de las bases de jugadores: quien vive allí no puede evitar la horda. Los puntos son ajustes: pulsa Aplicar abajo para guardarlos.",
   "IGUI_MQ_Admin_HordeSpotsNone": "Aún no hay puntos: las hordas automáticas e Iniciar una horda necesitan al menos uno.",
+  "IGUI_MQ_Admin_HordeSpotsUnapplied": "Los puntos nuevos aún no están aplicados: pulsa Aplicar abajo y luego Iniciar una horda.",
   "IGUI_MQ_Admin_HordeSpotsMax": "32 puntos como máximo.",
   "IGUI_MQ_Admin_HordeSpotName": "Nombre del punto",
   "IGUI_MQ_Admin_HordeSpotHere": "Añadir mi posición actual",

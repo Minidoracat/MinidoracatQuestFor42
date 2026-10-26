@@ -114,6 +114,13 @@ end
 -- lead (design r12): minutes of warning before it starts, 0 = now
 local LEAD_MAX = MQ.Contract.LIMIT.MAX_LEAD
 
+-- spots added in the draft are not saved yet: the server would refuse with "add a spot first" while the list shows
+-- them (2026-10-26 playtest: three presses before Apply), so say to apply first and send nothing
+local function spotsOnlyInDraft(P)
+    local applied = AM.get({ overrides = P.S.overrides, defaults = P.S.defaults }, "hordes.spots") or {}
+    return #applied == 0 and #(AM.get(P.S, "hordes.spots") or {}) > 0
+end
+
 local function onNow(P)
     local el = P.pages.hordes.flow.pool["now:lead"]
     local lead = tonumber(el and el:getText() or "")
@@ -121,6 +128,7 @@ local function onNow(P)
     local msg = bad and getText("IGUI_MQ_Admin_ErrRange", "0", tostring(LEAD_MAX)) or nil
     A.markError(P, el, msg)
     if bad then return A.say(P, msg, "errorText") end
+    if spotsOnlyInDraft(P) then return A.say(P, getText("IGUI_MQ_Admin_HordeSpotsUnapplied"), "errorText") end
     local label = getText("IGUI_MQ_Admin_HordeNow")
     local text = lead == 0 and getText("IGUI_MQ_Admin_HordeNowAskNow") or getText("IGUI_MQ_Admin_HordeNowAsk", tostring(lead))
     A.ask(P, { title = label, confirm = label, text = text, onOk = function()

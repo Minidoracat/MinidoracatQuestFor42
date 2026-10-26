@@ -416,6 +416,7 @@
   "IGUI_MQ_Admin_HordeSpotsHead": "Spots",
   "IGUI_MQ_Admin_HordeSpotsNote": "Stand where a horde should appear and add your position. Keep spots more than 50 tiles from player bases: people there cannot avoid the horde. Spots are settings: press Apply below to save them.",
   "IGUI_MQ_Admin_HordeSpotsNone": "No spots yet: automatic hordes and Start a horde need at least one.",
+  "IGUI_MQ_Admin_HordeSpotsUnapplied": "The new spots are not applied yet: press Apply below, then Start a horde.",
   "IGUI_MQ_Admin_HordeSpotsMax": "32 spots at most.",
   "IGUI_MQ_Admin_HordeSpotName": "Spot name",
   "IGUI_MQ_Admin_HordeSpotHere": "Add my current position",

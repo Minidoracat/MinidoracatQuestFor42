@@ -416,6 +416,7 @@
   "IGUI_MQ_Admin_HordeSpotsHead": "Miejsca",
   "IGUI_MQ_Admin_HordeSpotsNote": "Stań tam, gdzie ma pojawić się horda, i dodaj swoją pozycję. Trzymaj miejsca dalej niż 50 pól od baz graczy: mieszkający tam nie mogą uniknąć hordy. Miejsca są ustawieniami: naciśnij Zastosuj poniżej, aby je zapisać.",
   "IGUI_MQ_Admin_HordeSpotsNone": "Brak miejsc: automatyczne hordy i Uruchom hordę potrzebują co najmniej jednego.",
+  "IGUI_MQ_Admin_HordeSpotsUnapplied": "Nowe miejsca nie są jeszcze zastosowane: naciśnij Zastosuj poniżej, a potem Uruchom hordę.",
   "IGUI_MQ_Admin_HordeSpotsMax": "Najwyżej 32 miejsca.",
   "IGUI_MQ_Admin_HordeSpotName": "Nazwa miejsca",
   "IGUI_MQ_Admin_HordeSpotHere": "Dodaj moją obecną pozycję",

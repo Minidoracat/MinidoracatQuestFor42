@@ -416,6 +416,7 @@
   "IGUI_MQ_Admin_HordeSpotsHead": "地点",
   "IGUI_MQ_Admin_HordeSpotsNote": "站到想让尸潮出现的地方，用你当前的位置添加。别选在玩家基地 50 格内：住在附近的人避不开。地点属于设置，要点下方「应用」才会保存。",
   "IGUI_MQ_Admin_HordeSpotsNone": "还没有地点：自动尸潮和「开一场」都至少需要一个地点。",
+  "IGUI_MQ_Admin_HordeSpotsUnapplied": "新添加的地点还没应用：先点下方「应用」，再点「开一场」。",
   "IGUI_MQ_Admin_HordeSpotsMax": "最多 32 个地点。",
   "IGUI_MQ_Admin_HordeSpotName": "地点名称",
   "IGUI_MQ_Admin_HordeSpotHere": "用我当前的位置添加",

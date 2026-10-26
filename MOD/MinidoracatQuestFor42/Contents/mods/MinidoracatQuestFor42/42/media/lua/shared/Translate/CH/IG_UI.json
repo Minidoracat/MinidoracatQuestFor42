@@ -416,6 +416,7 @@
   "IGUI_MQ_Admin_HordeSpotsHead": "地點",
   "IGUI_MQ_Admin_HordeSpotsNote": "站在要出現屍潮的地方，用你現在的位置新增。別選在玩家基地 50 格內：住在附近的人避不開。地點屬於設定，要按下方「套用」才會儲存。",
   "IGUI_MQ_Admin_HordeSpotsNone": "還沒有地點：自動屍潮與「開一場」都至少需要一個地點。",
+  "IGUI_MQ_Admin_HordeSpotsUnapplied": "新增的地點還沒套用：先按下方「套用」，再按「開一場」。",
   "IGUI_MQ_Admin_HordeSpotsMax": "最多 32 個地點。",
   "IGUI_MQ_Admin_HordeSpotName": "地點名稱",
   "IGUI_MQ_Admin_HordeSpotHere": "用我現在的位置新增",

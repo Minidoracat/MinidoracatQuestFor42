@@ -352,6 +352,12 @@ return function(T)
     spots = AM.get(P.S, "hordes.spots")
     T.check(#spots == 1 and spots[1].name == "School" and has(P.draftSummary, "IGUI_MQ_Admin_HordeSumSpotDel|Gasstation"),
         "Remove drops that spot from the draft")
+    -- 2026-10-26 playtest: Start a horde pressed three times with the spot only in the draft got "add a spot first"
+    -- while the list showed it
+    local sentNow, askedNow = count("horde.now"), #dialogs
+    press("now")
+    T.check(P.msg == "IGUI_MQ_Admin_HordeSpotsUnapplied" and count("horde.now") == sentNow and #dialogs == askedNow,
+        "Start a horde with the spots only in the draft: says to apply first, nothing asked or sent")
     local full = {}
     for i = 1, AM.MAX_SPOTS do full[i] = { name = "s" .. i, x = i, y = i, z = 0 } end
     AM.draftSet(P.S.draft, "hordes.spots", full)

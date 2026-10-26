@@ -416,6 +416,7 @@
   "IGUI_MQ_Admin_HordeSpotsHead": "地点",
   "IGUI_MQ_Admin_HordeSpotsNote": "大群を出現させたい場所に立って、現在地を追加してください。地点はプレイヤーの拠点から50マス以上離してください。近くに住む人は大群を避けられません。地点は設定の一部なので、下の「適用」を押すと保存されます。",
   "IGUI_MQ_Admin_HordeSpotsNone": "地点がまだありません。自動の大群と「大群を開始」には地点が1つ以上必要です。",
+  "IGUI_MQ_Admin_HordeSpotsUnapplied": "追加した地点はまだ適用されていません。下の「適用」を押してから「大群を開始」を押してください。",
   "IGUI_MQ_Admin_HordeSpotsMax": "地点は最大32か所です。",
   "IGUI_MQ_Admin_HordeSpotName": "地点名",
   "IGUI_MQ_Admin_HordeSpotHere": "現在地を追加",

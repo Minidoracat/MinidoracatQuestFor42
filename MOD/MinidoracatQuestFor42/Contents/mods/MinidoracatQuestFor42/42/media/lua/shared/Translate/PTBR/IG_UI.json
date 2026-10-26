@@ -416,6 +416,7 @@
   "IGUI_MQ_Admin_HordeSpotsHead": "Locais",
   "IGUI_MQ_Admin_HordeSpotsNote": "Fique onde a horda deve aparecer e adicione sua posição. Mantenha os locais a mais de 50 quadrados das bases dos jogadores: quem mora lá não consegue evitar a horda. Os locais são configurações: clique em Aplicar abaixo para salvá-los.",
   "IGUI_MQ_Admin_HordeSpotsNone": "Nenhum local ainda: as hordas automáticas e Iniciar horda precisam de pelo menos um.",
+  "IGUI_MQ_Admin_HordeSpotsUnapplied": "Os novos locais ainda não foram aplicados: clique em Aplicar abaixo e depois em Iniciar horda.",
   "IGUI_MQ_Admin_HordeSpotsMax": "No máximo 32 locais.",
   "IGUI_MQ_Admin_HordeSpotName": "Nome do local",
   "IGUI_MQ_Admin_HordeSpotHere": "Adicionar minha posição atual",

@@ -416,6 +416,7 @@
   "IGUI_MQ_Admin_HordeSpotsHead": "Noktalar",
   "IGUI_MQ_Admin_HordeSpotsNote": "Sürünün çıkacağı yerde durun ve konumunuzu ekleyin. Noktaları oyuncu üslerinden 50 kareden uzak tutun: orada yaşayanlar sürüden kaçamaz. Noktalar birer ayardır: kaydetmek için aşağıdaki Uygula'ya basın.",
   "IGUI_MQ_Admin_HordeSpotsNone": "Henüz nokta yok: otomatik sürüler ve Sürü başlat için en az bir nokta gerekir.",
+  "IGUI_MQ_Admin_HordeSpotsUnapplied": "Yeni noktalar henüz uygulanmadı: önce aşağıdaki Uygula'ya, sonra Sürü başlat'a basın.",
   "IGUI_MQ_Admin_HordeSpotsMax": "En fazla 32 nokta.",
   "IGUI_MQ_Admin_HordeSpotName": "Nokta adı",
   "IGUI_MQ_Admin_HordeSpotHere": "Şu anki konumumu ekle",

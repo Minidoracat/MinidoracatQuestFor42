@@ -416,6 +416,7 @@
   "IGUI_MQ_Admin_HordeSpotsHead": "Orte",
   "IGUI_MQ_Admin_HordeSpotsNote": "Stell dich dorthin, wo eine Horde erscheinen soll, und füge deine Position hinzu. Halte Orte mehr als 50 Felder von Spielerbasen entfernt: Wer dort wohnt, kann der Horde nicht ausweichen. Orte sind Einstellungen: Drücke unten Übernehmen, um sie zu speichern.",
   "IGUI_MQ_Admin_HordeSpotsNone": "Noch keine Orte: Automatische Horden und Horde starten brauchen mindestens einen.",
+  "IGUI_MQ_Admin_HordeSpotsUnapplied": "Die neuen Orte sind noch nicht übernommen: Drücke unten Übernehmen, dann Horde starten.",
   "IGUI_MQ_Admin_HordeSpotsMax": "Höchstens 32 Orte.",
   "IGUI_MQ_Admin_HordeSpotName": "Name des Orts",
   "IGUI_MQ_Admin_HordeSpotHere": "Meine Position hinzufügen",

@@ -147,14 +147,15 @@ local function statsTable(b, page, x, y, w, s)
     right[2] = right[3] - colW[3]
     local nameW = right[2] - colW[2] - x - 8
     local rh = lh + 8
-    b:rect(x, y, w, rh, "well")
-    b:fitText(x + 8, y + 4, heads[1], nameW, "textMuted")
-    b:textRight(right[2], y + 4, heads[2], "textMuted")
-    b:textRight(right[3], y + 4, heads[3], "textMuted")
-    b:textRight(right[1], y + 4, heads[4], "textMuted")
+    local L = b:list(x, y, w)
+    b:listHead(L, rh)
+    b:fitText(x + 8, y + 4, heads[1], nameW, "text")
+    b:textRight(right[2], y + 4, heads[2], "text")
+    b:textRight(right[3], y + 4, heads[3], "text")
+    b:textRight(right[1], y + 4, heads[4], "text")
     y = y + rh
     for i, r in ipairs(rows) do
-        if i % 2 == 0 then b:rect(x, y, w, rh, "hover") end
+        if i > 1 then b:listSep(L, y) end
         local tok = r.gold and D.EXTRA.gold or "text"
         b:fitText(x + 8, y + 4, r[1], nameW, tok)
         b:textRight(right[2], y + 4, r[2], tok)
@@ -162,6 +163,7 @@ local function statsTable(b, page, x, y, w, s)
         b:textRight(right[1], y + 4, r[4], tok)
         y = y + rh
     end
+    y = b:listEnd(L, y)
     return b:para(x, y + 6, getText("IGUI_MQ_UI_RecordsNote"), w, "textMuted") + GAP
 end
 

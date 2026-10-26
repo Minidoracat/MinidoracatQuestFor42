@@ -117,6 +117,14 @@ return function(T)
     local function press(key) local b = pool()[key]; T.check(b ~= nil and b:isVisible(), "button shown: " .. key); b.onclick(b.target, b) end
     local function answer(ok) local d = dialogs[#dialogs]; dialogs[#dialogs] = nil; d.onResult(ok, "") end
     local function field(key) return pool()["f:" .. key] end
+    local function cell(key, i) local r = pool()[key]; return r and r.cells and r.cells[i] and r.cells[i].text end
+    local function options(key)
+        local out = {}
+        for _, o in ipairs(pool()[key] and pool()[key].opts.options or {}) do out[o.id] = o.label end
+        return out
+    end
+    -- a pick in the dropdown, as the framework calls it: onChange(target, id, dropdown)
+    local function pick(key, id) local dd = pool()[key]; dd.opts.onChange(dd.opts.target, id, dd) end
 
     T.section("horde admin: the tab after towns, defaults, status on open")
     local ti, hi = 0, 0
@@ -131,7 +139,9 @@ return function(T)
         "every field shows Catalog.DEFAULTS.hordes")
     T.check(shown("cur") and has(pool()["cur"].lines[1], "IGUI_MQ_Admin_HordeNone") and pool()["now"]:isEnabled(),
         "no horde: says so, Start one now enabled")
-    T.check(shown("p0") and shown("sp:add") and pool()["sp:add"]:isEnabled(), "no spots: the warning and the add row")
+    T.check(shown("p:0") and shown("sp:add") and pool()["sp:add"]:isEnabled(), "no spots: the warning inside the list box, the add row")
+    T.check(#P.pages.hordes.flow.lists >= 2 and P.pages.hordes.flow.lists[1].key == "l" and P.pages.hordes.flow.lists[2].key == "p",
+        "recent results and spots are list boxes")
     A.select(P, "towns")
     A.select(P, "hordes")
     T.check(count("horde.status") == 2, "coming back to the tab asks again (live status)")
@@ -155,11 +165,13 @@ return function(T)
         "the current line: state, place, cleared 17 / 30")
     T.check(has(pool()["roll"].lines[1], "IGUI_MQ_Admin_HordeToday|1|2|"), "today n / max and the next roll")
     T.check(not pool()["now"]:isEnabled(), "Start one now is off while a horde exists")
-    T.check(shown("l5") and not shown("l6") and has(pool()["l1"].lines[1], "IGUI_MQ_Admin_HordeRes_success|20|30|150")
-        and has(pool()["l2"].lines[1], "IGUI_MQ_Admin_HordeRes_cancelled") and has(pool()["l3"].lines[1], "IGUI_MQ_Admin_HordeWhy_time"),
-        "recent results: 5 rows of the 6, success / cancelled / failed with why")
-    T.check(field("hordes.kinds.mod:brute") ~= nil and field("hordes.kinds.mod:brute"):getText() == "0"
-        and pool()["l:hordes.kinds.mod:brute"].lines[1] == "Brute_Name", "a pack kind gets a weight field (0), named by its nameKey")
+    T.check(shown("l5") and not shown("l6") and has(cell("l1", 3), "IGUI_MQ_Admin_HordeRes_success|20|30|150")
+        and pool()["l1"].cells[3].token == "success" and has(cell("l2", 3), "IGUI_MQ_Admin_HordeRes_cancelled")
+        and has(cell("l3", 3), "IGUI_MQ_Admin_HordeWhy_time") and pool()["l3"].cells[3].token == "errorText"
+        and cell("l:th", 1) == "IGUI_MQ_Admin_ColTime", "recent results: a header and 5 rows of the 6, success / cancelled / failed with why")
+    T.check(field("hordes.kinds.mod:brute") == nil and options("ks:add")["mod:brute"] == "Brute_Name"
+        and options("ks:add").vanilla == nil and options("ks:add").runner == nil,
+        "a pack kind (no weight yet) waits in the dropdown, named by its nameKey; the weighted kinds are rows")
     press("stop")
     local d = dialogs[#dialogs]
     T.check(d.danger and d.confirmText == "IGUI_MQ_Admin_HordeStop" and has(d.text, "IGUI_MQ_Admin_HordeStopAsk|"), "Stop asks first, danger")
@@ -234,7 +246,9 @@ return function(T)
     field("hordes.chance"):setText("60")
     field("hordes.maxPerDay"):setText("3")
     field("hordes.kinds.runner"):setText("0")
-    field("hordes.kinds.mod:brute"):setText("10")
+    pick("ks:add", "mod:brute")
+    T.check(field("hordes.kinds.mod:brute"):getText() == "10" and shown("ks:n:mod:brute") and not shown("ks:add") and shown("ks:all")
+        and field("hordes.kinds.runner"):getText() == "0", "picked: the kind is a row at 10, typed values stay, nothing left to add")
     field("hordes.split"):setSelected("each")
     field("hordes.enabled"):setChecked(true)
     A.onPreview(P)
@@ -257,6 +271,42 @@ return function(T)
     A.onConfirmCancel(P)
     A.discard(P)
 
+    T.section("horde admin: the kinds list box (design r11)")
+    T.check(shown("ks:n:vanilla") and shown("ks:n:runner") and shown("ks:add") and pool()["ks:add"].opts.placeholder == "IGUI_MQ_Admin_HordeKindAdd",
+        "defaults: both built-in kinds are rows, the dropdown says what it does")
+    press("ks:r:vanilla")
+    T.check(P.S.draft.by["hordes.kinds.vanilla"] == 0 and not shown("ks:n:vanilla") and options("ks:add").vanilla == "IGUI_MQ_Horde_Kind_vanilla"
+        and has(P.draftSummary, "IGUI_MQ_Admin_HordeSumKindDel|IGUI_MQ_Horde_Kind_vanilla"),
+        "Remove on a built-in kind writes 0 (its default is 80) and puts it back in the dropdown")
+    pick("ks:add", "mod:brute")
+    T.check(P.S.draft.by["hordes.kinds.mod:brute"] == 10 and has(P.draftSummary, "IGUI_MQ_Admin_HordeSumKindAdd|Brute_Name"),
+        "a pick adds the kind at 10 through the draft")
+    press("ks:r:mod:brute")
+    T.check(P.S.draft.by["hordes.kinds.mod:brute"] == AM.DEL and not shown("ks:n:mod:brute"), "Remove on a pack kind drops its key")
+    press("ks:r:runner")
+    T.check(shown("ks:0") and has(pool()["ks:0"].lines[1], "IGUI_MQ_Admin_HordeKindsNone"), "an empty list says every zombie is a regular one")
+    A.onPreview(P)
+    changes = Q.Util.decode(last("cfg.preview").changes)
+    by = {}
+    for _, ch in ipairs(changes) do by[ch.path] = ch end
+    T.check(by["hordes.kinds.vanilla"].value == 0 and by["hordes.kinds.runner"].value == 0 and by["hordes.kinds.mod:brute"].op == "del",
+        "the preview carries 0 for the built-in kinds and a del for the pack kind")
+    A.onConfirmCancel(P)
+    A.discard(P)
+    P.S.overrides.hordes = { kinds = { ["old:gone"] = 15 } }
+    local keep = P.pages.hordes.data
+    P.pages.hordes.data = nil
+    A.layout(P)
+    T.check(not shown("ks:o:old:gone"), "before horde.status lists the kinds, nothing is called not installed")
+    P.pages.hordes.data = keep
+    A.layout(P)
+    T.check(shown("ks:o:old:gone") and pool()["ks:g:old:gone"].lines[1] == "IGUI_MQ_Admin_HordeKindGone" and pool()["ks:w:old:gone"].lines[1] == "15",
+        "a key no mod registers any more: a row marked not installed, with its weight")
+    press("ks:r:old:gone")
+    T.check(P.S.draft.by["hordes.kinds.old:gone"] == AM.DEL and not shown("ks:o:old:gone"), "its Remove drops the key")
+    A.discard(P)
+    P.S.overrides.hordes = nil
+
     T.section("horde admin: spots through the draft")
     before = count("towns.here")
     press("sp:add")
@@ -268,7 +318,7 @@ return function(T)
     T.check(count("towns.here") == before + 1 and #spots == 1 and spots[1].name == "Gasstation" and spots[1].x == 10620
         and spots[1].y == 9810 and spots[1].z == 0 and pool()["sp:name"]:getText() == "",
         "towns.here adds { name, x, y, z } to hordes.spots (control chars and spaces trimmed)")
-    T.check(has(P.draftSummary, "IGUI_MQ_Admin_HordeSumSpotAdd|Gasstation") and shown("pl1") and not shown("p0"),
+    T.check(has(P.draftSummary, "IGUI_MQ_Admin_HordeSumSpotAdd|Gasstation") and shown("pl1") and not shown("p:0"),
         "the summary names it, the list shows it")
     pool()["sp:name"]:setText("School")
     press("sp:add")
@@ -289,6 +339,10 @@ return function(T)
     T.check(A.summaryText("horde.now 7 Gas station") == "IGUI_MQ_Admin_HordeHistNow|Gas station"
         and A.summaryText("horde.stop 7") == "IGUI_MQ_Admin_HordeHistStop|#7", "history rows of horde.now / horde.stop are translated")
     T.check(not T.printed("admin layout"), "no layout error on the hordes tab")
+    local hf = P.pages.hordes.flow
+    local closed = hf.L == nil and #hf.lists > 0
+    for _, L in ipairs(hf.lists) do closed = closed and L.h ~= nil end
+    T.check(closed, "the hordes tab closes every list box it opens")
     A.hide()
     A.instance = nil
 

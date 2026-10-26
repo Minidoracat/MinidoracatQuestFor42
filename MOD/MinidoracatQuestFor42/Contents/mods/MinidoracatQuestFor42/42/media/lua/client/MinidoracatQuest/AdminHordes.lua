@@ -1,8 +1,9 @@
--- MinidoracatQuest/AdminHordes.lua: admin tab "hordes" (design r10; ARCHITECTURE.md 6.2, 7).
+-- MinidoracatQuest/AdminHordes.lua: admin tab "hordes" (design r10, lists r11; ARCHITECTURE.md 6.2, 7).
 -- Live status from horde.status (fetched each time the tab opens, after every action and by Refresh): the current
--- horde with Cancel / Stop, today's count and next roll, Start one now, the last 5 results. Below it the settings:
--- spots (add = towns.here, the admin's own position), window, chance, count, kind weights, time limit, reward. Every
--- setting goes through the draft and the bottom Apply (cfg.preview / cfg.apply), so History and config.json carry it;
+-- horde with Cancel / Stop, today's count and next roll, Start one now, the last 5 results (a list box). Below it the
+-- settings: spots (a list box; add = towns.here, the admin's own position), window, chance, count, the kinds (a list
+-- box of the kinds with a weight; the others are added from a dropdown), time limit, reward. Every setting goes
+-- through the draft and the bottom Apply (cfg.preview / cfg.apply), so History and config.json carry it;
 -- horde.now / horde.stop act at once (IGUI_MQ_Admin_ImmediateNote). The server re-checks everything.
 
 require "MinidoracatQuest/AdminPanel"
@@ -135,12 +136,25 @@ local function layoutStatus(P, pg, F)
     now:setEnabled(d ~= nil and cur == nil)
     F:row({ now, F:button("refresh", getText("IGUI_MQ_Admin_HordeRefresh"), load) })
     F:head("hl", getText("IGUI_MQ_Admin_HordeLogHead"))
-    local log = d and type(d.log) == "table" and d.log or {}
-    if d and #log == 0 then F:text("l0", getText("IGUI_MQ_Admin_HordeLogNone"), "textMuted") end
-    for i = 1, math.min(5, #log) do
+    if d == nil then return end   -- the status line above says loading / the error
+    local log = type(d.log) == "table" and d.log or {}
+    local n = math.min(5, #log)
+    local L = F:list("l")
+    local places = {}
+    for i = 1, n do places[i] = place(log[i]) end
+    local timeW, placeW = A.timeW(), A.colW(places, math.floor(F.width / 3))
+    local resX = A.PAD + timeW + placeW
+    F:listHead({ { text = getText("IGUI_MQ_Admin_ColTime"), x = A.PAD }, { text = getText("IGUI_MQ_Admin_ColPlace"), x = A.PAD + timeW },
+        { text = getText("IGUI_MQ_Admin_ColResult"), x = resX } })
+    for i = 1, n do
         local e = log[i]
-        F:text("l" .. i, getText("IGUI_MQ_Admin_HordeLogRow", A.time(e.endedAt or e.startMs), place(e), resultText(e)))
+        F:item()
+        F:cells("l" .. i, { { text = A.time(e.endedAt or e.startMs), x = A.PAD, token = "textMuted" },
+            { text = places[i], x = A.PAD + timeW, w = placeW - A.GAP },
+            { text = resultText(e), x = resX, w = F.width - A.PAD - resX, wrap = true,
+                token = e.state == "success" and "success" or (e.state == "cancelled" and "textMuted" or "errorText") } })
     end
+    F:listEnd(L, getText("IGUI_MQ_Admin_HordeLogNone"))
 end
 
 -- ===== spots (hordes.spots, a whole-set list in the draft) =====
@@ -180,13 +194,20 @@ local function layoutSpots(P, pg, F)
     F:head("hp", getText("IGUI_MQ_Admin_HordeSpotsHead"))
     F:text("pn", getText("IGUI_MQ_Admin_HordeSpotsNote"), "textMuted")
     local spots = AM.get(P.S, "hordes.spots") or {}
-    if #spots == 0 then F:text("p0", getText("IGUI_MQ_Admin_HordeSpotsNone"), "warning") end
+    local L = F:list("p")
+    local names = {}
+    for i, s in ipairs(spots) do names[i] = tostring(s.name) end
+    local nameW = A.colW(names, math.floor(F.width / 3))
+    F:listHead({ { text = getText("IGUI_MQ_Admin_ColName"), x = A.PAD }, { text = getText("IGUI_MQ_Admin_ColPos"), x = A.PAD + nameW + A.GAP } })
     for i, s in ipairs(spots) do
         local rm = F:button("pr" .. i, getText("IGUI_MQ_Admin_Remove"), onSpotRemove)
         rm.spot, rm.spotName = i, s.name
-        F:row({ F:label("pl" .. i, tostring(s.name)),
-            F:label("px" .. i, "(" .. tostring(s.x) .. ", " .. tostring(s.y) .. ", " .. tostring(s.z) .. ")", "textMuted"), rm })
+        local nm = F:label("pl" .. i, names[i], nil, nil, nameW)
+        nm:setWidth(nameW)
+        F:item()
+        F:row({ nm, F:label("px" .. i, tostring(s.x) .. ", " .. tostring(s.y) .. ", " .. tostring(s.z), "textMuted") }, nil, rm)
     end
+    F:listEnd(L, getText("IGUI_MQ_Admin_HordeSpotsNone"), "warning")
     local add = F:button("sp:add", getText("IGUI_MQ_Admin_HordeSpotHere"), onSpotAdd, "primary")
     add:setEnabled(#spots < AM.MAX_SPOTS)
     local label = getText("IGUI_MQ_Admin_HordeSpotName")
@@ -198,6 +219,93 @@ end
 
 local PATHS = { "hordes.enabled", "hordes.from", "hordes.to", "hordes.chance", "hordes.maxPerDay", "hordes.leadMin",
     "hordes.waitMin", "hordes.count", "hordes.limitMin", "hordes.perZombie", "hordes.split" }
+
+-- ===== kinds (design r11): a list box of the kinds with a weight above 0, the others in the dropdown under it =====
+
+local KIND_START = 10   -- the weight a kind picked from the dropdown starts with; the admin edits it in its row
+
+-- the built-in kinds have a default above 0 (Catalog.DEFAULTS.hordes.kinds); a kind another mod registers has none
+local function kindDefaults(P)
+    local h = P.S.defaults and P.S.defaults.hordes
+    return h and h.kinds or {}
+end
+
+local function onKindAdd(P, id)
+    if id == nil then return end
+    local path = "hordes.kinds." .. id
+    AM.draftSet(P.S.draft, path, KIND_START)
+    -- a row removed and picked again shows the 10, not what was typed in it before the Remove
+    local f = P.pages.hordes.fields[path]
+    if f then f.at = nil end
+    summary(P, getText("IGUI_MQ_Admin_HordeSumKindAdd", A.hordeKindName(P, id)))
+    A.say(P, getText("IGUI_MQ_Admin_InDraft"), "textMuted")
+    A.layout(P)
+end
+
+-- Remove writes 0 on a built-in kind; on the others it drops the key (a "del" change), which also clears what a
+-- removed mod left in config.json
+local function onKindRemove(P, b)
+    AM.draftSet(P.S.draft, "hordes.kinds." .. b.kind, kindDefaults(P)[b.kind] ~= nil and 0 or AM.DEL)
+    summary(P, getText("IGUI_MQ_Admin_HordeSumKindDel", b.kindName))
+    A.say(P, getText("IGUI_MQ_Admin_InDraft"), "textMuted")
+    A.layout(P)
+end
+
+-- keys the applied config still has for kinds no mod registers (the mod was removed): the server skips them
+-- (Hordes.lua H.mix); known only once horde.status listed the registered kinds
+local function orphans(P, kinds)
+    local ov = P.S.overrides and P.S.overrides.hordes and P.S.overrides.hordes.kinds
+    if type(ov) ~= "table" or P.pages.hordes.data == nil then return {} end
+    local known, out = {}, {}
+    for _, k in ipairs(kinds) do known[k.id] = true end
+    for id in pairs(ov) do
+        if not known[id] and AM.get(P.S, "hordes.kinds." .. id) ~= nil then out[#out + 1] = id end
+    end
+    MQ.Util.sort(out, function(a, b) return a < b end)
+    return out
+end
+
+local function removeBtn(F, id, name)
+    local rm = F:button("ks:r:" .. id, getText("IGUI_MQ_Admin_Remove"), onKindRemove)
+    rm.kind, rm.kindName = id, name
+    return rm
+end
+
+-- lw = the tab's label column: the name column is one PAD narrower, so the weights line up with the fields above
+local function layoutKinds(P, pg, F, kinds, lw)
+    local defaults = kindDefaults(P)
+    local L = F:list("ks")
+    local cw = lw - A.PAD
+    F:listHead({ { text = getText("IGUI_MQ_Admin_ColKind"), x = A.PAD }, { text = getText("IGUI_MQ_Admin_ColWeight"), x = A.PAD + cw + A.GAP } })
+    local add = {}
+    for _, k in ipairs(kinds) do
+        local path, name = "hordes.kinds." .. k.id, kindName(k)
+        local w = tonumber(AM.get(P.S, path)) or 0
+        if w > 0 then
+            local nm = F:label("ks:n:" .. k.id, name, nil, nil, cw - A.GAP)
+            nm:setWidth(cw)
+            F:item()
+            F:row({ nm, A.numField(P, pg, path, path, nil, "hordeWeight", nil, defaults[k.id] or 0) }, nil, removeBtn(F, k.id, name))
+        else
+            add[#add + 1] = { id = k.id, label = name }
+        end
+    end
+    for _, id in ipairs(orphans(P, kinds)) do
+        local nm = F:label("ks:o:" .. id, id, "textFaint", nil, cw - A.GAP)
+        nm:setWidth(cw)
+        F:item()
+        F:row({ nm, F:label("ks:w:" .. id, A.num(tonumber(AM.get(P.S, "hordes.kinds." .. id)) or 0), "textFaint"),
+            F:label("ks:g:" .. id, getText("IGUI_MQ_Admin_HordeKindGone"), "warning") }, nil, removeBtn(F, id, id))
+    end
+    F:listEnd(L, getText("IGUI_MQ_Admin_HordeKindsNone"))
+    -- no width: as wide as the placeholder or the longest kind name (Dropdown.lua naturalWidth)
+    if #add > 0 then
+        F:row({ F:dropdown("ks:add", add, nil, onKindAdd, getText("IGUI_MQ_Admin_HordeKindAdd")) })
+    else
+        F:text("ks:all", getText("IGUI_MQ_Admin_HordeKindsAll"), "textMuted")
+    end
+    F:text("kn", getText("IGUI_MQ_Admin_HordeKindsNote"), "textMuted")
+end
 
 local function layoutSettings(P, pg, F)
     local kinds = kindList(P)
@@ -213,13 +321,7 @@ local function layoutSettings(P, pg, F)
     F:head("hk", getText("IGUI_MQ_Admin_HordePackHead"))
     row("hordes.count", { A.numField(P, pg, "hordes.count.1", "hordes.count", { 1 }, "hordeCount"), F:label("cnt:d", "-", "textMuted"),
         A.numField(P, pg, "hordes.count.2", "hordes.count", { 2 }, "hordeCount") })
-    F:text("kn", getText("IGUI_MQ_Admin_HordeKindsNote"), "textMuted")
-    -- one weight per kind, each its own key under the hordes.kinds branch; an unset key means its default
-    local defaults = MQ.Catalog.DEFAULTS.hordes.kinds or {}
-    for _, k in ipairs(kinds) do
-        local path = "hordes.kinds." .. k.id
-        formRow(F, path, kindName(k), lw, { A.numField(P, pg, path, path, nil, "hordeWeight", nil, defaults[k.id] or 0) })
-    end
+    layoutKinds(P, pg, F, kinds, lw)
     A.form(P, pg, F, { { "hordes.limitMin", "hordeLimit" }, { "hordes.perZombie", "hordePerZombie" } }, lw)
     F:text("pool", getText("IGUI_MQ_Admin_HordePoolNote"), "textMuted")
     row("hordes.split", { A.pickField(P, pg, "hordes.split", "hordes.split", {

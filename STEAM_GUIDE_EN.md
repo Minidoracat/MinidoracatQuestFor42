@@ -140,7 +140,7 @@ Once an admin sets up spots, the server starts hordes during a daily time window
 [list]
 [*] [b]Spots[/b]: stand where a horde should appear, fill in "Spot name" and press "Add my current position"; up to 32 spots, one picked at random for each horde. Automatic hordes and "Start one now" need at least one spot.
 [*] [b]Schedule[/b]: "Automatic hordes" (off by default), "Window from" and "Window to" (HH:MM in the sandbox time zone; a "to" earlier than "from" runs past midnight, equal means all day), "Chance per hour", "Hordes per day at most", "Warning before start", "Wait for players". Inside the window the server rolls once an hour and, on a hit, schedules a horde within that hour.
-[*] [b]The horde[/b]: "Zombies (min - max)", "Kind weight" per kind (only kinds above 0 appear), "Time limit", "Points per zombie", "Reward split".
+[*] [b]The horde[/b]: "Zombies (min - max)", the kind list (one row per kind with its weight and Remove; add others from the "Add a kind..." dropdown; only kinds above 0 appear), "Time limit", "Points per zombie", "Reward split".
 [*] [b]Like other settings[/b]: spots and fields go into pending changes and take effect with "Apply" at the bottom; they are kept in History and written to config.json (see "Settings file config.json"). A horde already scheduled keeps the settings it was planned with.
 [*] [b]Now[/b]: the current horde's place, times, count and kinds. "Cancel this horde" before it starts, "Stop this horde" after (it fails, nobody gets points, its zombies are removed); both ask first.
 [*] [b]Start one now[/b]: skips the roll and starts a horde at a random spot at once, with the applied settings; it does not count toward the daily limit. With a horde already planned or running, cancel or stop it first. Starting and stopping are listed in History but cannot be undone.
@@ -510,7 +510,7 @@ https://github.com/Minidoracat/MinidoracatQuestFor42#給其他-mod-的-api
 [*] [b]Limits[/b]: per mod 32 stats, 64 achievements and 32 quests; 50 pack.add calls per tick; n up to 1000.
 [*] [b]Translations[/b]: names use translation keys your mod ships, so clients need your mod too.
 [*] [b]Admins[/b]: can tune or disable your achievements and quests in the admin panel like any other.
-[*] [b]Horde kinds[/b]: registerHordeKind (from API_REVISION 2; check with type that it is a function) registers a kind of zombie; your mod only spawns them, this mod handles timing, counting and clearing. 8 kinds per mod, 32 in all; a new kind's weight starts at 0 until an admin raises it.
+[*] [b]Horde kinds[/b]: registerHordeKind (from API_REVISION 2; check with type that it is a function) registers a kind of zombie; your mod only spawns them, this mod handles timing, counting and clearing. 8 kinds per mod, 32 in all; a new kind's weight starts at 0 until an admin adds it from the Hordes tab's dropdown.
 [*] [b]Spawned zombies[/b]: only appearance, health, walk type and speed and some state flags of a server-spawned zombie reach clients, so set them when you spawn it; strength, sight and hearing are worked out on each computer, and modData does not sync.
 [/list]
 === ⚠️ Known limitations

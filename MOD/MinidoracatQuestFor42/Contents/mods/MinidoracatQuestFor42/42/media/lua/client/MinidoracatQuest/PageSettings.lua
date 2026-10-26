@@ -170,9 +170,13 @@ function P.questList(page, b, x, y, w)
     if not (type(q) == "table" and q.playerList == true) then
         y = b:para(x, y, getText("IGUI_MQ_UI_QuestListAdminOnly"), w, "textMuted") + 4
     end
-    if not page.listOpen then return y + GAP end
+    if not page.listOpen or #list == 0 then return y + GAP end
+    -- one list box (design r11 B), one entry per theme
     local ind = 12
-    for _, e in ipairs(list) do
+    local L = b:list(x, y, w)
+    x, w = x + 8, w - 16
+    for i, e in ipairs(list) do
+        if i > 1 then b:listSep(L, y) end
         y = y + 4
         local name = D.themeName(e.theme)
         local counts = getText("IGUI_MQ_UI_QuestListCount", tostring(#e.daily), tostring(#e.weekly))
@@ -195,8 +199,9 @@ function P.questList(page, b, x, y, w)
                 end
             end
         end
+        y = y + 2
     end
-    return y + GAP
+    return b:listEnd(L, y) + GAP
 end
 
 P.spec = {

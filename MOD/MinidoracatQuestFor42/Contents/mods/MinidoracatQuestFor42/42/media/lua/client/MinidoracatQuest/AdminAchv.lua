@@ -220,19 +220,20 @@ function P_.layoutEditor(P, pg, F, a)
     -- achievements.<id>.enabled (custom: enabled in the object); off = players no longer see it or unlock it
     F:row({ F:check("e:on", getText("IGUI_MQ_Admin_AchEnabled"), P_.onEditOn, pg.editOn ~= false) })
     F:text("e:onn", getText("IGUI_MQ_Admin_AchEnabledNote"), "textMuted")
-    local nameW = 0
+    local nameW = A.textW(getText("IGUI_MQ_Admin_ColTier"))
     for i = 1, #pg.rows do
         nameW = math.max(nameW, A.textW(D and D.tierName and D.tierName(i) or AM.roman(i)))
     end
     local numW = A.textW("1,000,000,000") + 16
     local ptsW = A.textW("10000") + 24
+    local L = F:list("e:tl")
     local titleW = math.max(80, F.width - 2 * A.PAD - nameW - numW - ptsW - 4 * A.GAP)
-    F:cells("e:hd", {
-        { text = getText("IGUI_MQ_Admin_ColTier"), x = A.PAD, token = "textMuted" },
-        { text = getText("IGUI_MQ_Admin_ColThreshold"), x = A.PAD + nameW + A.GAP, token = "textMuted" },
-        { text = getText("IGUI_MQ_Admin_ColPts"), x = A.PAD + nameW + numW + 2 * A.GAP, token = "textMuted" },
-        { text = getText("IGUI_MQ_Admin_ColTitle"), x = A.PAD + nameW + numW + ptsW + 3 * A.GAP, token = "textMuted" },
-    })
+    F:listHead({
+        { text = getText("IGUI_MQ_Admin_ColTier"), x = A.PAD },
+        { text = getText("IGUI_MQ_Admin_ColThreshold"), x = A.PAD + nameW + A.GAP },
+        { text = getText("IGUI_MQ_Admin_ColPts"), x = A.PAD + nameW + numW + 2 * A.GAP },
+        { text = getText("IGUI_MQ_Admin_ColTitle"), x = A.PAD + nameW + numW + ptsW + 3 * A.GAP },
+    }, "e:hd")
     local errs = pg.editErr or {}
     for i, r in ipairs(pg.rows) do
         local l = F:label("e:l" .. i, D and D.tierName and D.tierName(i) or AM.roman(i),
@@ -244,8 +245,10 @@ function P_.layoutEditor(P, pg, F, a)
         local e = errs[i]
         A.markError(P, t, e and e[1] == "tier" and getText(e[2], AM.num(e[3] or 0), AM.num(e[4] or 0)) or nil)
         A.markError(P, p, e and e[1] == "pts" and getText(e[2], AM.num(e[3] or 0), AM.num(e[4] or 0)) or nil)
+        F:item()
         F:row({ l, t, p, n })
     end
+    F:listEnd(L)
     if pg.rowsAt ~= pg.edit .. "#" .. #pg.rows then
         pg.rowsAt = pg.edit .. "#" .. #pg.rows
         P_.syncRows(pg)
@@ -391,16 +394,17 @@ function P_.layout(P, pg, F)
         end
     end
     numW = numW + 2 * A.GAP
-    local moreW = math.max(A.textW(getText("IGUI_MQ_Admin_Edit")), A.textW("+10")) + 24
+    local moreW = math.max(A.textW(getText("IGUI_MQ_Admin_Edit")), A.textW("+10"), A.textW(getText("IGUI_MQ_Admin_ColMore"))) + 24
+    local L = F:list("t")
     local right = F.width - A.PAD - moreW - 3 * A.GAP   -- one gap made FR "IV Plus" read as one header
     local nameX = A.PAD
     local nameW = math.max(60, right - COLS * numW - nameX - A.GAP)
-    local head = { { text = getText("IGUI_MQ_Admin_ColAch"), x = nameX, token = "textMuted" } }
+    local head = { { text = getText("IGUI_MQ_Admin_ColAch"), x = nameX } }
     for t = 1, COLS do
-        head[#head + 1] = { text = AM.roman(t), x = right - (COLS - t) * numW, right = true, token = "textMuted" }
+        head[#head + 1] = { text = AM.roman(t), x = right - (COLS - t) * numW, right = true }
     end
-    head[#head + 1] = { text = getText("IGUI_MQ_Admin_ColMore"), x = right + 3 * A.GAP, token = "textMuted" }
-    F:cells("hd", head)
+    head[#head + 1] = { text = getText("IGUI_MQ_Admin_ColMore"), x = right + 3 * A.GAP }
+    F:listHead(head, "hd")
     local i = 0
     for _, a in ipairs(pg.list) do
         if P_.shown(pg, a) then
@@ -414,12 +418,13 @@ function P_.layout(P, pg, F)
                 cells[#cells + 1] = { text = v and A.num(v) or "-", x = right - (COLS - t) * numW, right = true,
                     token = changed and "accent" or "text" }
             end
-            local row = F:cells("r" .. i, cells, i % 2 == 0)
+            F:item()
+            local row = F:cells("r" .. i, cells)
             local extra = #a.tiers - COLS
             local more = F:button("m" .. i, extra > 0 and ("+" .. extra) or getText("IGUI_MQ_Admin_Edit"), P_.onEdit,
                 extra > 0 and "chip" or nil)
             more.achId = a.id
-            more:setX(right + 3 * A.GAP)
+            more:setX(F.ox + right + 3 * A.GAP)
             more:setY(row:getY() + math.floor((row.height - more.height) / 2))
             if more.height > row.height then
                 row:setHeight(more.height)
@@ -434,7 +439,7 @@ function P_.layout(P, pg, F)
             end
         end
     end
-    if i == 0 then F:text("empty", getText("IGUI_MQ_Admin_NoAch"), "textMuted") end
+    F:listEnd(L, getText("IGUI_MQ_Admin_NoAch"))
     F:gap()
 
     -- batch row: every achievement of the category shown (one or two: Edit on their rows)

@@ -200,7 +200,7 @@ local function row(b, x, y, w, r, frame, label, stops)
     b:textRight(x + w - deltaW - 8, ty, D.num(r.v or 0), frame or "text")
     delta(b, x + w - 6, ty, r.d)
     if stops ~= nil then addStop(stops, x, y, w, h, r.r, r.full or nameOf(r), r.t, r.v) end
-    return y + h + 2
+    return y + h
 end
 
 -- ===== keyboard / gamepad focus over the drawn podium and rows (UI ARCHITECTURE 3.10) =====
@@ -341,18 +341,21 @@ local function boardView(b, page, x, y, w, bd, period, e)
     y = podium(b, x, y + 22, w, rows, stops)
     local me = data.me
     local myRank = type(me) == "table" and tonumber(me.r) or nil
+    -- ranks 4+ in one list box (design r11 B); my own row inside it keeps the gold frame of the pinned row below
+    local L = nil
     for _, r in ipairs(rows) do
         if (tonumber(r.r) or 0) > 3 then
-            -- my own row inside the list gets the same gold frame as the pinned row below
+            if L == nil then L = b:list(x, y, w) else b:listSep(L, y) end
             if myRank ~= nil and tonumber(r.r) == myRank then b:card(x, y, w, D.fontH() + 10, D.EXTRA.gold) end
             y = row(b, x, y, w, r, nil, nil, stops)
         end
     end
+    if L ~= nil then y = b:listEnd(L, y) end
     y = y + 6
     if type(me) == "table" and me.r ~= nil then
         local meName = getText("IGUI_MQ_UI_BoardMe", tostring(s and s.user or ""))
         local my = { r = me.r, v = me.v, d = me.d, n = meName, full = meName, t = s and s.title or nil }
-        y = row(b, x, y, w, my, D.EXTRA.gold, "#" .. tostring(me.r), stops)
+        y = row(b, x, y, w, my, D.EXTRA.gold, "#" .. tostring(me.r), stops) + 2
         local hints = {}
         for _, r in ipairs(rows) do
             if tonumber(r.r) == tonumber(me.r) - 1 and tonumber(r.v) and tonumber(me.v) then
@@ -408,11 +411,12 @@ local function rewardsView(b, page, x, y, w)
     local labelW = 0
     for _, r in ipairs(rows) do labelW = math.max(labelW, D.textW(r[1])) end
     labelW = math.min(labelW + 16, math.floor(w * 0.4))
+    local L = b:list(x, y, w)
     for i, r in ipairs(rows) do
         local labels = D.wrap(b.UI, r[1], labelW - 12, UIFont.Small)
         local lines = D.wrap(b.UI, r[2], w - labelW - 16, UIFont.Small)
         local h = math.max(1, #lines, #labels) * (lh + 2) + 8
-        if i % 2 == 1 then b:rect(x, y, w, h, "hover") end
+        if i > 1 then b:listSep(L, y) end
         local ly = y + 4
         for _, l in ipairs(labels) do
             b:text(x + 8, ly, l, "text")
@@ -425,6 +429,7 @@ local function rewardsView(b, page, x, y, w)
         end
         y = y + h
     end
+    y = b:listEnd(L, y)
     y = b:para(x, y + 6, getText("IGUI_MQ_UI_RewardNote"), w, "textFaint")
     local e = C.board("points", "season")
     local me = e and e.data and e.data.me

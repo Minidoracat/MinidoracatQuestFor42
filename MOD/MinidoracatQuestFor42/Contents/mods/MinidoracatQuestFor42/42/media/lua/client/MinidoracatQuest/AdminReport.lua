@@ -133,11 +133,12 @@ local function layoutAchv(P, F, data)
     F:head("ha", getText("IGUI_MQ_Admin_ReportAchvHead"))
     F:text("an", getText("IGUI_MQ_Admin_ReportAchvNote", data.days, A.num(active),
         A.num(active > 0 and math.floor((s.tierSum or 0) / active + 0.5) or 0), A.num(s.tierSum or 0)), "textMuted")
+    local L = F:list("al")
     local colW = math.max(A.textW("0,000"), A.textW("III")) + 2 * A.GAP
     local nameW = math.max(60, F.width - 2 * A.PAD - #ROMAN * colW)
-    local head = { { text = getText("IGUI_MQ_Admin_ColAch"), x = A.PAD, token = "textMuted" } }
+    local head = { { text = getText("IGUI_MQ_Admin_ColAch"), x = A.PAD } }
     for k, t in ipairs(ROMAN) do head[#head + 1] = { text = t, x = A.PAD + nameW + k * colW, right = true, token = "tier" .. k } end
-    F:cells("ah", head)
+    F:listHead(head, "ah")
     local none, hidden, i = {}, 0, 0
     for _, r in ipairs(data.achv or {}) do
         local c = type(r.c) == "table" and r.c or {}
@@ -149,10 +150,11 @@ local function layoutAchv(P, F, data)
             for k = 1, #ROMAN do
                 cells[#cells + 1] = { text = c[k] and A.num(c[k]) or "-", x = A.PAD + nameW + k * colW, right = true }
             end
-            F:cells("ar" .. i, cells, i % 2 == 0)
+            F:item()
+            F:cells("ar" .. i, cells)
         end
     end
-    if i == 0 then F:text("a0", getText("IGUI_MQ_Admin_ReportAchvEmpty"), "textMuted") end
+    F:listEnd(L, getText("IGUI_MQ_Admin_ReportAchvEmpty"))
     local n = #none + hidden
     if n > 0 then
         -- hidden achievements count toward N but are never named

@@ -262,18 +262,21 @@ function P.streak(b, x, y, w, s)
     end
     y = y + size + lh + 13
     local cfg = C.defs().cfg.streak or {}
+    local L = nil
     for _, m in ipairs(type(cfg.milestones) == "table" and cfg.milestones or {}) do
+        if L == nil then L = b:list(x, y, w) else b:listSep(L, y) end
         local reached = days >= (tonumber(m.days) or 0)
         local line = getText("IGUI_MQ_UI_Milestone", tostring(m.days), D.num(m.pts or 0))
         if m.title then line = getText("IGUI_MQ_UI_WithTitle", line, D.titleText(m.title)) end
         if reached then
-            b:icon(x, y, 16, "check", D.EXTRA.success, "v")
+            b:icon(x + 8, y + 4, 16, "check", D.EXTRA.success, "v")
         else
-            b:dot(x + 4, y + 4, 8, "textFaint")
+            b:dot(x + 12, y + 8, 8, "textFaint")
         end
-        b:fitText(x + 22, y, line, w - 22, reached and D.EXTRA.success or "text")
-        y = y + lh + 4
+        b:fitText(x + 30, y + 4, line, w - 38, reached and D.EXTRA.success or "text")
+        y = y + lh + 8
     end
+    if L ~= nil then y = b:listEnd(L, y) + 2 end
     y = b:para(x, y + 4, getText("IGUI_MQ_UI_StreakRule", tostring(cfg.need or 3), tostring(cfg.gracePerWeek or 1)),
         w, "textMuted")
     return y + GAP

@@ -168,8 +168,9 @@ end
 
 local function poolName(tpl) return A.questName(tpl.tid) .. (tpl.rare and (" " .. getText("IGUI_MQ_Admin_Rare")) or "") end
 
--- one pool: on, name, target min - max, points. Under "all" a theme line opens each group; the name column is as
--- wide as the longest name of the whole pool, so picking a theme does not move the fields
+-- one pool: on, name, target min - max, points. One list box, or under "all" one box per theme with the theme's
+-- name above it; the name column is as wide as the longest name of the whole pool, so picking a theme does not
+-- move the fields
 local function pool(P, pg, F, kind, theme)
     local numW = math.max(60, A.textW("1,000,000") + 20)
     local ptsW = math.max(50, A.textW("10000") + 20)
@@ -177,22 +178,32 @@ local function pool(P, pg, F, kind, theme)
     local names = {}
     -- measured with the "(changed)" mark, so a row that gets a drafted value does not move the fields
     for i, tpl in ipairs(MQ.Catalog[kind] or {}) do names[i] = getText("IGUI_MQ_Admin_Changed", poolName(tpl)) end
-    local nameW = A.colW(names, math.max(80, F.width - 2 * A.PAD - onW - 2 * numW - dashW - ptsW - 5 * A.GAP))
-    local xName = A.PAD + onW + A.GAP
-    local xTarget = xName + nameW + A.GAP
-    F:cells(kind .. ":hd", {
-        { text = getText("IGUI_MQ_Admin_ColOn"), x = A.PAD, token = "textMuted" },
-        { text = getText("IGUI_MQ_Admin_ColQuest"), x = xName, token = "textMuted" },
-        { text = getText("IGUI_MQ_Admin_ColTarget"), x = xTarget, token = "textMuted" },
-        { text = getText("IGUI_MQ_Admin_ColPts"), x = xTarget + 2 * numW + dashW + 3 * A.GAP, token = "textMuted" },
-    })
+    local L, nameW
+    local function open(th)
+        if L then F:listEnd(L) end
+        local sfx = th and (":" .. th) or ""
+        if th then
+            F:gap()
+            F:text(kind .. ":th" .. sfx, MQ.Draw.themeName(th), "text")
+        end
+        L = F:list(kind .. sfx)
+        nameW = A.colW(names, math.max(80, F.width - 2 * A.PAD - onW - 2 * numW - dashW - ptsW - 5 * A.GAP))
+        local xName = A.PAD + onW + A.GAP
+        local xTarget = xName + nameW + A.GAP
+        F:listHead({
+            { text = getText("IGUI_MQ_Admin_ColOn"), x = A.PAD },
+            { text = getText("IGUI_MQ_Admin_ColQuest"), x = xName },
+            { text = getText("IGUI_MQ_Admin_ColTarget"), x = xTarget },
+            { text = getText("IGUI_MQ_Admin_ColPts"), x = xTarget + 2 * numW + dashW + 3 * A.GAP },
+        }, kind .. ":hd" .. sfx)
+    end
+    if theme ~= "all" then open(nil) end
     local by = P.S.draft.by
     local last
     for _, tpl in ipairs(templates(kind, theme)) do
         if theme == "all" and tpl.theme ~= last then
             last = tpl.theme
-            F:gap()
-            F:text(kind .. ":th:" .. last, MQ.Draw.themeName(last), "text")
+            open(last)
         end
         local base = kind .. ".pool." .. tpl.tid
         local on = A.boolField(P, pg, base .. ".enabled", "", base .. ".enabled")
@@ -208,8 +219,10 @@ local function pool(P, pg, F, kind, theme)
         local dash = F:label("d:" .. base, "-", "textMuted")
         local b = A.numField(P, pg, base .. ".target.2", base .. ".target", { 2 }, "target", numW)
         local p = A.numField(P, pg, base .. ".pts", base .. ".pts", nil, "pts", ptsW)
+        F:item()
         F:row({ on, name, a, dash, b, p })
     end
+    if L then F:listEnd(L) end
 end
 
 local function themeOptions()
@@ -330,18 +343,22 @@ local function layoutEvents(P, pg, F)
     F:head("he", getText("IGUI_MQ_Admin_EventsHead"))
     F:text("hen", getText("IGUI_MQ_Admin_EventsNote") .. " " .. getText("IGUI_MQ_Admin_ImmediateNote") .. " " .. A.tzNote(),
         "textMuted")
-    if xp.data == nil then loadingText(P, F, "eld", xp) end
-    local events = xp.data and xp.data.events or {}
     local live = 0
-    for i, e in ipairs(events) do
-        if (e.endMs or 0) > getTimestampMs() then live = live + 1 end
-        local rm = F:button("er" .. i, getText("IGUI_MQ_Admin_EventRemove"), onEventRemove, "danger")
-        rm.entry = e
-        -- the remove button ends its own event's line (under it, it sat nearer the next event)
-        F:row({ F:label("e" .. i, getText("IGUI_MQ_Admin_EventRow", tostring(e.name), themeLabel(e.theme), AM.num(e.mult or 1),
-            A.time(e.startMs) .. " - " .. A.time(e.endMs)), "text", nil, F.width - 2 * A.PAD - rm.width - A.GAP), rm })
+    if xp.data == nil then
+        loadingText(P, F, "eld", xp)
+    else
+        local L = F:list("el")
+        for i, e in ipairs(xp.data.events or {}) do
+            if (e.endMs or 0) > getTimestampMs() then live = live + 1 end
+            local rm = F:button("er" .. i, getText("IGUI_MQ_Admin_EventRemove"), onEventRemove, "danger")
+            rm.entry = e
+            -- the remove button ends its own event's line (under it, it sat nearer the next event)
+            F:item()
+            F:row({ F:label("e" .. i, getText("IGUI_MQ_Admin_EventRow", tostring(e.name), themeLabel(e.theme), AM.num(e.mult or 1),
+                A.time(e.startMs) .. " - " .. A.time(e.endMs)), "text", nil, F.width - 2 * A.PAD - rm.width - A.GAP) }, nil, rm)
+        end
+        F:listEnd(L, getText("IGUI_MQ_Admin_EventsNone"))
     end
-    if xp.data and #events == 0 then F:text("en", getText("IGUI_MQ_Admin_EventsNone"), "textMuted") end
     local themes = { { id = "all", label = themeLabel("all") } }
     for _, t in ipairs(THEMES) do themes[#themes + 1] = { id = t, label = themeLabel(t) } end
     local lw = 0
@@ -419,34 +436,53 @@ local function layoutQuests(P, pg, F)
     F:head("hg", getText("IGUI_MQ_Admin_GoalHead"))
     form(P, pg, F, { { "goal.enabled", "bool" }, { "goal.pts", "pts" }, { "goal.growth", "growth" } }, lw)
     local numW = math.max(60, A.textW("1,000,000") + 20)
-    local statW = 0
+    local statW = A.textW(getText("IGUI_MQ_Admin_ColStat"))
     local rotation = AM.get(P.S, "goal.rotation") or {}
     for _, stat in ipairs(rotation) do statW = math.max(statW, A.textW(A.statName(stat))) end
-    F:cells("gl:hd", {
-        { text = getText("IGUI_MQ_Admin_ColStat"), x = A.PAD, token = "textMuted" },
-        { text = getText("IGUI_MQ_Admin_ColMin"), x = A.PAD + statW + A.GAP, token = "textMuted" },
-        { text = getText("IGUI_MQ_Admin_ColMax"), x = A.PAD + statW + numW + 2 * A.GAP, token = "textMuted" },
-        { text = getText("IGUI_MQ_Admin_ColContrib"), x = A.PAD + statW + 2 * numW + 3 * A.GAP, token = "textMuted" },
-    })
+    local gl = F:list("gl")
+    F:listHead({
+        { text = getText("IGUI_MQ_Admin_ColStat"), x = A.PAD },
+        { text = getText("IGUI_MQ_Admin_ColMin"), x = A.PAD + statW + A.GAP },
+        { text = getText("IGUI_MQ_Admin_ColMax"), x = A.PAD + statW + numW + 2 * A.GAP },
+        { text = getText("IGUI_MQ_Admin_ColContrib"), x = A.PAD + statW + 2 * numW + 3 * A.GAP },
+    }, "gl:hd")
     for _, stat in ipairs(rotation) do
         local l = F:label("gl:" .. stat, A.statName(stat))
         l:setWidth(statW)
+        F:item()
         F:row({ l,
             A.numField(P, pg, "goal.limits." .. stat .. ".min", "goal.limits", { stat, "min" }, "target", numW),
             A.numField(P, pg, "goal.limits." .. stat .. ".max", "goal.limits", { stat, "max" }, "target", numW),
             A.numField(P, pg, "goal.limits." .. stat .. ".minContrib", "goal.limits", { stat, "minContrib" }, "target", numW) })
     end
+    F:listEnd(gl)
 
     F:head("hs", getText("IGUI_MQ_Admin_StreakHead"))
     form(P, pg, F, { { "streak.need", "need" }, { "streak.gracePerWeek", "grace" } }, lw)
     local ms = AM.get(P.S, "streak.milestones") or {}
-    for i = 1, #ms do
-        local l = F:label("ms:" .. i, getText("IGUI_MQ_Admin_Milestone", i))
-        F:row({ l,
-            A.numField(P, pg, "streak.milestones." .. i .. ".days", "streak.milestones", { i, "days" }, "msDays"),
-            F:label("ms:d" .. i, getText("IGUI_MQ_Admin_Days"), "textMuted"),
-            A.numField(P, pg, "streak.milestones." .. i .. ".pts", "streak.milestones", { i, "pts" }, "pts"),
-            F:label("ms:p" .. i, getText("IGUI_MQ_Admin_PtsUnit"), "textMuted") })
+    if #ms > 0 then
+        -- the controls first: the header columns sit over the first row's fields
+        local rows, msW = {}, A.textW(getText("IGUI_MQ_Admin_ColMilestone"))
+        for i = 1, #ms do
+            local l = F:label("ms:" .. i, getText("IGUI_MQ_Admin_Milestone", i))
+            msW = math.max(msW, l.width)
+            rows[i] = { l,
+                A.numField(P, pg, "streak.milestones." .. i .. ".days", "streak.milestones", { i, "days" }, "msDays"),
+                F:label("ms:d" .. i, getText("IGUI_MQ_Admin_Days"), "textMuted"),
+                A.numField(P, pg, "streak.milestones." .. i .. ".pts", "streak.milestones", { i, "pts" }, "pts"),
+                F:label("ms:p" .. i, getText("IGUI_MQ_Admin_PtsUnit"), "textMuted") }
+        end
+        local L = F:list("ms")
+        local xDays = A.PAD + msW + A.GAP
+        F:listHead({ { text = getText("IGUI_MQ_Admin_ColMilestone"), x = A.PAD },
+            { text = getText("IGUI_MQ_Admin_ColDays"), x = xDays },
+            { text = getText("IGUI_MQ_Admin_ColPts"), x = xDays + rows[1][2].width + rows[1][3].width + 2 * A.GAP } })
+        for i = 1, #ms do
+            rows[i][1]:setWidth(msW)
+            F:item()
+            F:row(rows[i])
+        end
+        F:listEnd(L)
     end
 
     F:head("hn", getText("IGUI_MQ_Admin_NewbieHead"))
@@ -538,15 +574,24 @@ end
 -- review list: rank, name (as wide as the longest), points, anomalies; the button at the right end
 local function layoutReview(P, F, d)
     local rows = d.rows or {}
-    local rankW = A.textW("#000") + A.GAP
-    local ptsW = A.textW("1,000,000") + A.GAP
+    local hRank, hUser, hPts, hAnom = getText("IGUI_MQ_Admin_ColRank"), getText("IGUI_MQ_Admin_ColPlayer"),
+        getText("IGUI_MQ_Admin_ColPts"), getText("IGUI_MQ_Admin_ColAnom")
+    local L = F:list("rr")
+    local rankW = math.max(A.textW("#000"), A.textW(hRank)) + A.GAP
+    local ptsW = math.max(A.textW("1,000,000"), A.textW(hPts)) + A.GAP
     local names, anomW = {}, 0
     for i, r in ipairs(rows) do
         names[i] = r.excluded and getText("IGUI_MQ_Admin_ExcludedTag", tostring(r.user)) or tostring(r.user)
         if (r.anomalies or 0) > 0 then anomW = math.max(anomW, A.textW(A.count("IGUI_MQ_Admin_Anomalies", r.anomalies)) + A.GAP) end
     end
+    if anomW > 0 then anomW = math.max(anomW, A.textW(hAnom) + A.GAP) end
+    names[#rows + 1] = hUser
     local btnW = math.max(A.textW(getText("IGUI_MQ_Admin_Exclude")), A.textW(getText("IGUI_MQ_Admin_Unexclude"))) + 24
     local userW = A.colW(names, math.max(80, F.width - 2 * A.PAD - rankW - ptsW - anomW - btnW - 2 * A.GAP))
+    local head = { { text = hRank, x = A.PAD + rankW - A.GAP, right = true }, { text = hUser, x = A.PAD + rankW },
+        { text = hPts, x = A.PAD + rankW + userW + ptsW, right = true } }
+    if anomW > 0 then head[4] = { text = hAnom, x = A.PAD + rankW + userW + ptsW + A.GAP } end
+    F:listHead(head)
     for i, r in ipairs(rows) do
         local cells = {
             { text = tostring(r.rank or i), x = A.PAD + rankW - A.GAP, right = true, token = "textMuted" },
@@ -557,11 +602,12 @@ local function layoutReview(P, F, d)
             cells[#cells + 1] = { text = A.count("IGUI_MQ_Admin_Anomalies", r.anomalies), x = A.PAD + rankW + userW + ptsW + A.GAP,
                 token = "warning" }
         end
-        local row = F:cells("rr" .. i, cells, i % 2 == 0)
+        F:item()
+        local row = F:cells("rr" .. i, cells)
         local b = F:button("rx" .. i, getText(r.excluded and "IGUI_MQ_Admin_Unexclude" or "IGUI_MQ_Admin_Exclude"), onExclude,
             (not r.excluded) and "danger" or nil)
         b.entry = r
-        b:setX(F.width - A.PAD - b.width)
+        b:setX(F.ox + F.width - A.PAD - b.width)
         b:setY(row:getY() + math.floor((row.height - b.height) / 2))
         if b.height > row.height then
             row:setHeight(b.height)
@@ -570,6 +616,7 @@ local function layoutReview(P, F, d)
         end
         if r.excluded and r.reason then F:text("rw" .. i, getText("IGUI_MQ_Admin_ExcludedWhy", tostring(r.reason)), "textMuted") end
     end
+    F:listEnd(L)
 end
 
 local function layoutSeason(P, pg, F)
@@ -653,10 +700,12 @@ local function layoutExchange(P, pg, F)
         end
         local lw = 0
         for _, r in ipairs(rows) do lw = math.max(lw, A.textW(r[1])) end
+        local L = F:list("s")
         for i, r in ipairs(rows) do
-            F:cells("s" .. i, { { text = r[1], x = A.PAD, token = "textMuted" }, { text = r[2], x = A.PAD + lw + 2 * A.GAP, token = r[3] } },
-                i % 2 == 0)
+            F:item()
+            F:cells("s" .. i, { { text = r[1], x = A.PAD, token = "textMuted" }, { text = r[2], x = A.PAD + lw + 2 * A.GAP, token = r[3] } })
         end
+        F:listEnd(L)
         if ecSources() then F:row({ F:button("ecsrc", getText("IGUI_MQ_Admin_EcOpen"), onEcSources) }) end
     end
     F:gap()
@@ -832,26 +881,31 @@ local function layoutPlayers(P, pg, F)
     if pg.rows == nil then
         loadingText(P, F, "ld", pg)
     else
-        if #pg.rows == 0 then F:text("none", getText("IGUI_MQ_Admin_AnomNone"), "textMuted") end
+        local L = F:list("al")
         local timeW = A.timeW()
+        local hUser = getText("IGUI_MQ_Admin_ColPlayer")
         local users = {}
         for i, r in ipairs(pg.rows) do users[i] = r.user end
+        users[#pg.rows + 1] = hUser
         local userW = A.colW(users, math.floor(F.width / 3))
+        local descX = A.PAD + timeW + userW + A.GAP
+        F:listHead({ { text = getText("IGUI_MQ_Admin_ColTime"), x = A.PAD }, { text = hUser, x = A.PAD + timeW },
+            { text = getText("IGUI_MQ_Admin_ColDetail"), x = descX } })
         for i, r in ipairs(pg.rows) do
             local b = F:button("v" .. i, getText("IGUI_MQ_Admin_View"), onView)
             b.user = r.user
             -- the description goes on its own (wrapped) line under the row when it does not fit beside the name
             -- the entry keeps only the dropped part (Audit.over); that minute's total is the limit plus it
             local desc = getText("IGUI_MQ_Admin_AnomRow", A.statName(r.stat), A.num((r.ceil or 0) + (r.n or 0)), A.num(r.ceil or 0))
-            local descX = A.PAD + timeW + userW + A.GAP
             local fits = A.textW(desc) <= F.width - A.PAD - b.width - A.GAP - descX
             local cells = {
                 { text = A.time(r.at), x = A.PAD, token = "textMuted" },
                 { text = tostring(r.user), x = A.PAD + timeW, w = userW },
             }
             if fits then cells[3] = { text = desc, x = descX } end
-            local row = F:cells("r" .. i, cells, i % 2 == 0)
-            b:setX(F.width - A.PAD - b.width)
+            F:item()
+            local row = F:cells("r" .. i, cells)
+            b:setX(F.ox + F.width - A.PAD - b.width)
             b:setY(row:getY() + math.floor((row.height - b.height) / 2))
             if b.height > row.height then
                 row:setHeight(b.height)
@@ -860,6 +914,7 @@ local function layoutPlayers(P, pg, F)
             end
             if not fits then F:text("rd" .. i, desc, "text") end
         end
+        F:listEnd(L, getText("IGUI_MQ_Admin_AnomNone"))
     end
     F:gap()
     layoutCeilings(P, pg, F)
@@ -913,15 +968,16 @@ local function layoutBalance(P, pg, F)
     -- suggestion column, quest-ui-en-1023c)
     local cols = { { "IGUI_MQ_Admin_ColGiven", "10,000" }, { "IGUI_MQ_Admin_ColRate", "100%" },
         { "IGUI_MQ_Admin_ColMedian", getText("IGUI_MQ_Admin_Minutes", "0,000") }, { "IGUI_MQ_Admin_ColSwaps", "10,000" } }
+    local L = F:list("bl")
     local x = F.width - A.PAD
     for i = #cols, 1, -1 do
         cols[i].x = x
         x = x - math.max(A.textW(getText(cols[i][1])), A.textW(cols[i][2])) - 2 * A.GAP
     end
     local nameW = math.max(60, x - A.PAD)
-    local head = { { text = getText("IGUI_MQ_Admin_ColQuest"), x = A.PAD, token = "textMuted" } }
-    for _, c in ipairs(cols) do head[#head + 1] = { text = getText(c[1]), x = c.x, right = true, token = "textMuted" } end
-    F:cells("hd", head)
+    local head = { { text = getText("IGUI_MQ_Admin_ColQuest"), x = A.PAD } }
+    for _, c in ipairs(cols) do head[#head + 1] = { text = getText(c[1]), x = c.x, right = true } end
+    F:listHead(head, "hd")
     local n = 0
     for i, r in ipairs(pg.rows) do
         local tid = tostring(r.tid)
@@ -935,7 +991,8 @@ local function layoutBalance(P, pg, F)
             A.num(swaps) }
         local cells = { { text = name, x = A.PAD, w = nameW - A.GAP } }
         for k, c in ipairs(cols) do cells[#cells + 1] = { text = vals[k], x = c.x, right = true } end
-        F:cells("r" .. i, cells, i % 2 == 0)
+        F:item()
+        F:cells("r" .. i, cells)
         if r.suggest then
             if suggestOk(r.suggest) then n = n + 1 end
             F:text("sg" .. i, suggestText(P, r.suggest), "warning")
@@ -944,7 +1001,7 @@ local function layoutBalance(P, pg, F)
             F:text("sg" .. i, getText("IGUI_MQ_Admin_FewSamples", A.num(minGiven)), "textMuted")
         end
     end
-    if #pg.rows == 0 then F:text("none", getText("IGUI_MQ_Admin_BalanceNone"), "textMuted") end
+    F:listEnd(L, getText("IGUI_MQ_Admin_BalanceNone"))
     local b = F:button("apply", A.count("IGUI_MQ_Admin_ApplySuggest", n), onApplySuggest)
     b:setEnabled(n > 0)
     F:row({ b })
@@ -1016,20 +1073,37 @@ local function layoutTowns(P, pg, F)
     F:head("h", getText("IGUI_MQ_Admin_TownsHead"))
     F:text("n", getText("IGUI_MQ_Admin_TownsNote"), "textMuted")
     local dis = AM.get(P.S, "towns.disabled") or {}
-    for i, t in ipairs(C.towns or {}) do
+    local hName, hArea = getText("IGUI_MQ_Admin_ColName"), getText("IGUI_MQ_Admin_ColArea")
+    -- the boxes as wide as the widest (Flow:check is 48 + its label), so the areas line up under their header
+    local towns, boxW = C.towns or {}, 0
+    for _, t in ipairs(towns) do boxW = math.max(boxW, 48 + A.textW(getText("IGUI_MQ_Town_" .. t.id))) end
+    local L = F:list("b")
+    F:listHead({ { text = hName, x = A.PAD }, { text = hArea, x = A.PAD + boxW + A.GAP } })
+    for i, t in ipairs(towns) do
         local box = F:check("b" .. i, getText("IGUI_MQ_Town_" .. t.id), onTownToggle, dis[t.id] ~= true)
         box.townId = t.id
+        box:setWidth(boxW)
+        F:item()
         F:row({ box, F:label("br" .. i, rectText(t.rects and t.rects[1]), "textMuted") })
     end
+    F:listEnd(L)
     F:gap()
     F:head("hc", getText("IGUI_MQ_Admin_CustomTowns"))
     local custom = AM.get(P.S, "towns.custom") or {}
-    if #custom == 0 then F:text("cn", getText("IGUI_MQ_Admin_CustomTownsNone"), "textMuted") end
+    local cl = F:list("c")
+    local names = { hName }
+    for i, t in ipairs(custom) do names[i + 1] = tostring(t.name) end
+    local nameW = A.colW(names, math.floor(F.width / 3))
+    F:listHead({ { text = hName, x = A.PAD }, { text = hArea, x = A.PAD + nameW + A.GAP } })
     for i, t in ipairs(custom) do
         local rm = F:button("cr" .. i, getText("IGUI_MQ_Admin_Remove"), onTownRemove)
         rm.townId, rm.townName = t.id, t.name
-        F:row({ F:label("cl" .. i, tostring(t.name)), F:label("cx" .. i, rectText(t.rects and t.rects[1]), "textMuted"), rm })
+        local nm = F:label("cl" .. i, tostring(t.name), nil, nil, nameW - A.GAP)
+        nm:setWidth(nameW)
+        F:item()
+        F:row({ nm, F:label("cx" .. i, rectText(t.rects and t.rects[1]), "textMuted") }, nil, rm)
     end
+    F:listEnd(cl, getText("IGUI_MQ_Admin_CustomTownsNone"))
     F:gap()
     F:head("ha", getText("IGUI_MQ_Admin_TownAdd"))
     local lw = A.textW(getText("IGUI_MQ_Admin_TownName"))

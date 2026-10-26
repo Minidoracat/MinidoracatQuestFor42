@@ -63,10 +63,6 @@ Row = ISUIElement:derive("MinidoracatQuestAdminRow")
 function Row:render()
     local colors, cells, fh = self.theme.colors, self.cells, self.fh
     local ty = math.floor((self.height - fh) / 2)
-    if self.zebra then
-        local z = colors.hover
-        self:drawRect(0, 0, self.width, self.height, 0.5 * (z.a or 1), z.r, z.g, z.b)
-    end
     for i = 1, #cells do
         local c = cells[i]
         local col = colors[c.token or "text"] or colors.text
@@ -90,16 +86,17 @@ local function newLabel()
 end
 
 -- ===== flow: elements reused by key; each layout places from the top, unused ones are hidden =====
+-- ox / width: where the helpers place (a list box narrows them, Flow:list)
 
 local Flow = {}
 Flow.__index = Flow
 
 function A.flow(parent, P)
-    return setmetatable({ parent = parent, P = P, pool = {}, seen = {}, gen = 0, y = 0, width = 0 }, Flow)
+    return setmetatable({ parent = parent, P = P, pool = {}, seen = {}, gen = 0, y = 0, width = 0, ox = 0, lists = {} }, Flow)
 end
 
 function Flow:begin(width)
-    self.gen, self.y, self.width = self.gen + 1, A.PAD, width
+    self.gen, self.y, self.width, self.ox, self.L, self.lists = self.gen + 1, A.PAD, width, 0, nil, {}
 end
 
 function Flow:get(key, make)
@@ -157,6 +154,8 @@ function Flow:label(key, text, token, font, maxW)
 end
 
 -- wrapped paragraph at the left margin; box = theme token for a banner frame
+local LIST_PAD = 4   -- above and below a text or a control row inside a list box (cells rows pad themselves)
+
 function Flow:text(key, text, token, font, box, title)
     font = font or UIFont.Small
     local P = self.P
@@ -172,9 +171,10 @@ function Flow:text(key, text, token, font, box, title)
     local w, h = setLines(l, lines, font, title and UIFont.Medium or nil, pad, pad)
     l:setWidth(box and (self.width - 2 * A.PAD) or w)
     l:setHeight(h)
-    l:setX(A.PAD)
+    if self.L then self.y = self.y + LIST_PAD end
+    l:setX(self.ox + A.PAD)
     l:setY(self.y)
-    self.y = self.y + h + A.GAP
+    self.y = self.y + h + (self.L and LIST_PAD or A.GAP)
     return l
 end
 
@@ -184,11 +184,17 @@ function Flow:head(key, text)
     return self:text(key, text, "text", UIFont.Medium)
 end
 
--- controls left to right, wrapping; vertically centred per line
-function Flow:row(ctrls, x0)
-    x0 = x0 or A.PAD
-    local x, rowY, rowH, line = x0, self.y, 0, {}
-    local right = self.width - A.PAD
+-- controls left to right, wrapping; vertically centred per line. tail = one control kept at the right end of the
+-- first line (a row's Remove)
+function Flow:row(ctrls, x0, tail)
+    x0 = self.ox + (x0 or A.PAD)
+    local x, rowY, rowH, line = x0, self.y + (self.L and LIST_PAD or 0), 0, {}
+    local right = self.ox + self.width - A.PAD
+    if tail then
+        tail:setX(right - tail.width)
+        right = right - tail.width - A.GAP
+        line[1], rowH = tail, tail.height
+    end
     for _, c in ipairs(ctrls) do
         if x > x0 and x + c.width > right then
             for _, d in ipairs(line) do d:setY(rowY + math.floor((rowH - d.height) / 2)) end
@@ -200,11 +206,11 @@ function Flow:row(ctrls, x0)
         rowH = math.max(rowH, c.height)
     end
     for _, d in ipairs(line) do d:setY(rowY + math.floor((rowH - d.height) / 2)) end
-    self.y = rowY + rowH + A.GAP
+    self.y = rowY + rowH + (self.L and LIST_PAD or A.GAP)
 end
 
 -- table row of texts; returns the row element (placed, y advanced)
-function Flow:cells(key, cells, zebra)
+function Flow:cells(key, cells)
     local P = self.P
     local r = self:get(key, function()
         local e = Row:new(0, 0, 1, 1)
@@ -233,13 +239,74 @@ function Flow:cells(key, cells, zebra)
         end
         c.tw = textW(c.shown)
     end
-    r.cells, r.zebra = cells, zebra
-    r:setX(0)
+    r.cells = cells
+    r:setX(self.ox)
     r:setY(self.y)
     r:setWidth(self.width)
     r:setHeight(lines * fontH() + 8)
     self.y = self.y + r.height
     return r
+end
+
+-- ===== list boxes (design r11 B: the vanilla admin lists, ISSafehousesList.lua:23-31 and :67-82) =====
+-- F:list(key) opens a box at the current y; inside it F.ox / F.width are the box's, so the A.PAD / F.width column
+-- math of the caller stays (open the box first, then measure). F:listHead(cells, hkey?) puts the header band on top
+-- (hkey = its pool key, default key .. ":th"), F:item() starts each entry (an entry can be several rows: cells, a
+-- wrapped text, a row of controls) and a line separates the entries. F:listEnd(L, empty, token) closes the box,
+-- with the empty text inside when no entry came. A.paintLists draws the boxes in the page ScrollPanel's prerender,
+-- under every child: no frame covers a row, a field or a button, and the ui-mp layout detector sees no extra
+-- element. Boxes do not nest.
+function Flow:list(key)
+    local L = { key = key, x = self.ox + A.PAD, y = self.y, w = self.width - 2 * A.PAD, hh = 0, seps = {}, n = 0,
+        ox = self.ox, width = self.width }
+    self.lists[#self.lists + 1] = L
+    self.ox, self.width, self.L = L.x, L.w, L
+    return L
+end
+
+function Flow:listHead(cells, hkey)
+    self.L.hh = self:cells(hkey or (self.L.key .. ":th"), cells).height
+end
+
+function Flow:item()
+    local L = self.L
+    if L.n > 0 then L.seps[#L.seps + 1] = self.y end
+    L.n = L.n + 1
+end
+
+function Flow:listEnd(L, empty, token)
+    if L.n == 0 and empty then
+        self:item()
+        self:text(L.key .. ":0", empty, token or "textMuted")
+    end
+    L.h = self.y - L.y
+    self.ox, self.width, self.L = L.ox, L.width, nil
+    self.y = self.y + A.GAP
+end
+
+-- the boxes of the current layout, in content coordinates: the panel's own drawing scrolls with its children
+-- (UIElement.java:469-483). Background surface, header band border x 0.3, lines border (vanilla 0.4 grey a0.9)
+function A.paintLists(sp, F)
+    local lists = F.lists
+    local n = #lists
+    if n == 0 then return end
+    local colors = F.P.theme.colors
+    local bg, ln = colors.surface, colors.border
+    local a = ln.a or 1
+    for i = 1, n do
+        local L = lists[i]
+        local h = L.h
+        if h then
+            sp:drawRect(L.x, L.y, L.w, h, bg.a or 1, bg.r, bg.g, bg.b)
+            if L.hh > 0 then
+                sp:drawRect(L.x, L.y, L.w, L.hh, 0.3 * a, ln.r, ln.g, ln.b)
+                sp:drawRect(L.x, L.y + L.hh - 1, L.w, 1, a, ln.r, ln.g, ln.b)
+            end
+            local seps = L.seps
+            for k = 1, #seps do sp:drawRect(L.x, seps[k], L.w, 1, 0.9 * a, ln.r, ln.g, ln.b) end
+            sp:drawRectBorder(L.x, L.y, L.w, h, a, ln.r, ln.g, ln.b)
+        end
+    end
 end
 
 -- callbacks go through trampolines so a reused element always calls the latest handler
@@ -285,13 +352,14 @@ function Flow:field(key, width, placeholder, maxLength)
     return tf
 end
 
--- options = { { id, label } }; selected kept when still present
-function Flow:dropdown(key, options, selected, handler)
+-- options = { { id, label } }; selected kept when still present; placeholder = the text while nothing is picked
+function Flow:dropdown(key, options, selected, handler, placeholder, width)
     local P = self.P
     local dd = self:get(key, function()
-        return P.UI.Dropdown.new({ x = 0, y = 0, options = options, selected = selected, theme = P.theme,
-            target = P, onChange = picked, maxRows = 12 })
+        return P.UI.Dropdown.new({ x = 0, y = 0, width = width, options = options, selected = selected, theme = P.theme,
+            target = P, onChange = picked, maxRows = 12, placeholder = placeholder })
     end)
+    if width and dd.width ~= width then dd:setWidth(width) end
     dd:setOptions(options)
     dd:setSelected(selected, true)
     dd.handler = handler
@@ -784,6 +852,7 @@ function A.layoutConfirm(P, pg, F)
     if c.estimate then A.layoutEstimate(P, F, c.estimate) end
     F:text("cf:n", c.note or getText("IGUI_MQ_Admin_KeepUnlocked"), "textMuted")
     F:gap()
+    local L = F:list("cf:l")
     local w = F.width - 2 * A.PAD
     local arrowW = textW("->")
     -- value columns as wide as the longest old/new value (capped at 160 and a quarter), the label gets the rest
@@ -793,14 +862,15 @@ function A.layoutConfirm(P, pg, F)
     local labelW = w - 2 * valW - arrowW - 3 * A.GAP
     for i, r in ipairs(c.rows) do
         local x = A.PAD
+        F:item()
         F:cells("cf:r" .. i, {
             { text = r.label, x = x, w = labelW, wrap = true },
             { text = r.before, x = x + labelW + A.GAP, w = valW, token = "textFaint", strike = true },
             { text = "->", x = x + labelW + valW + 2 * A.GAP, token = "textMuted" },
             { text = r.after, x = x + labelW + valW + arrowW + 3 * A.GAP, w = valW, token = "text" },
-        }, i % 2 == 0)
+        })
     end
-    if #c.rows == 0 then F:text("cf:none", getText("IGUI_MQ_Admin_NoDiff"), "textMuted") end
+    F:listEnd(L, getText("IGUI_MQ_Admin_NoDiff"))
 end
 
 -- difficulty estimate { { key, easy, normal, hard, custom? } } (Systems diff.preview)
@@ -810,17 +880,18 @@ function A.layoutEstimate(P, F, est)
     for _, r in ipairs(est) do if r.custom ~= nil then cols[4] = "custom" end end
     local colW = 0
     for _, k in ipairs(cols) do colW = math.max(colW, textW(getText("IGUI_MQ_Admin_Diff_" .. k)) + 2 * A.GAP) end
+    local L = F:list("cf:el")
     local right = F.width - A.PAD
-    local function line(key, cells)
+    local function cellsOf(cells)
         for i, k in ipairs(cols) do
-            cells[#cells + 1] = { text = cells.vals[k], x = right - (#cols - i) * colW, right = true, token = cells.token }
+            cells[#cells + 1] = { text = cells.vals[k], x = right - (#cols - i) * colW, right = true }
         end
-        cells.vals, cells.token = nil, nil
-        F:cells(key, cells)
+        cells.vals = nil
+        return cells
     end
-    local head = { { text = getText("IGUI_MQ_Admin_EstHead"), x = A.PAD, token = "textMuted" }, vals = {}, token = "textMuted" }
+    local head = { { text = getText("IGUI_MQ_Admin_EstHead"), x = A.PAD }, vals = {} }
     for _, k in ipairs(cols) do head.vals[k] = getText("IGUI_MQ_Admin_Diff_" .. k) end
-    line("cf:eh", head)
+    F:listHead(cellsOf(head), "cf:eh")
     for i, r in ipairs(est) do
         local pct = r.key ~= "IGUI_MQ_Est_Tier3"
         local cells = { { text = getTextOrNull(tostring(r.key)) or tostring(r.key), x = A.PAD, w = right - #cols * colW - A.PAD },
@@ -829,9 +900,10 @@ function A.layoutEstimate(P, F, est)
             local v = r[k]
             cells.vals[k] = type(v) == "number" and (pct and (A.num(v) .. "%") or A.num(v)) or "-"
         end
-        line("cf:e" .. i, cells)
+        F:item()
+        F:cells("cf:e" .. i, cellsOf(cells))
     end
-    F:gap()
+    F:listEnd(L)
 end
 
 -- ===== dialogs =====
@@ -980,7 +1052,14 @@ function A.build(host)
     for _, id in ipairs(A.TABS) do
         local sp = UI.ScrollPanel.new({ x = 0, y = 0, width = host.width, height = 100, theme = theme })
         P.root:addChild(sp)
-        P.pages[id] = { id = id, sp = sp, flow = A.flow(sp, P), fields = {}, version = 0 }
+        local pg = { id = id, sp = sp, flow = A.flow(sp, P), fields = {}, version = 0 }
+        P.pages[id] = pg
+        -- list boxes go under the children: the panel's prerender runs before them and sets the view stencil
+        local base = sp.prerender
+        function sp:prerender()
+            base(self)
+            if not self.isCollapsed then A.paintLists(self, pg.flow) end
+        end
     end
     P.bar = ISPanel:new(0, 0, host.width, 10)
     P.bar:initialise()
@@ -1083,17 +1162,20 @@ A.pages.history = {
         F:head("h", getText("IGUI_MQ_Admin_HistoryHead"))
         F:text("hn", getText("IGUI_MQ_Admin_HistoryNote") .. " " .. A.tzNote(), "textMuted")
         local rows = P.history or {}
-        if #rows == 0 then F:text("none", getText("IGUI_MQ_Admin_HistoryEmpty"), "textMuted") end
+        local L = F:list("hl")
         local timeW = A.timeW()
         local actors = {}
         for i, h in ipairs(rows) do actors[i] = h.actor or "-" end
         local actorW = A.colW(actors, math.floor(F.width / 3))
+        F:listHead({ { text = getText("IGUI_MQ_Admin_ColTime"), x = A.PAD }, { text = getText("IGUI_MQ_Admin_ColActor"), x = A.PAD + timeW },
+            { text = getText("IGUI_MQ_Admin_ColChanges"), x = F.width - A.PAD, right = true } })
         for i, h in ipairs(rows) do
+            F:item()
             F:cells("r" .. i, {
                 { text = A.time(h.at), x = A.PAD, token = "textMuted" },
                 { text = tostring(h.actor or "-"), x = A.PAD + timeW, w = actorW },
                 { text = A.count("IGUI_MQ_Admin_Items", h.n or 0), x = F.width - A.PAD, right = true, token = "textMuted" },
-            }, i % 2 == 0)
+            })
             F:text("s" .. i, A.summaryText(h.summary), "text")
             if h.undoable ~= false then
                 local undo = F:button("u" .. i, getText("IGUI_MQ_Admin_Undo"), A.onUndo)
@@ -1101,6 +1183,7 @@ A.pages.history = {
                 F:row({ undo })
             end
         end
+        F:listEnd(L, getText("IGUI_MQ_Admin_HistoryEmpty"))
         F:head("io", getText("IGUI_MQ_Admin_FileHead"))
         -- the folder this server really uses (cfg.get dir; single player: sp_<save>)
         F:text("ion", getText("IGUI_MQ_Admin_FileNote", "Zomboid/Lua/" .. tostring(P.dir or "MinidoracatQuest/")), "textMuted")

@@ -130,6 +130,15 @@ return function(T)
     local P = A.instance
     T.check(P ~= nil and last("cfg.get") ~= nil and P.S.overrides ~= nil, "showing the admin page loads cfg.get")
     local function pool(id) return P.pages[id].flow.pool end
+    -- every list box a layout opens is closed again (design r11): A.paintLists skips an open one, so it shows no box
+    local Flow = getmetatable(P.pages[P.current].flow)
+    local finish, unclosed = Flow.finish, {}
+    function Flow.finish(self)
+        local open = self.L and self.L.key
+        for _, L in ipairs(self.lists) do open = open or (L.h == nil and L.key) end
+        if open then unclosed[#unclosed + 1] = tostring(P.current) .. ":" .. tostring(open) end
+        return finish(self)
+    end
     -- a press goes through the button's own onclick(target, button), the way the engine sends a click
     local function click(b) b.onclick(b.target, b) end
     local function press(id, key) local b = pool(id)[key]; T.check(b ~= nil and b:isVisible(), "button shown: " .. id .. "/" .. key); click(b) end
@@ -504,6 +513,8 @@ return function(T)
         "a rejected config.json names the line, or the key path as written in the file")
     getText = gt
     T.check(not T.printed("admin layout"), "no layout error during the flows")
+    Flow.finish = finish
+    T.check(#unclosed == 0, "every list box opened in a layout was closed: " .. table.concat(unclosed, ", "))
     A.hide()
 
     A.instance = nil

@@ -28,7 +28,8 @@ H.show = H.show ~= false     -- MOD option "ShowHud" (Entry.lua)
 
 -- ===== model (harness tests these) =====
 -- the horde row: { id = "horde", horde = true, tag, name, time, line, prog?, target? } or nil.
--- announced: the start clock; waiting: time left for someone to come; active: time left and cleared / spawned
+-- announced: time to the start and the 50-tile rule (design r12); waiting: time left for someone to come; active:
+-- time left and cleared / spawned
 function H.hordeRow(state, now)
     local hs = type(state) == "table" and type(state.hordes) == "table" and state.hordes or nil
     local h = hs and D.hordeLive(hs.cur)
@@ -44,8 +45,8 @@ function H.hordeRow(state, now)
         r.time = D.countdown((tonumber(h.expireAt) or now) - now)
         r.line = getText("IGUI_MQ_Horde_HudWait", tostring(h.x), tostring(h.y))
     else
-        r.time = D.clock(h.startMs)
-        r.line = getText("IGUI_MQ_Horde_MayAppear", D.hordeKinds(h.kinds))
+        r.time = D.countdown((tonumber(h.startMs) or now) - now)
+        r.line = getText("IGUI_MQ_Horde_HudSoon", tostring(h.x), tostring(h.y))
     end
     return r
 end

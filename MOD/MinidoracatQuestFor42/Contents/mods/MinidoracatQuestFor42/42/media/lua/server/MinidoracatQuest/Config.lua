@@ -211,7 +211,7 @@ Cf.SCHEMA = {
     towns = { custom = townsCustom, disabled = townsDisabled },
     -- timed hordes (Hordes.lua); kinds: kindId ("vanilla", "runner", "<modId>:<id>") -> weight; spots whole-set only
     hordes = { enabled = bool, from = clock, to = clock, chance = int(0, 100), maxPerDay = int(1, 24),
-        leadMin = int(0, 120), waitMin = int(1, 240), count = countRange, kinds = { ["*"] = int(0, 100) },
+        leadMin = int(0, C.LIMIT.MAX_LEAD), waitMin = int(1, 240), count = countRange, kinds = { ["*"] = int(0, 100) },
         limitMin = int(1, 120), perZombie = int(0, 1000), split = oneOf({ "share", "each" }), spots = hordeSpots },
     ceilings = ceilingsMap,
     -- season.lengthDays only changes through the season ops (section 3.4); not a config path

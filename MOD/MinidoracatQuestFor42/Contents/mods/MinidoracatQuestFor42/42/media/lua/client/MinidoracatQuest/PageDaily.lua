@@ -131,7 +131,9 @@ end
 
 -- horde banner (plan r10 state screens): announced / waiting / active from state.hordes.cur, else the last result
 -- for LAST_MS after it ended. Returns token, title, body, rightText | nil. The page ticks every 30 s, so the
--- countdowns here are coarse (the tracker panel counts by the second)
+-- countdowns here are coarse (the tracker panel counts by the second). Announced counts down to the start and says
+-- the 50-tile rule, so players who stay away know when and how far (design r12; a clock read as the game time).
+-- The player Hordes page shows the same banner.
 P.LAST_MS = 600000
 function P.hordeBanner(s, now)
     local hs = type(s) == "table" and type(s.hordes) == "table" and s.hordes or {}
@@ -140,7 +142,8 @@ function P.hordeBanner(s, now)
         local place = D.hordePlace(h)
         if h.state == "announced" then
             return D.EXTRA.hordeSoon, getText("IGUI_MQ_Horde_Title_soon", place),
-                getText("IGUI_MQ_Horde_MayAppear", D.hordeKinds(h.kinds)), getText("IGUI_MQ_Horde_StartsAt", D.clock(h.startMs))
+                getText("IGUI_MQ_Horde_SoonBanner", D.hordeKinds(h.kinds), tostring(h.x), tostring(h.y)),
+                getText("IGUI_MQ_UI_Left", D.duration((tonumber(h.startMs) or now) - now))
         end
         if h.state == "waiting" then
             return D.EXTRA.hordeSoon, getText("IGUI_MQ_Horde_Title_wait", place),

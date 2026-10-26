@@ -101,7 +101,10 @@ S("streak.best", "max", nil, "days", true)
 S("achv.tiers", "count", 1000, nil, true)
 S("goal.done", "count", 1000, nil, true)
 S("season.joined", "count", 1000, nil, true)
+S("horde.joined", "count", 10, nil, true)   -- hordes that ended after spawning, with at least one kill of your own
 S("horde.wins", "count", 10, nil, true)     -- hordes cleared with at least one kill of your own (Hordes.lua)
+S("horde.kills", "count", 120, nil, true)   -- kills of horde zombies
+S("horde.mvp", "count", 10, nil, true)      -- cleared hordes (2+ participants) where you had the most kills, ties too
 for _, p in ipairs(Cat.perks) do S("level." .. p, "max", nil, "level") end
 for _, p in ipairs(Cat.perks) do S("xp." .. p, "count", 5000, "xp") end
 
@@ -209,7 +212,11 @@ A("weekly", "quest", "quest.weekly", { 3, 15, 50, 150, 375 })
 A("streak", "quest", "streak.best", { 3, 7, 30, 100, 250 })
 A("goal", "quest", "goal.done", { 1, 5, 15, 40, 100 })
 A("season", "quest", "season.joined", { 1, 3, 6, 12, 30 })
-A("achv_tiers", "quest", "achv.tiers", { 10, 50, 150, 300, 450 })   -- 91 x 5 + 17 hidden = 472 tiers
+A("achv_tiers", "quest", "achv.tiers", { 10, 50, 150, 300, 450 })   -- 94 x 5 + 17 hidden = 487 tiers
+
+A("horde_wins", "horde", "horde.wins", { 3, 10, 25, 50, 125 })   -- the first clear is the hidden h_horde
+A("horde_kills", "horde", "horde.kills", { 25, 100, 300, 800, 2000 })
+A("horde_mvp", "horde", "horde.mvp", { 1, 3, 8, 20, 50 })
 
 H("h_first_blood", "zombie.kills", 1)
 H("h_unarmed", "zombie.kills.unarmed", 1, true)

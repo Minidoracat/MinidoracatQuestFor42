@@ -441,7 +441,10 @@ S.define("records", { kind = "query", run = function(ctx)
         rows[i] = { stat = s, season = acc.season[s] or 0, life = acc.life[s] or 0, total = acc.total[s] or 0 }
     end
     local p = acc.points
-    Q.Net.send(ctx.player, "records", { rows = rows, points = { season = p.season, total = p.total, balance = p.balance } })
+    -- the player Hordes page (design r12): the recent results with this player's kills and points
+    local hordes = Q.Hordes ~= nil and Q.Hordes.recent(ctx.user, Q.Hordes.RECENT) or nil
+    Q.Net.send(ctx.player, "records", { rows = rows, points = { season = p.season, total = p.total, balance = p.balance },
+        hordes = hordes })
     return true
 end })
 

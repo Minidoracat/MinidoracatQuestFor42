@@ -166,12 +166,22 @@ function E.toastText(t)
     return nil
 end
 
--- server-wide horde toasts (t.ev); the warning names the kinds that may appear, never how many
+-- whole minutes until ms, at least 1: the warnings say "starts in N min", not a clock time that players read as the
+-- in-game time (design r12)
+local function minsTo(ms)
+    return math.max(1, math.floor(((tonumber(ms) or 0) - C.serverNow()) / 60000 + 0.5))
+end
+
+-- server-wide horde toasts (t.ev) and "remind", the personal one to players near the spot just before the start;
+-- the warning names the kinds that may appear, never how many
 function E.hordeToast(t)
     local place, ev = D.hordePlace(t), t.ev
     local each = t.split == "each"
     if ev == "soon" then
-        return getText("IGUI_MQ_Horde_Title_soon", place), getText("IGUI_MQ_Horde_SoonBody", D.clock(t.startMs), D.hordeKinds(t.kinds)),
+        return getText("IGUI_MQ_Horde_Title_soon", place),
+            getText("IGUI_MQ_Horde_SoonBody", tostring(minsTo(t.startMs)), D.hordeKinds(t.kinds)), D.EXTRA.hordeSoon
+    elseif ev == "remind" then
+        return getText("IGUI_MQ_Horde_Title_remind", tostring(minsTo(t.startMs)), place), getText("IGUI_MQ_Horde_Remind"),
             D.EXTRA.hordeSoon
     elseif ev == "open" then
         return getText("IGUI_MQ_Horde_Title_wait", place), getText("IGUI_MQ_Horde_OpenBody", D.hordeKinds(t.kinds)), D.EXTRA.hordeSoon

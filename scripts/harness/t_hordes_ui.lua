@@ -189,20 +189,36 @@ return function(T)
     status.cur = nil
     status.roll.enabled = false
     press("refresh")
-    T.check(pool()["now"]:isEnabled() and has(pool()["roll"].lines[1], "IGUI_MQ_Admin_HordeAutoOff"), "no horde: Start one now; auto off said")
+    T.check(pool()["now"]:isEnabled() and has(pool()["roll"].lines[1], "IGUI_MQ_Admin_HordeAutoOff"), "no horde: Start a horde; auto off said")
+    local lead = pool()["now:lead"]
+    T.check(lead:getText() == "15", "the warning field starts at the applied leadMin (15)")
     press("now")
     d = dialogs[#dialogs]
-    T.check(d.confirmText == "IGUI_MQ_Admin_HordeNow" and d.text == "IGUI_MQ_Admin_HordeNowAsk", "Start one now asks, the text names the applied settings")
+    T.check(d.confirmText == "IGUI_MQ_Admin_HordeNow" and d.text == "IGUI_MQ_Admin_HordeNowAsk|15",
+        "Start a horde asks with the warning minutes; the text names the applied settings")
     answer(false)
     T.check(last("horde.now") == nil, "not confirmed: nothing sent")
     press("now")
     answer(true)
-    T.check(last("horde.now") ~= nil and P.msg == "IGUI_MQ_Admin_HordeStarted" and AM.draftCount(P.S.draft) == 0,
-        "confirmed: horde.now at once, no draft change")
+    T.check(last("horde.now") ~= nil and last("horde.now").lead == 15 and P.msg == "IGUI_MQ_Admin_HordeStarted"
+        and AM.draftCount(P.S.draft) == 0, "confirmed: horde.now with lead 15, no draft change")
+    lead:setText("0")
+    press("now")
+    T.check(dialogs[#dialogs].text == "IGUI_MQ_Admin_HordeNowAskNow", "a warning of 0: the start-now text")
+    answer(true)
+    T.check(last("horde.now").lead == 0 and pool()["now:lead"]:getText() == "0", "lead 0 sent; the admin's value survives the relayout")
+    local asked = #dialogs
+    for _, bad in ipairs({ "", "x", "-1", "121", "2.5" }) do
+        lead:setText(bad)
+        press("now")
+        T.check(#dialogs == asked and P.msg == "IGUI_MQ_Admin_ErrRange|0|120" and lead.invalid ~= nil,
+            "warning '" .. bad .. "': marked, nothing asked")
+    end
+    lead:setText("5")
     nowReply = { ok = false, code = "NO_SPOTS" }
     press("now")
     answer(true)
-    T.check(P.msg == "IGUI_MQ_Code_NO_SPOTS", "a refusal shows the server code")
+    T.check(P.msg == "IGUI_MQ_Code_NO_SPOTS" and lead.invalid == nil, "a refusal shows the server code; a good value clears the mark")
 
     T.section("horde admin: fields check like the server table")
     local pg = P.pages.hordes
@@ -377,8 +393,8 @@ return function(T)
     r = Hd.rows({ hordes = { cur = cur("waiting") } }, defs, now)
     T.check(r[1].time == "1:15:00" and r[1].line == "IGUI_MQ_Horde_HudWait|10620|9810" and r[1].target == nil, "waiting: time to expireAt and the spot")
     r = Hd.rows({ hordes = { cur = cur("announced") } }, defs, now)
-    T.check(r[1].time == D.clock(now + 15 * 60000) and has(r[1].line, "IGUI_MQ_Horde_MayAppear|IGUI_MQ_Horde_Kind_vanilla")
-        and has(r[1].line, "IGUI_MQ_Horde_Kind_runner"), "announced: the start clock and the kinds")
+    T.check(r[1].time == "15:00" and r[1].line == "IGUI_MQ_Horde_HudSoon|10620|9810",
+        "announced: time to the start and the 50-tile rule at the spot")
     T.check(#Hd.rows({ hordes = { cur = cur("planned") } }, defs, now) == 0 and #Hd.rows({ hordes = {} }, defs, now) == 0,
         "planned (not announced yet) or no cur: no row")
     T.check(D.countdown(0) == "0:00" and D.countdown(1500) == "0:02" and D.countdown(3723000) == "1:02:03", "countdown text")
@@ -411,8 +427,9 @@ return function(T)
         return PD.hordeBanner({ hordes = { cur = h, last = l } }, at or now)
     end
     local tok, title, body, right = banner(cur("announced"))
-    T.check(tok == D.EXTRA.hordeSoon and title == "IGUI_MQ_Horde_Title_soon|" .. place and has(body, "IGUI_MQ_Horde_MayAppear|")
-        and right == "IGUI_MQ_Horde_StartsAt|" .. D.clock(now + 15 * 60000), "announced: place, kinds and the start time")
+    T.check(tok == D.EXTRA.hordeSoon and title == "IGUI_MQ_Horde_Title_soon|" .. place
+        and has(body, "IGUI_MQ_Horde_SoonBanner|IGUI_MQ_Horde_Kind_vanilla") and has(body, "|10620|9810")
+        and right == "IGUI_MQ_UI_Left|" .. D.duration(15 * 60000), "announced: place, kinds, the 50-tile rule and the time left")
     tok, title, body, right = banner(cur("waiting"))
     T.check(title == "IGUI_MQ_Horde_Title_wait|" .. place and body == "IGUI_MQ_Horde_WaitBody|10620|9810" and has(right, "IGUI_MQ_UI_Left|"),
         "waiting: where to go and the time left")
@@ -448,8 +465,12 @@ return function(T)
     T.section("horde toasts")
     local function toast(t) t.kind = t.kind or "horde"; t.name, t.town = "Gas", "muldraugh"; return E.toastText(t) end
     title, body = toast({ ev = "soon", startMs = now + 15 * 60000, kinds = kinds })
-    T.check(title == "IGUI_MQ_Horde_Title_soon|" .. place and has(body, "IGUI_MQ_Horde_SoonBody|" .. D.clock(now + 15 * 60000) .. "|")
-        and has(body, "IGUI_MQ_Horde_Kind_vanilla") and has(body, "IGUI_MQ_Horde_Kind_runner"), "soon: start time and the kinds, no count")
+    T.check(title == "IGUI_MQ_Horde_Title_soon|" .. place and has(body, "IGUI_MQ_Horde_SoonBody|15|")
+        and has(body, "IGUI_MQ_Horde_Kind_vanilla") and has(body, "IGUI_MQ_Horde_Kind_runner"), "soon: minutes to the start and the kinds, no count")
+    title, body = toast({ ev = "soon", startMs = now - 60000, kinds = kinds })
+    T.check(has(body, "IGUI_MQ_Horde_SoonBody|1|"), "a late warning still says at least 1 minute")
+    title, body = toast({ ev = "remind", startMs = now + 2 * 60000 })
+    T.check(title == "IGUI_MQ_Horde_Title_remind|2|" .. place and body == "IGUI_MQ_Horde_Remind", "remind: minutes left; get ready or leave")
     title, body = toast({ ev = "open", startMs = now, kinds = { kinds[2] } })
     T.check(title == "IGUI_MQ_Horde_Title_wait|" .. place and body == "IGUI_MQ_Horde_OpenBody|IGUI_MQ_Horde_Kind_runner", "open: starts now")
     title, body = toast({ ev = "spawn", endsAt = now + 900000, limitMin = 15, spawned = 30, pool = 150, split = "share" })

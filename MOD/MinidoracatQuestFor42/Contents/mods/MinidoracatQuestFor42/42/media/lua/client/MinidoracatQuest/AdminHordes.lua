@@ -1,6 +1,7 @@
--- MinidoracatQuest/AdminHordes.lua: admin tab "hordes" (design r10, lists r11; ARCHITECTURE.md 6.2, 7).
+-- MinidoracatQuest/AdminHordes.lua: admin tab "hordes" (design r10, lists r11, warning r12; ARCHITECTURE.md 6.2, 7).
 -- Live status from horde.status (fetched each time the tab opens, after every action and by Refresh): the current
--- horde with Cancel / Stop, today's count and next roll, Start one now, the last 5 results (a list box). Below it the
+-- horde with Cancel / Stop, today's count and next roll, Start a horde (with its warning minutes), the last 5 results
+-- (a list box). Below it the
 -- settings: spots (a list box; add = towns.here, the admin's own position), window, chance, count, the kinds (a list
 -- box of the kinds with a weight; the others are added from a dropdown), time limit, reward. Every setting goes
 -- through the draft and the bottom Apply (cfg.preview / cfg.apply), so History and config.json carry it;
@@ -109,12 +110,31 @@ local function onStop(P, b)
         end })
 end
 
--- the server plans it from the applied settings: what waits in the draft is not used, and the dialog says so
+-- the server plans it from the applied settings: what waits in the draft is not used, and the dialog says so.
+-- lead (design r12): minutes of warning before it starts, 0 = now
+local LEAD_MAX = MQ.Contract.LIMIT.MAX_LEAD
+
 local function onNow(P)
+    local el = P.pages.hordes.flow.pool["now:lead"]
+    local lead = tonumber(el and el:getText() or "")
+    local bad = lead == nil or lead ~= math.floor(lead) or lead < 0 or lead > LEAD_MAX
+    local msg = bad and getText("IGUI_MQ_Admin_ErrRange", "0", tostring(LEAD_MAX)) or nil
+    A.markError(P, el, msg)
+    if bad then return A.say(P, msg, "errorText") end
     local label = getText("IGUI_MQ_Admin_HordeNow")
-    A.ask(P, { title = label, confirm = label, text = getText("IGUI_MQ_Admin_HordeNowAsk"), onOk = function()
-        A.send(P, "horde.now", {}, function(res) afterOp(P, res, "IGUI_MQ_Admin_HordeStarted") end)
+    local text = lead == 0 and getText("IGUI_MQ_Admin_HordeNowAskNow") or getText("IGUI_MQ_Admin_HordeNowAsk", tostring(lead))
+    A.ask(P, { title = label, confirm = label, text = text, onOk = function()
+        A.send(P, "horde.now", { lead = lead }, function(res) afterOp(P, res, "IGUI_MQ_Admin_HordeStarted") end)
     end })
+end
+
+-- the warning field: the applied hordes.leadMin until the admin types another value
+local function leadField(P, pg, F)
+    local tf = F:field("now:lead", 44, nil, 3)
+    local applied = tostring(AM.get({ overrides = P.S.overrides, defaults = P.S.defaults }, "hordes.leadMin") or 0)
+    if pg.leadSeed == nil or tf:getText() == pg.leadSeed then tf:setText(applied) end
+    pg.leadSeed = applied
+    return tf
 end
 
 local function layoutStatus(P, pg, F)
@@ -134,7 +154,8 @@ local function layoutStatus(P, pg, F)
     if d and type(d.roll) == "table" then F:text("roll", rollText(d.roll), "textMuted") end
     local now = F:button("now", getText("IGUI_MQ_Admin_HordeNow"), onNow, "primary")
     now:setEnabled(d ~= nil and cur == nil)
-    F:row({ now, F:button("refresh", getText("IGUI_MQ_Admin_HordeRefresh"), load) })
+    F:row({ F:label("now:l", getText("IGUI_MQ_Admin_HordeLead"), "text"), leadField(P, pg, F),
+        F:label("now:u", getText("IGUI_MQ_Admin_HordeLeadUnit"), "text"), now, F:button("refresh", getText("IGUI_MQ_Admin_HordeRefresh"), load) })
     F:head("hl", getText("IGUI_MQ_Admin_HordeLogHead"))
     if d == nil then return end   -- the status line above says loading / the error
     local log = type(d.log) == "table" and d.log or {}

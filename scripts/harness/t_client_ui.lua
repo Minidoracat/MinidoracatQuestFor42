@@ -445,6 +445,45 @@ return function(T)
     W.select("records")
     MQ.PageRecords.layout(W.pages.records)
     check(drew(W.pages.records, "IGUI_MQ_UI_ImportNote"), "records page draws the import note")
+
+    T.section("client UI: the player Hordes page (design r12)")
+    check(not MQ.PageHordes.shown(), "no hordes part: the page is not in the nav")
+    C.state.hordes = { on = true }
+    check(MQ.PageHordes.shown(), "on: the page is in the nav")
+    local gtH = getText
+    getText = function(key, ...)
+        local s = key
+        for i = 1, select("#", ...) do s = s .. "|" .. tostring((select(i, ...))) end
+        return s
+    end
+    push("records", { rows = { { stat = "horde.joined", season = 2, life = 0, total = 12 }, { stat = "horde.kills", season = 5, life = 0, total = 214 } },
+        points = { season = 640, total = 1240, balance = 840 },
+        hordes = { { id = 9, name = "Gas", state = "success", endedAt = now - 3600000, spawned = 30, killed = 30, mine = 18, got = 72 },
+            { id = 8, name = "School", state = "failed", why = "time", endedAt = now - 86400000, spawned = 20, killed = 12, mine = 0, got = 0 },
+            { id = 7, name = "Clinic", state = "cancelled", endedAt = now - 2 * 86400000, spawned = 0, killed = 0, mine = 0, got = 0 } } })
+    W.select("hordes")
+    local hp = W.pages.hordes
+    MQ.PageHordes.layout(hp)
+    check(drew(hp, "IGUI_MQ_UI_HordesNone") and drew(hp, "12") and drew(hp, "214") and drew(hp, "0"),
+        "no horde now: the note; the tiles show the all-time totals, 0 for a stat never counted")
+    check(drew(hp, "IGUI_MQ_UI_HordeRes_success|30|30") and drew(hp, "18") and drew(hp, "+72"), "a win: cleared n/n, my kills, +points")
+    check(drew(hp, "IGUI_MQ_UI_HordeRes_failed|IGUI_MQ_Admin_HordeWhy_time") and drew(hp, "IGUI_MQ_UI_HordeAbsent"),
+        "a fail without me: the reason and Absent")
+    check(drew(hp, "IGUI_MQ_UI_HordeRes_cancelled") and drew(hp, "IGUI_MQ_UI_HordesNote"), "a cancel; the note under the list")
+    C.state.hordes = { on = true, cur = { id = 10, name = "Gas", x = 10620, y = 9810, state = "announced", kinds = {}, startMs = now + 600000 },
+        last = { id = 11, name = "Gas", state = "success", endedAt = now - 60000, spawned = 4, killed = 4, mine = 0 } }
+    C.recordsSentAt = nil
+    MQ.PageHordes.layout(hp)
+    check(drew(hp, "IGUI_MQ_Horde_Title_soon|Gas") and not drew(hp, "IGUI_MQ_UI_HordesNone"), "a warned horde: the daily page banner on top")
+    check(C.recordsSentAt ~= nil, "a result newer than the list: the records are asked again")
+    C.recordsSentAt = nil
+    MQ.PageHordes.layout(hp)
+    check(C.recordsSentAt == nil, "asked once for that result")
+    push("records", { rows = {}, points = { season = 640, total = 1240, balance = 840 }, hordes = {} })
+    MQ.PageHordes.layout(hp)
+    check(drew(hp, "IGUI_MQ_UI_HordesEmpty") and drew(hp, "0"), "no result yet: the empty line; the tiles read 0")
+    getText = gtH
+    C.state.hordes = nil
     W.select("daily")
 
     T.section("client UI: leaderboard focus walks rank 1 -> 50 -> my row")

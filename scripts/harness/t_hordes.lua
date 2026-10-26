@@ -379,6 +379,122 @@ return function(T)
         T.check(lastLog(Q).paid.bob == 1 and lastLog(Q).paid.alice == 10, "share: at least 1 point per participant")
     end)
 
+    -- ===================== design r12: stats, MVP, the records rows =====================
+    section("r12: horde stats, MVP, achievements and the records rows", function()
+        local Q = boot()
+        local H = Q.Hordes
+        local root = Q.Store.root()
+        local admin = T.player{ name = "admin", admin = true }
+        local alice = T.player{ name = "alice" }
+        local bob = T.player{ name = "bob" }
+        cmd(alice, "hello")
+        cmd(bob, "hello")
+        T.check(H.stateHordes(nil, "alice", T.now).on == false, "automatic hordes off and no result yet: the page stays out of the nav")
+        apply(Q, { spots = { SPOT }, count = { 4, 4 }, kinds = { vanilla = 100 }, perZombie = 5, split = "share" })
+        local accA, accB = Q.Store.account("alice", false), Q.Store.account("bob", false)
+        near(alice)
+        adm(admin, "horde.now")
+        local zs = hordeZombies()
+        zs[1]:Kill(alice)
+        zs[2]:Kill(alice)
+        zs[3]:Kill(alice)
+        T.check(accA.total["horde.kills"] == 3 and (accA.total["horde.joined"] or 0) == 0, "each horde kill counts horde.kills at once")
+        zs[4]:Kill(bob)
+        step(Q)
+        T.check(accA.total["horde.joined"] == 1 and accB.total["horde.joined"] == 1 and accB.total["horde.kills"] == 1,
+            "a win: every participant joined")
+        T.check(accA.total["horde.mvp"] == 1 and (accB.total["horde.mvp"] or 0) == 0 and accA.achv.horde_mvp == 1,
+            "the top killer of a win with 2+ participants: MVP, tier I unlocks")
+        T.check(accA.season["horde.kills"] == 3 and accA.life["horde.kills"] == nil, "account stats: season and total, no per-life value")
+
+        local function finishWith(kills, result, why)
+            adm(admin, "horde.now")
+            local cur = root.hordes.cur
+            cur.spawned, cur.kills = 10, kills
+            H.finish(result or "success", why, T.now)
+        end
+        finishWith({ alice = 2, bob = 2 })
+        T.check(accA.total["horde.mvp"] == 2 and accB.total["horde.mvp"] == 1, "a tie: both are MVP")
+        finishWith({ alice = 5 })
+        T.check(accA.total["horde.mvp"] == 2 and accA.total["horde.wins"] == 3 and accA.achv.horde_wins == 1,
+            "one participant: no MVP; the third win unlocks Horde Sweeper tier I")
+        finishWith({ alice = 1, bob = 3 }, "failed", "time")
+        T.check(accB.total["horde.joined"] == 3 and accB.total["horde.mvp"] == 1 and accB.total["horde.wins"] == 2,
+            "a fail: joined counts, no win, no MVP")
+        local cur = H.plan(Q.Config.get().hordes, T.now + 2 * HOUR, nil)
+        H.stop(cur.id, "admin", T.now)
+        T.check(lastLog(Q).announced == false, "a cancel before the warning stays secret")
+
+        T.clearOutbox()
+        cmd(alice, "records")
+        local rec = T.lastOf(alice, "records")
+        local rows = rec and rec.hordes or {}
+        T.check(#rows == 4 and rows[1].state == "failed" and rows[1].why == "time" and rows[1].mine == 1 and rows[1].got == 0
+            and rows[4].state == "success" and rows[4].mine == 3 and rows[4].got > 0 and rows[4].spawned == 4,
+            "records: the announced results, newest first, with my kills and points (the secret cancel left out)")
+        T.check(rows[1].kills == nil and rows[1].paid == nil, "records rows carry only my share, not everyone's")
+        cmd(bob, "records")
+        local rb = T.lastOf(bob, "records").hordes
+        T.check(rb[1].mine == 3 and rb[2].mine == 0 and rb[2].got == 0, "the same rows with bob's share")
+        for _ = 1, H.RECENT + 2 do finishWith({ alice = 1 }) end
+        cmd(alice, "records")
+        T.check(#T.lastOf(alice, "records").hordes == H.RECENT, "at most H.RECENT rows")
+        T.check(H.stateHordes(nil, "bob", T.now).on == true, "results to list: the page is in the nav")
+    end)
+
+    -- ===================== design r12: warning lead and the reminder =====================
+    section("r12: manual warning lead and the reminder near the spot", function()
+        local Q = boot()
+        local root = Q.Store.root()
+        local admin = T.player{ name = "admin", admin = true }
+        local alice = T.player{ name = "alice" }
+        local bob = T.player{ name = "bob" }
+        cmd(alice, "hello")
+        cmd(bob, "hello")
+        apply(Q, { spots = { SPOT }, count = { 4, 4 }, kinds = { vanilla = 100 } })
+        near(alice)
+        far(bob)
+        T.clearOutbox()
+        local r = adm(admin, "horde.now", { lead = 5 })
+        local cur = root.hordes.cur
+        T.check(r and r.code == "OK" and cur.state == "announced" and cur.announceAt <= T.now and cur.startMs - cur.announceAt == 5 * MIN
+            and cur.expireAt == cur.startMs + cur.waitMin * MIN, "lead 5: warned now, starts 5 minutes later")
+        local soon = toasts(bob, "soon")
+        T.check(#soon == 1 and soon[1].startMs == cur.startMs and #toasts(bob, "open") == 0, "everyone gets the warning with the start time")
+        T.now = cur.startMs - 2 * MIN - 1
+        step(Q)
+        T.check(#toasts(alice, "remind") == 0 and #T.zombies == 0, "before the last 2 minutes: no reminder, nothing spawned")
+        T.now = cur.startMs - 2 * MIN
+        step(Q)
+        local rem = toasts(alice, "remind")
+        T.check(#rem == 1 and rem[1].startMs == cur.startMs and rem[1].name == SPOT.name and #toasts(bob, "remind") == 0,
+            "2 minutes before: a personal reminder to the player within 50 tiles only")
+        step(Q)
+        T.check(#toasts(alice, "remind") == 1, "the reminder comes once")
+        T.now = cur.startMs
+        step(Q)
+        T.check(cur.state == "active" and #T.zombies == 4, "at the start a player near spawns it")
+        adm(admin, "horde.stop", { id = cur.id })
+
+        T.clearOutbox()
+        adm(admin, "horde.now", { lead = 2 })
+        cur = root.hordes.cur
+        T.check(cur.state == "announced" and cur.reminded == true, "a warning of 2 minutes or less is its own reminder")
+        step(Q)
+        T.check(#toasts(alice, "remind") == 0, "no second notice")
+        adm(admin, "horde.stop", { id = cur.id })
+
+        T.clearOutbox()
+        adm(admin, "horde.now", { lead = 0 })
+        T.check(root.hordes.cur.state == "active" and #toasts(alice, "open") == 1 and #toasts(alice, "soon") == 0,
+            "lead 0: open at once, as before")
+        adm(admin, "horde.stop", { id = root.hordes.cur.id })
+        for _, bad in ipairs({ -1, 121 }) do
+            r = adm(admin, "horde.now", { lead = bad })
+            T.check(r and r.code == "BAD_ARGS" and root.hordes.cur == nil, "lead " .. bad .. ": refused")
+        end
+    end)
+
     -- ===================== failures =====================
     section("failures: time, nobody, spawn, virtualised zombies", function()
         local Q = boot()

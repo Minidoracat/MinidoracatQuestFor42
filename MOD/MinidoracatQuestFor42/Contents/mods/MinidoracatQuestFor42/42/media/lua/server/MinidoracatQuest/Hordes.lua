@@ -11,6 +11,9 @@
 -- horde ("restart"); planned / announced / waiting ones carry on.
 -- Kinds: built-in vanilla and runner (z:doSprinter() at spawn, IsoZombie.java:5563; never doZombieSpeed(1), which
 -- rolls); other mods add "<modId>:<id>" kinds through v1.registerHordeKind. Quest owns timing, counting, clearing.
+-- Manual starts (horde.now, design r12) announce lead minutes ahead (0 = at once). Players within RANGE get one
+-- personal reminder REMIND_MS before the start. Participants' stats (horde.joined / kills / mvp) feed achievements and
+-- the player Hordes page, which lists the recent results from root.hordes.log (H.recent, in the records reply).
 
 if isClient() then return end
 
@@ -42,6 +45,8 @@ H.RANGE = 50              -- tiles (2D) from the spot: a player this close spawn
 H.MAX_TRIES = 10          -- spawn attempts that gave no zombie before the horde fails ("spawn")
 H.LAST_MS = 10 * MIN      -- players see the last result this long after it ended
 H.LOG = 20                -- root.hordes.log entries kept
+H.RECENT = 10             -- results in the records reply (the player Hordes page)
+H.REMIND_MS = 2 * MIN     -- the personal reminder to players near the spot comes this long before the start
 H.MAX_PER_MOD, H.MAX_PACK = 8, 32
 H.kinds = H.kinds or {}   -- id -> { id, nameKey, spawn = fn(x, y, z, n) -> ArrayList | Lua array, modId? }
 H.live = H.live or {}     -- IsoZombie -> { horde, onlineId }; memory only
@@ -249,8 +254,9 @@ end
 
 -- ---------- one horde ----------
 
--- actor nil = an automatic roll; the knobs are copied so later setting changes leave it alone
-function H.plan(cfg, startMs, actor)
+-- actor nil = an automatic roll; the knobs are copied so later setting changes leave it alone. announceAt nil =
+-- leadMin before the start (a manual start passes now)
+function H.plan(cfg, startMs, actor, announceAt)
     local h = hordes()
     local spot = cfg.spots[ZombRand(#cfg.spots) + 1]
     local lo, hi = cfg.count[1], cfg.count[2]
@@ -259,7 +265,7 @@ function H.plan(cfg, startMs, actor)
     h.cur = { id = h.seq, auto = actor == nil, actor = actor or "auto", name = spot.name, x = spot.x, y = spot.y,
         z = spot.z, town = MQ.Towns.at(spot.x, spot.y), mix = H.mix(cfg.kinds, count), count = count,
         perZombie = cfg.perZombie, split = cfg.split, limitMin = cfg.limitMin, waitMin = cfg.waitMin,
-        state = "planned", announceAt = startMs - cfg.leadMin * MIN, startMs = startMs,
+        state = "planned", announceAt = announceAt or (startMs - cfg.leadMin * MIN), startMs = startMs,
         expireAt = startMs + cfg.waitMin * MIN, spawned = 0, left = 0, killed = 0, kills = {}, tries = 0 }
     dirty()
     return h.cur
@@ -287,6 +293,20 @@ function H.near(cur)
         end
     end)
     return found
+end
+
+-- one personal reminder REMIND_MS before the start to the living players within RANGE (design r12): the start
+-- spawns the horde if anyone is near, so the ones who stay away can still leave
+local function remind(cur)
+    cur.reminded = true
+    local r2 = H.RANGE * H.RANGE
+    local t = { kind = "horde", ev = "remind", id = cur.id, name = cur.name, town = cur.town, startMs = cur.startMs }
+    MQ.Net.eachOnline(function(p)
+        if not p:isDead() then
+            local dx, dy = p:getX() - cur.x, p:getY() - cur.y
+            if dx * dx + dy * dy <= r2 then MQ.Net.send(p, "toast", t) end
+        end
+    end)
 end
 
 -- still the zombie that was spawned: removeFromWorld sets the online id to -1 (IsoZombie.java:4335-4370) and a reused
@@ -354,15 +374,21 @@ local function check(cur, now)
     if now >= cur.endsAt then return H.finish("failed", "time", now) end
 end
 
--- participants (>= 1 kill) get points kind "horde", horde.wins + 1 and a personal toast (none when pool 0 pays
--- nothing: the server-wide "win" already says it); returns paid, count
-local function pay(cur, pool)
-    local total, users = 0, {}
+-- participants: >= 1 kill, by name
+local function participants(cur)
+    local users = {}
     for user, k in pairs(cur.kills) do
-        total = total + k
         if k >= 1 then users[#users + 1] = user end
     end
     U.sort(users, function(a, b) return a < b end)
+    return users
+end
+
+-- participants get points kind "horde", horde.wins + 1 and a personal toast (none when pool 0 pays
+-- nothing: the server-wide "win" already says it); returns paid, count
+local function pay(cur, pool, users)
+    local total = 0
+    for _, k in pairs(cur.kills) do total = total + k end
     local paid = {}
     for _, user in ipairs(users) do
         local k = cur.kills[user]
@@ -380,14 +406,30 @@ local function pay(cur, pool)
     return paid, #users
 end
 
+-- the top killers of a cleared horde with 2+ participants (all of them on a tie): horde.mvp + 1
+local function mvp(cur, users)
+    if #users < 2 then return end
+    local top = 0
+    for _, u in ipairs(users) do top = math.max(top, cur.kills[u]) end
+    for _, u in ipairs(users) do
+        if cur.kills[u] == top then MQ.Stats.add(u, "horde.mvp", 1) end
+    end
+end
+
 -- result "success" | "failed" | "cancelled"; why for failed: time | nobody | admin | restart | spawn
 function H.finish(result, why, now)
     local h = hordes()
     local cur = h.cur
     if cur == nil then return end
     local pool = cur.perZombie * cur.spawned
+    local users = participants(cur)
     local paid, n = {}, 0
-    if result == "success" then paid, n = pay(cur, pool) end
+    if result == "success" then
+        paid, n = pay(cur, pool, users)
+        mvp(cur, users)
+    end
+    -- every participant counts, whatever the result (a cancel comes before the spawn, so it has none)
+    for _, user in ipairs(users) do MQ.Stats.add(user, "horde.joined", 1) end
     local mine = {}
     for z, t in pairs(H.live) do
         if t.horde == cur.id then mine[#mine + 1] = { z = z, t = t } end
@@ -424,12 +466,18 @@ function H.step(now)
     if cur.state == "planned" and now >= cur.announceAt then
         local open = now >= cur.startMs
         cur.state = open and "waiting" or "announced"
+        -- a warning this short is its own reminder
+        cur.reminded = cur.startMs - now <= H.REMIND_MS
         toast(cur, open and "open" or "soon", { startMs = cur.startMs, kinds = kindsOf(cur) })
         dirty()
     end
-    if cur.state == "announced" and now >= cur.startMs then
-        cur.state = "waiting"
-        dirty()
+    if cur.state == "announced" then
+        if now >= cur.startMs then
+            cur.state = "waiting"
+            dirty()
+        elseif not cur.reminded and now >= cur.startMs - H.REMIND_MS then
+            remind(cur)
+        end
     end
     if cur.state == "waiting" then
         if now >= cur.expireAt then return H.finish("failed", "nobody", now) end
@@ -466,13 +514,17 @@ function H.onZombieDead(z)
     -- Kill() sets the attacker before the event fires; fire deaths have none: cleared, no kill
     local killer = z:getAttackedBy()
     local user = killer ~= nil and instanceof(killer, "IsoPlayer") and MQ.Identity.principal(killer) or nil
-    if user ~= nil then cur.kills[user] = (cur.kills[user] or 0) + 1 end
+    if user ~= nil then
+        cur.kills[user] = (cur.kills[user] or 0) + 1
+        MQ.Stats.add(user, "horde.kills", 1)
+    end
     dirty()
 end
 
 -- ---------- state part, admin ops ----------
 
--- Sync provider "hordes": { cur, last }; a planned horde is secret, the last result shows for LAST_MS
+-- Sync provider "hordes": { on, cur, last }; a planned horde is secret, the last result shows for LAST_MS. on: the
+-- player Hordes page is in the nav (automatic hordes on, or there are results to list)
 function H.stateHordes(acc, user, now)
     local h = hordes()
     local out, cur = {}, h.cur
@@ -488,6 +540,22 @@ function H.stateHordes(acc, user, now)
         out.last = { id = e.id, name = e.name, town = e.town, state = e.state, why = e.why, endedAt = e.endedAt,
             spawned = e.spawned, killed = e.killed, pool = e.pool, split = e.split,
             mine = e.kills and e.kills[user] or 0, got = e.paid and e.paid[user] }
+    end
+    out.on = settings().enabled == true or #h.log > 0 or out.cur ~= nil
+    return out
+end
+
+-- the last n announced results, newest first, with this player's kills and points (the records reply, design r12)
+function H.recent(user, n)
+    local out, log = {}, hordes().log
+    for i = #log, 1, -1 do
+        local e = log[i]
+        if e.announced ~= false then
+            out[#out + 1] = { id = e.id, name = e.name, town = e.town, state = e.state, why = e.why,
+                endedAt = e.endedAt, spawned = e.spawned, killed = e.killed,
+                mine = e.kills and e.kills[user] or 0, got = e.paid and e.paid[user] or 0 }
+            if #out >= n then break end
+        end
     end
     return out
 end
@@ -505,12 +573,13 @@ function H.status(now)
             nextAt = H.nextRoll(cfg, now, tz, roll) } }
 end
 
--- manual start: now, announced as "open" at once; not counted in roll.n
-function H.startNow(actor, now)
+-- manual start (design r12): announced at once, starting lead minutes later (nil / 0 = now, announced as "open");
+-- not counted in roll.n
+function H.startNow(actor, now, lead)
     local h, cfg = hordes(), settings()
     if h.cur ~= nil then return false, CODE.HORDE_BUSY end
     if #cfg.spots == 0 then return false, CODE.NO_SPOTS end
-    local cur = H.plan(cfg, now, actor)
+    local cur = H.plan(cfg, now + (lead or 0) * MIN, actor, now)
     MQ.Config.addHistory(actor, "horde.now " .. cur.id .. " " .. cur.name, {}, false)
     H.step(now)
     return true, cur.id
@@ -532,8 +601,10 @@ end
 
 MQ.Server.defineAdmin("horde.status", { kind = "query", run = function(ctx) return true, H.status(ctx.now) end })
 
-MQ.Server.defineAdmin("horde.now", { kind = "mutation", run = function(ctx)
-    local ok, res = H.startNow(ctx.user, ctx.now)
+MQ.Server.defineAdmin("horde.now", { kind = "mutation", fields = { lead = "int?" }, run = function(ctx)
+    local lead = ctx.args.lead
+    if lead ~= nil and (lead < 0 or lead > C.LIMIT.MAX_LEAD) then return false, CODE.BAD_ARGS end
+    local ok, res = H.startNow(ctx.user, ctx.now, lead)
     if not ok then return false, res end
     return true, { id = res }
 end })

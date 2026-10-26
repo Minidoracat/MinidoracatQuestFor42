@@ -28,6 +28,7 @@ C.LIMIT = {
     DELTA_MS = 1000, TOAST_MERGE_MS = 2000, BROADCAST_MS = 60000,
     MAX_PREFS = 3, ANOMALY_ROWS = 200,
     MAX_PINS = 5,                             -- quests / achievements on the tracker panel
+    MAX_LEAD = 120,                           -- horde warning minutes: hordes.leadMin and the horde.now lead
 }
 
 -- Result codes; the client shows IGUI_MQ_Code_<CODE>.
@@ -46,7 +47,7 @@ C.THEME_GROUPS = {
     { "build", "craft", "cook", "tailor", "mech" },
     { "farm", "animal", "fishtrap", "forage", "explore" },
 }
-C.ACH_CATS = { "combat", "survival", "skill", "production", "nature", "explore", "quest", "hidden", "job" }
+C.ACH_CATS = { "combat", "survival", "skill", "production", "nature", "explore", "quest", "horde", "hidden", "job" }
 C.BOARD_CATS = { "overall", "combat", "survival", "skill", "life", "explore", "quest", "job" }
 
 C.POINT_KINDS = { quest = true, shared = true, week = true, goal = true, streak = true, achv = true,

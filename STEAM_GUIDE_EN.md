@@ -109,7 +109,8 @@ Daily and weekly quests, achievements, season leaderboards and titles; pair it w
 Once an admin sets up spots, the server starts hordes during a daily time window: a pack of zombies appears at a spot, and clearing it within the time limit pays points.
 [h3]How to take part[/h3]
 [olist]
-[*] [b]The warning[/b]: before it starts, everyone gets a "Horde warning" with the place, the start time and the kinds that may appear (for example Regular zombies and Sprinters), never the count. When an admin presses "Start one now", the message says it starts now.
+[*] [b]The warning[/b]: before it starts, everyone gets a "Horde warning" with the place, how many minutes until the start and the kinds that may appear (for example Regular zombies and Sprinters), never the count. When an admin starts one with a warning of 0, the message says it starts now.
+[*] [b]Reminder[/b]: when the warning is longer than 2 minutes, players within 50 tiles of the spot get one more notice 2 minutes before the start. If you do not want to take part, leave then: the horde appears when someone is nearby at the start.
 [*] [b]Get there[/b]: once it has started, the horde appears as soon as someone comes within 50 tiles of the spot, and the timer starts. The wait for players is limited; if nobody comes, the horde fails.
 [*] [b]Clear it[/b]: kill every zombie of this horde within the time limit while a player is within 50 tiles of the spot. Zombies killed by others or burnt count as cleared too.
 [*] [b]Get points[/b]: only players with a kill get points; see "Reward" below.
@@ -119,14 +120,22 @@ Once an admin sets up spots, the server starts hordes during a daily time window
 [*] [b]Tracker panel[/b]: a horde row on top shows the place, the countdown and "Cleared N/M". It does not use one of the 5 slots, has no ×, and shows even when you track nothing. "Show the tracker panel" in the mod options must be on.
 [*] [b]Daily quests page[/b]: a horde banner under the timed events shows the current state; for 10 minutes after the end it shows the result, your kills and the points you got.
 [*] [b]Minimap[/b]: with Minidoracat MiniMap installed, the minimap marks the area around the spot.
-[*] [b]Notices[/b]: the warning, the horde appearing, cleared, failed and cancelled go to everyone; points you get come with a "Horde reward" notice.
+[*] [b]Notices[/b]: the warning, the horde appearing, cleared, failed and cancelled go to everyone; the reminder 2 minutes before the start goes only to players near the spot; points you get come with a "Horde reward" notice.
+[/list]
+[h3]Hordes page[/h3]
+{{img:15-hordes-en.jpg}}
+Once the server has automatic hordes on or has had a horde, a "Hordes" page appears on the left of the window.
+[list]
+[*] [b]Now[/b]: the same banner as on the daily quests page; with no horde it says so.
+[*] [b]My hordes[/b]: your totals for hordes joined, hordes cleared, horde kills and hordes where you were the top killer. One kill counts as joining.
+[*] [b]Recent hordes[/b]: the last 10 hordes on the server with time, place, result, your kills and your points; older ones only count in your totals.
 [/list]
 [h3]Reward[/h3]
 [list]
 [*] [b]Pool[/b]: zombies spawned × points per zombie (5 by default).
 [*] [b]Split[/b]: the admin picks "Split by kill share" (default, at least 1 point each) or "Full pool to everyone with a kill".
 [*] [b]Where it counts[/b]: season, all-time and balance, so it can be exchanged.
-[*] [b]Hidden achievement[/b]: the first horde you help clear unlocks a hidden achievement and the title "Horde Hunter".
+[*] [b]Horde achievements[/b]: the "Hordes" category on the achievements page: hordes cleared, horde kills and top killer (cleared hordes with 2 or more players, ties count for all), five tiers each. The first horde you help clear also unlocks a hidden achievement and the title "Horde Hunter".
 [*] [b]Kills still count[/b]: horde kills count for kill stats, quests and achievements as usual.
 [/list]
 [h3]Failing[/h3]
@@ -138,12 +147,12 @@ Once an admin sets up spots, the server starts hordes during a daily time window
 [h3]Admins: "Admin > Hordes"[/h3]
 {{img:14-admin-hordes-en.jpg}}
 [list]
-[*] [b]Spots[/b]: stand where a horde should appear, fill in "Spot name" and press "Add my current position"; up to 32 spots, one picked at random for each horde. Automatic hordes and "Start one now" need at least one spot.
+[*] [b]Spots[/b]: stand where a horde should appear, fill in "Spot name" and press "Add my current position"; up to 32 spots, one picked at random for each horde. Automatic hordes and "Start a horde" need at least one spot. Keep spots 50 tiles or more away from player bases.
 [*] [b]Schedule[/b]: "Automatic hordes" (off by default), "Window from" and "Window to" (HH:MM in the sandbox time zone; a "to" earlier than "from" runs past midnight, equal means all day), "Chance per hour", "Hordes per day at most", "Warning before start", "Wait for players". Inside the window the server rolls once an hour and, on a hit, schedules a horde within that hour.
 [*] [b]The horde[/b]: "Zombies (min - max)", the kind list (one row per kind with its weight and Remove; add others from the "Add a kind..." dropdown; only kinds above 0 appear), "Time limit", "Points per zombie", "Reward split".
 [*] [b]Like other settings[/b]: spots and fields go into pending changes and take effect with "Apply" at the bottom; they are kept in History and written to config.json (see "Settings file config.json"). A horde already scheduled keeps the settings it was planned with.
 [*] [b]Now[/b]: the current horde's place, times, count and kinds. "Cancel this horde" before it starts, "Stop this horde" after (it fails, nobody gets points, its zombies are removed); both ask first.
-[*] [b]Start one now[/b]: skips the roll and starts a horde at a random spot at once, with the applied settings; it does not count toward the daily limit. With a horde already planned or running, cancel or stop it first. Starting and stopping are listed in History but cannot be undone.
+[*] [b]Start a horde[/b]: skips the roll and starts a horde at a random spot with the applied settings; it does not count toward the daily limit. Fill in the warning in minutes to the left of the button (the applied "Warning before start" by default, 0 to 120; 0 starts it now). With a horde already planned or running, cancel or stop it first. Starting and stopping are listed in History but cannot be undone.
 [*] [b]Today and recent results[/b]: "Today N / M hordes, next roll HH:MM", and the last 5 results with the reason for failures.
 [/list]
 [table]
@@ -165,6 +174,7 @@ Once an admin sets up spots, the server starts hordes during a daily time window
 [tr][td]Farming & Wilds[/td][td]Planting, harvesting, fishing, foraging, trapping, butchering, milking, shearing, collecting eggs, chopping trees[/td][/tr]
 [tr][td]Exploration[/td][td]Towns visited, walking, driving, reading, placing furniture[/td][/tr]
 [tr][td]Quests[/td][td]Daily, weekly, longest streak, server goals, seasons joined, achievement tiers[/td][/tr]
+[tr][td]Hordes[/td][td]Hordes cleared, horde kills, top killer (only on servers that run hordes)[/td][/tr]
 [tr][td]Hidden[/td][td]17 achievements, only a hint until unlocked[/td][/tr]
 [tr][td]Professions[/td][td]None built in; other mods add them through the API[/td][/tr]
 [/table]
@@ -179,7 +189,7 @@ Once an admin sets up spots, the server starts hordes during a daily time window
 [tr][td]Hidden achievement (1 tier)[/td][td]30, some give a title[/td][/tr]
 [/table]
 [list]
-[*] [b]About 110 in total[/b]: 108 built in; a server may add custom achievements or achievements from other mods. Each category button shows unlocked/total.
+[*] [b]About 110 in total[/b]: 111 built in; a server may add custom achievements or achievements from other mods. Each category button shows unlocked/total.
 [*] [b]Next tier[/b]: every achievement shows the next tier's threshold and points.
 [*] [b]How the five tiers work[/b]: for counts, Legend V is 2.5 times Platinum IV; skill achievements are skill levels 2 / 4 / 6 / 8 / 10 (Fitness and Strength 6 to 10), so a skill title comes at level 8. Admins can add up to 10 tiers.
 [*] [b]One-life achievements[/b]: those marked "One life" use this life's stats and start over after death; the rest use your all-time totals across characters.

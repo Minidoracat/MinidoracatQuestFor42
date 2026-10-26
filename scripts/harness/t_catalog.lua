@@ -119,7 +119,7 @@ return function(T)
         T.check(d ~= nil and d.enabled == true and #d.tiers == #a.tiers and d.tiers ~= a.tiers, "DEFAULTS copy " .. a.id)
     end
     T.check(#Cat.achievements >= 105 and #Cat.achievements <= 115, "achievement count 105..115 (" .. #Cat.achievements .. ")")
-    T.check(perCat.skill == 37 and perCat.hidden == 17, "skill 37, hidden 17")
+    T.check(perCat.skill == 37 and perCat.hidden == 17 and perCat.horde == 3, "skill 37, hidden 17, horde 3")
     -- five default tiers: 10/20/30/50/80 points, title at IV only; tier V never over a stat's ceiling
     local nTiers, nTitles, nPts, five = 0, 0, 0, true
     for _, a in ipairs(Cat.achievements) do
@@ -134,8 +134,8 @@ return function(T)
         end
     end
     T.check(five, "regular achievements: 5 tiers, 10/20/30/50/80, title at IV only, skill levels top at 10")
-    T.check(nTiers == 472 and nTitles == 100 and nPts == 17800,
-        "472 tiers, 100 titles, 17,800 points (" .. nTiers .. ", " .. nTitles .. ", " .. nPts .. ")")
+    T.check(nTiers == 487 and nTitles == 103 and nPts == 18370,
+        "487 tiers, 103 titles, 18,370 points (" .. nTiers .. ", " .. nTitles .. ", " .. nPts .. ")")
     T.check(Cat.ach("skill_total").tiers[5] <= 10 * #Cat.perks and Cat.ach("towns").tiers[5] < Cat.ach("h_all_towns").tiers[1]
         and Cat.ach("achv_tiers").tiers[5] <= nTiers, "tier V within the ceiling: skill total, towns, achievement tiers")
     T.check(not Cat.scalable("level.Axe") and not Cat.scalable("skill.total") and not Cat.scalable("town.visited")

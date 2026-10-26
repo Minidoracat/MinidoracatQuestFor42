@@ -281,22 +281,29 @@ return function(T)
     pick("ks:add", "mod:brute")
     T.check(P.S.draft.by["hordes.kinds.mod:brute"] == 10 and has(P.draftSummary, "IGUI_MQ_Admin_HordeSumKindAdd|Brute_Name"),
         "a pick adds the kind at 10 through the draft")
+    local n = AM.draftCount(P.S.draft)
     press("ks:r:mod:brute")
-    T.check(P.S.draft.by["hordes.kinds.mod:brute"] == AM.DEL and not shown("ks:n:mod:brute"), "Remove on a pack kind drops its key")
+    T.check(P.S.draft.by["hordes.kinds.mod:brute"] == nil and AM.draftCount(P.S.draft) == n - 1 and not shown("ks:n:mod:brute")
+        and options("ks:add")["mod:brute"] == "Brute_Name", "picked and removed before Apply: the draft forgets it, nothing to send")
     press("ks:r:runner")
     T.check(shown("ks:0") and has(pool()["ks:0"].lines[1], "IGUI_MQ_Admin_HordeKindsNone"), "an empty list says every zombie is a regular one")
     A.onPreview(P)
     changes = Q.Util.decode(last("cfg.preview").changes)
     by = {}
     for _, ch in ipairs(changes) do by[ch.path] = ch end
-    T.check(by["hordes.kinds.vanilla"].value == 0 and by["hordes.kinds.runner"].value == 0 and by["hordes.kinds.mod:brute"].op == "del",
-        "the preview carries 0 for the built-in kinds and a del for the pack kind")
+    T.check(#changes == 2 and by["hordes.kinds.vanilla"].value == 0 and by["hordes.kinds.runner"].value == 0,
+        "the preview carries 0 for the built-in kinds, nothing for the kind picked and removed")
     A.onConfirmCancel(P)
     A.discard(P)
-    P.S.overrides.hordes = { kinds = { ["old:gone"] = 15 } }
+    pick("ks:add", "mod:brute")
+    press("ks:r:mod:brute")
+    T.check(AM.draftCount(P.S.draft) == 0 and P.draftSummary == nil and P.msg == nil,
+        "picked and removed with nothing else pending: no summary, no in-the-draft note")
+    -- as a cfg.get reply sets them: overrides, then a resync (fields read the server values again)
+    P.S.overrides.hordes = { kinds = { ["old:gone"] = 15, ["mod:brute"] = 30 } }
     local keep = P.pages.hordes.data
     P.pages.hordes.data = nil
-    A.layout(P)
+    A.resync(P)
     T.check(not shown("ks:o:old:gone"), "before horde.status lists the kinds, nothing is called not installed")
     P.pages.hordes.data = keep
     A.layout(P)
@@ -304,6 +311,9 @@ return function(T)
         "a key no mod registers any more: a row marked not installed, with its weight")
     press("ks:r:old:gone")
     T.check(P.S.draft.by["hordes.kinds.old:gone"] == AM.DEL and not shown("ks:o:old:gone"), "its Remove drops the key")
+    T.check(shown("ks:n:mod:brute") and field("hordes.kinds.mod:brute"):getText() == "30", "a pack kind applied at 30 is a row")
+    press("ks:r:mod:brute")
+    T.check(P.S.draft.by["hordes.kinds.mod:brute"] == AM.DEL and not shown("ks:n:mod:brute"), "Remove on an applied pack kind drops its key")
     A.discard(P)
     P.S.overrides.hordes = nil
 

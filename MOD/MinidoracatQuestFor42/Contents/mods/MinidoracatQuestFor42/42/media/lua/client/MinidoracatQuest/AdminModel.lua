@@ -124,6 +124,19 @@ function AM.draftSet(draft, path, value)
     draft.by[path] = value
 end
 
+-- drops an entry again (a horde kind picked and removed before Apply: a del of a key the config never had would
+-- send a change that changes nothing and still writes a history row)
+function AM.draftUnset(draft, path)
+    if draft.by[path] == nil then return end
+    draft.by[path] = nil
+    for i, p in ipairs(draft.order) do
+        if p == path then
+            table.remove(draft.order, i)
+            return
+        end
+    end
+end
+
 function AM.draftCount(draft) return #draft.order end
 
 -- draft -> change list in edit order

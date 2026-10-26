@@ -243,11 +243,25 @@ local function onKindAdd(P, id)
 end
 
 -- Remove writes 0 on a built-in kind; on the others it drops the key (a "del" change), which also clears what a
--- removed mod left in config.json
+-- removed mod left in config.json. A kind only the draft has (picked, then removed) just leaves the draft again.
 local function onKindRemove(P, b)
-    AM.draftSet(P.S.draft, "hordes.kinds." .. b.kind, kindDefaults(P)[b.kind] ~= nil and 0 or AM.DEL)
-    summary(P, getText("IGUI_MQ_Admin_HordeSumKindDel", b.kindName))
-    A.say(P, getText("IGUI_MQ_Admin_InDraft"), "textMuted")
+    local path = "hordes.kinds." .. b.kind
+    local ov = P.S.overrides and P.S.overrides.hordes and P.S.overrides.hordes.kinds
+    if kindDefaults(P)[b.kind] ~= nil then
+        AM.draftSet(P.S.draft, path, 0)
+    elseif type(ov) == "table" and ov[b.kind] ~= nil then
+        AM.draftSet(P.S.draft, path, AM.DEL)
+    else
+        AM.draftUnset(P.S.draft, path)
+    end
+    -- picked and removed with nothing else pending: no summary or "in the draft" note for edits that cancel out
+    if AM.draftCount(P.S.draft) == 0 then
+        P.draftSummary = nil
+        A.say(P, nil)
+    else
+        summary(P, getText("IGUI_MQ_Admin_HordeSumKindDel", b.kindName))
+        A.say(P, getText("IGUI_MQ_Admin_InDraft"), "textMuted")
+    end
     A.layout(P)
 end
 

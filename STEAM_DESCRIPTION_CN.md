@@ -33,7 +33,7 @@
 [*] [b]积分兑换[/b]：搭配经济系统，把积分换成幸存币
 [*] [b]管理面板[/b]：门槛、任务、赛季、兑换都在游戏内调整，改了可以撤销
 [/list]
-📖 [b]玩法、管理面板、沙盒选项与常见问题：[/b][url={QUEST_GUIDE_ZH}]Minidoracat Quests & Achievements MOD 完整說明：任務、成就、排行榜與管理面板[/url]（繁体中文）
+📖 [b]玩法、管理面板、沙盒选项与常见问题：[/b][url=https://steamcommunity.com/sharedfiles/filedetails/?id=3827763929]Minidoracat Quests & Achievements MOD 完整說明：任務、成就、排行榜與管理面板[/url]（繁体中文）
 
 [h2]🔗 Minidoracat 全系列[/h2]
 其他作品都在[url=https://steamcommunity.com/sharedfiles/filedetails/?id=3809297109]Minidoracat 全系列收藏[/url]，按需自选订阅。
@@ -52,5 +52,5 @@ MOD 永远免费。喜欢的话可以请我喝杯咖啡，赞助会用在服务�
 
 [b]#Minidoracat[/b]
 
-Workshop ID: 尚未指派
+Workshop ID: 3827762894
 Mod ID: MinidoracatQuestFor42

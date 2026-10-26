@@ -33,7 +33,7 @@
 [*] [b]ポイント交換[/b]：Economy MOD と組み合わせてサバイバーコインに交換
 [*] [b]管理パネル[/b]：しきい値・クエスト・シーズン・交換をゲーム内で調整、変更は元に戻せます
 [/list]
-📖 [b]遊び方、管理パネル、サンドボックス設定、よくある質問：[/b][url={QUEST_GUIDE_EN}]Quests & Achievements Mod Guide: Quests, Achievements, Leaderboards & Admin Panel[/url]（英語）
+📖 [b]遊び方、管理パネル、サンドボックス設定、よくある質問：[/b][url=https://steamcommunity.com/sharedfiles/filedetails/?id=3827763966]Quests & Achievements Mod Guide: Quests, Achievements, Leaderboards & Admin Panel[/url]（英語）
 
 [h2]🔗 Minidoracat の MOD 一覧[/h2]
 すべての MOD を[url=https://steamcommunity.com/sharedfiles/filedetails/?id=3809297109]Minidoracat 全シリーズ コレクション[/url]にまとめています。必要なものを選んでサブスクライブしてください。
@@ -51,5 +51,5 @@
 
 [b]#Minidoracat[/b]
 
-Workshop ID: 未割り当て
+Workshop ID: 3827762894
 Mod ID: MinidoracatQuestFor42

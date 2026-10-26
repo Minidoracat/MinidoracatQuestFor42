@@ -1,12 +1,12 @@
+<!-- 指南網址：https://steamcommunity.com/sharedfiles/filedetails/?id=3827763966 -->
 <!-- Steam guide source (English): the full reference for this mod; the Workshop description only summarizes. Format and sync: pz-family-docs/release.md「完整說明：Steam 指南」 -->
-<!-- Placeholders until first release: GUIDE_ZH (Chinese guide id), WORKSHOP_ID (item id); fill them in per release-first.md「首發」steps 4 and 5 -->
 <!-- 標題：📖 Quests & Achievements Mod Guide: Quests, Achievements, Leaderboards & Admin Panel -->
 <!-- 摘要：Illustrated guide to Minidoracat Quests & Achievements: daily and weekly quests, the server-wide quest and weekly server goal, streaks, newcomer quests, timed events, hordes, achievements and titles, leaderboards and seasons, My records, exchanging points for Survivor Coins and player settings, plus installation, sandbox options, the admin panel, season payouts, Economy integration, data and backups for hosts, and the API for other mod authors. -->
 === 🚀 Quick start
-[b]繁體中文版：[/b][url=https://steamcommunity.com/sharedfiles/filedetails/?id=GUIDE_ZH]Minidoracat Quests & Achievements 完整說明[/url]
+[b]繁體中文版：[/b][url=https://steamcommunity.com/sharedfiles/filedetails/?id=3827763929]Minidoracat Quests & Achievements 完整說明[/url]
 
 The mod on Steam Workshop:
-https://steamcommunity.com/sharedfiles/filedetails/?id=WORKSHOP_ID
+https://steamcommunity.com/sharedfiles/filedetails/?id=3827762894
 Daily and weekly quests, achievements, season leaderboards and titles; pair it with the Economy mod to exchange points for Survivor Coins.
 [olist]
 [*] [b]Open the window[/b]: click the trophy icon (Quests & Achievements) on the family toolbar.

@@ -6,7 +6,7 @@ Project Zomboid Build 42 MOD，中文名「任務與成就」。單人與多人�
 
 ## 發布狀態
 
-尚未發布到 Steam Workshop（首發後在「安裝」補上連結）。
+2026-10-27 首發到 Steam Workshop：[Minidoracat Quests & Achievements](https://steamcommunity.com/sharedfiles/filedetails/?id=3827762894)（ID 3827762894）。
 
 ## 功能
 
@@ -52,7 +52,7 @@ Project Zomboid Build 42 MOD，中文名「任務與成就」。單人與多人�
 
 ## 安裝與載入順序
 
-- Steam Workshop：（首次上傳後補上連結）
+- Steam Workshop：[Minidoracat Quests & Achievements](https://steamcommunity.com/sharedfiles/filedetails/?id=3827762894)（ID 3827762894）
 - 手動安裝：把 `MOD/MinidoracatQuestFor42/Contents/mods/MinidoracatQuestFor42` 複製到 `%USERPROFILE%\Zomboid\mods\` 並將資料夾改名為 `MinidoracatQuestFor42`
 - `mod.info` 有 `require=MinidoracatUIFor42`。多人伺服器設定的 `Mods=` 要把 `MinidoracatQuestFor42` 放在 `MinidoracatUIFor42` 之後，`WorkshopItems=` 也要加上兩者的 Workshop ID。經濟系統的位置不影響本 MOD：伺服器開好後才偵測它。
 - 伺服器與所有玩家都要裝同一版。

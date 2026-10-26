@@ -1,4 +1,5 @@
 version=1
+id=3827762894
 title=[B42] Quests & Achievements by Minidoracat
 description=[h1]🏆 Minidoracat Quests & Achievements[/h1]
 description=[h3]By Minidoracat[/h3]
@@ -35,7 +36,7 @@ description=[*] [b]Leaderboards and seasons[/b]: 8 leaderboard categories, with 
 description=[*] [b]Point exchange[/b]: with the Economy mod, turn points into Survivor Coins
 description=[*] [b]Admin panel[/b]: thresholds, quests, seasons and exchange are all tuned in game, and every change can be undone
 description=[/list]
-description=📖 [b]How to play, admin panel, sandbox options and FAQ:[/b] [url={QUEST_GUIDE_EN}]Quests & Achievements Mod Guide: Quests, Achievements, Leaderboards & Admin Panel[/url]
+description=📖 [b]How to play, admin panel, sandbox options and FAQ:[/b] [url=https://steamcommunity.com/sharedfiles/filedetails/?id=3827763966]Quests & Achievements Mod Guide: Quests, Achievements, Leaderboards & Admin Panel[/url]
 description=
 description=[h2]🔗 More Minidoracat mods[/h2]
 description=All my mods are in the [url=https://steamcommunity.com/sharedfiles/filedetails/?id=3809297109]Minidoracat Mods for B42 collection[/url] — pick what you need.
@@ -53,7 +54,7 @@ description=[url=https://ko-fi.com/minidoracat][img]https://raw.githubuserconten
 description=
 description=[b]#Minidoracat[/b]
 description=
-description=Workshop ID: Not assigned
+description=Workshop ID: 3827762894
 description=Mod ID: MinidoracatQuestFor42
 tags=Build 42;Interface;Multiplayer
 visibility=public

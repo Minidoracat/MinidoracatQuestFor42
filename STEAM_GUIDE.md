@@ -1,12 +1,12 @@
+<!-- 指南網址：https://steamcommunity.com/sharedfiles/filedetails/?id=3827763929 -->
 <!-- Steam 指南稿源（繁中）：MOD 的完整說明以本指南為準，簡介只放摘要。格式、版面與同步方式見 pz-family-docs/release.md「完整說明：Steam 指南」 -->
-<!-- 首發前的佔位：GUIDE_EN（英文指南 id）、WORKSHOP_ID（作品 id），照 release-first.md「首發」第 4、5 步回填 -->
 <!-- 標題：📖 Minidoracat Quests & Achievements MOD 完整說明：任務、成就、排行榜與管理面板 -->
 <!-- 摘要：Minidoracat Quests & Achievements（任務與成就）MOD 的圖文說明：每日與每週任務、全服任務與共同目標、連續天數、新手任務、限時活動、屍潮任務、成就與稱號、排行榜與賽季、我的紀錄、積分兌換倖存幣與玩家設定，以及服主的安裝、沙盒選項、管理面板、賽季結算、經濟系統整合、資料與備份，和給其他 MOD 作者的 API。 -->
 === 🚀 快速上手
-[b]English version:[/b] [url=https://steamcommunity.com/sharedfiles/filedetails/?id=GUIDE_EN]Quests & Achievements Mod Guide[/url]
+[b]English version:[/b] [url=https://steamcommunity.com/sharedfiles/filedetails/?id=3827763966]Quests & Achievements Mod Guide[/url]
 
 MOD 本體（Steam Workshop）：
-https://steamcommunity.com/sharedfiles/filedetails/?id=WORKSHOP_ID
+https://steamcommunity.com/sharedfiles/filedetails/?id=3827762894
 每日與每週任務、成就、賽季排行榜與稱號；可搭配經濟系統把積分換成倖存幣。
 [olist]
 [*] [b]打開視窗[/b]：點家族工具列的獎盃圖示「任務與成就」。

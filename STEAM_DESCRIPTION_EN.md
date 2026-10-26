@@ -33,7 +33,7 @@ Daily and weekly quests, achievements, season leaderboards and titles; pair it w
 [*] [b]Point exchange[/b]: with the Economy mod, turn points into Survivor Coins
 [*] [b]Admin panel[/b]: thresholds, quests, seasons and exchange are all tuned in game, and every change can be undone
 [/list]
-📖 [b]How to play, admin panel, sandbox options and FAQ:[/b] [url={QUEST_GUIDE_EN}]Quests & Achievements Mod Guide: Quests, Achievements, Leaderboards & Admin Panel[/url]
+📖 [b]How to play, admin panel, sandbox options and FAQ:[/b] [url=https://steamcommunity.com/sharedfiles/filedetails/?id=3827763966]Quests & Achievements Mod Guide: Quests, Achievements, Leaderboards & Admin Panel[/url]
 
 [h2]🔗 More Minidoracat mods[/h2]
 All my mods are in the [url=https://steamcommunity.com/sharedfiles/filedetails/?id=3809297109]Minidoracat Mods for B42 collection[/url] — pick what you need.
@@ -51,5 +51,5 @@ The mod is free and always will be, and the source code is open on GitHub. If yo
 
 [b]#Minidoracat[/b]
 
-Workshop ID: Not assigned
+Workshop ID: 3827762894
 Mod ID: MinidoracatQuestFor42

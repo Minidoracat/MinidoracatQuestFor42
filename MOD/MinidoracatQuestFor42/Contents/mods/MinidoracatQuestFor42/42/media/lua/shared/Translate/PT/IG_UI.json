@@ -338,7 +338,7 @@
   "IGUI_MQ_Admin_UseHere": "Usar minha posição",
   "IGUI_MQ_Admin_YouAre": "Você está em %1, %2 (%3).",
   "IGUI_MQ_Admin_NoTown": "fora de uma cidade",
-  "IGUI_MQ_Admin_BasicNote": "Ajuste as opções comuns nos passos 1-5. A dificuldade mostra o que muda antes de confirmar; para o resto, clique em Aplicar abaixo.",
+  "IGUI_MQ_Admin_BasicNote": "Ajuste o básico nos passos 1-5. A dificuldade pede confirmação; para o resto, clique em Aplicar abaixo.",
   "IGUI_MQ_Admin_Step": "%1. %2",
   "IGUI_MQ_Admin_StepNotice": "Missões de iniciante e anúncios",
   "IGUI_MQ_Admin_BasicSeason": "%1 dias por temporada, próximo encerramento %2",

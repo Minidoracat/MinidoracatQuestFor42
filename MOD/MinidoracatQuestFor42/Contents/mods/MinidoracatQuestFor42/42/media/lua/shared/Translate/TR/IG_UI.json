@@ -338,7 +338,7 @@
   "IGUI_MQ_Admin_UseHere": "Konumumu kullan",
   "IGUI_MQ_Admin_YouAre": "Konumunuz: %1, %2 (%3).",
   "IGUI_MQ_Admin_NoTown": "bir kasabada değil",
-  "IGUI_MQ_Admin_BasicNote": "Sık kullanılan ayarları 1-5 adımlarında yapın. Zorluk önce değişiklikleri gösterip onay ister; geri kalanı için aşağıdaki Uygula'ya basın.",
+  "IGUI_MQ_Admin_BasicNote": "Sık kullanılan ayarlar 1-5. adımlarda. Zorluk onay ister; gerisi için aşağıdaki Uygula'ya basın.",
   "IGUI_MQ_Admin_Step": "%1. %2",
   "IGUI_MQ_Admin_StepNotice": "Acemi görevleri ve duyurular",
   "IGUI_MQ_Admin_BasicSeason": "Sezon başına %1 gün, sonraki kapanış %2",

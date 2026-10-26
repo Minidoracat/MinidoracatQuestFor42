@@ -571,6 +571,10 @@ end
 
 function A.fail(P, res) A.say(P, A.codeText(P, res), "errorText") end
 
+-- one row of buttons and one line of message; taller when the message wraps (long translations, narrow windows:
+-- quest-ui-de-1026w), the pages above give up the room
+local function barHeight(P) return math.max(2 * fontH() + 26, P.barFlow and P.barFlow.y or 0) end
+
 function A.layoutBar(P)
     local F = P.barFlow
     if F == nil then return end
@@ -600,6 +604,7 @@ function A.layoutBar(P)
         F:text("msg", P.msg, P.msgToken)
     end
     F:finish()
+    if barHeight(P) ~= P.bar:getHeight() then A.place(P, P.root:getWidth(), P.root:getHeight()) end
 end
 
 -- ===== draft, preview, apply =====
@@ -1088,7 +1093,7 @@ function A.place(P, width, height)
     P.tabs:setX(A.PAD)
     P.tabs:setY(4)
     local top = (wide and P.tabs:getHeight() or P.pick:getHeight()) + 8
-    local barH = 2 * fontH() + 26
+    local barH = barHeight(P)
     for _, pg in pairs(P.pages) do
         pg.sp:setY(top)
         pg.sp:setWidth(width)

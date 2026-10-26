@@ -155,6 +155,18 @@ return function(T)
     end
     T.check(not T.printed("admin layout"), "no tab raised during layout")
 
+    T.section("admin ui: a status message that wraps grows the bar")
+    local sp = P.pages[P.current].sp
+    local barH, viewH = P.bar:getHeight(), sp:getHeight()
+    UI.Text.wrap = function(s) return { s, s } end
+    A.say(P, "two lines", "text")
+    local grew = P.bar:getHeight() - barH
+    T.check(grew > 0 and sp:getHeight() == viewH - grew and P.bar:getY() + P.bar:getHeight() == P.root:getHeight(),
+        "two lines: the bar grows by the second line, the page view gives up the same room (quest-ui-de-1026w)")
+    UI.Text.wrap = function(s) return { s } end
+    A.say(P, "one line", "text")
+    T.check(P.bar:getHeight() == barH and sp:getHeight() == viewH, "one line again: the bar and the page view are back")
+
     T.section("admin ui: batch on the category shown -> preview -> apply")
     A.select(P, "achv")
     local cat = pool("achv")["cat"]

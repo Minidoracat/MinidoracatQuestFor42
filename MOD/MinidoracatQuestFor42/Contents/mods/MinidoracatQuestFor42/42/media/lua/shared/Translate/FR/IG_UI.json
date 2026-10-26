@@ -338,7 +338,7 @@
   "IGUI_MQ_Admin_UseHere": "Utiliser ma position",
   "IGUI_MQ_Admin_YouAre": "Vous êtes en %1, %2 (%3).",
   "IGUI_MQ_Admin_NoTown": "hors ville",
-  "IGUI_MQ_Admin_BasicNote": "Réglez l'essentiel aux étapes 1 à 5. La difficulté montre ses changements avant confirmation ; pour le reste, appuyez sur Appliquer ci-dessous.",
+  "IGUI_MQ_Admin_BasicNote": "Les étapes 1 à 5 règlent l'essentiel. La difficulté demande confirmation ; le reste passe par Appliquer ci-dessous.",
   "IGUI_MQ_Admin_Step": "%1. %2",
   "IGUI_MQ_Admin_StepNotice": "Quêtes des nouveaux et annonces",
   "IGUI_MQ_Admin_BasicSeason": "%1 jours par saison, prochaine clôture %2",

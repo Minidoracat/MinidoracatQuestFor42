@@ -338,6 +338,12 @@ local function spawn(cur, now)
             local ok, err = pcall(function()
                 each(kind.spawn(cur.x, cur.y, cur.z, m.n), function(z)
                     if got < m.n and instanceof(z, "IsoZombie") and H.live[z] == nil then
+                        -- the engine reuses zombie objects without clearing the network owner of their last life, and
+                        -- that owner's list no longer holds them: no client is sent the zombie until ownership moves
+                        -- (quest-hz-1026h / 1026j; NetworkZombieManager.java:172, :208, VirtualZombieManager.java:271-329).
+                        -- With no owner the next auth pass picks one (NetworkZombieManager.updateAuth).
+                        z:setOwner(nil)
+                        z:setOwnerPlayer(nil)
                         H.live[z] = { horde = cur.id, onlineId = z:getOnlineID() }
                         got = got + 1
                     end

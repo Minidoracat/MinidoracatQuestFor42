@@ -561,9 +561,14 @@ return function(T)
         T.check(root.hordes.cur == cur and cur.tries == 9 and cur.state == "waiting", "9 empty spawns: still waiting")
         step(Q)
         T.check(root.hordes.cur == nil and lastLog(Q).why == "spawn", "10 empty spawns: failed spawn")
-        T.spawnCap = 2
+        T.spawnCap, T.staleOwner = 2, alice
         adm(admin, "horde.now")
         T.check(root.hordes.cur.spawned == 2 and root.hordes.cur.left == 2, "unloaded squares: counts what really spawned")
+        local owned = 0
+        for z, t in pairs(Q.Hordes.live) do
+            if t.horde == root.hordes.cur.id and (z.owner ~= nil or z.ownerPlayer ~= nil) then owned = owned + 1 end
+        end
+        T.check(owned == 0, "reused zombie objects: the network owner of their last life is cleared (quest-hz-1026j)")
     end)
 
     -- ===================== admin stop, restart =====================

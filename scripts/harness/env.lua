@@ -12,9 +12,10 @@ Quick reference
       false); replies reach MinidoracatQuest.Client.receive and are also recorded in T.outbox.
   T.bootClient{}           MP client: loads shared+client (T.mode = "client").
   T.player{ name, admin, role, sid, x, y, z, num, oid, dead, noRole, offline }  online IsoPlayer (p.veh, p.hand)
-  T.zombie{ oid, outfit, attacker, inWorld }  IsoZombie; addZombiesInOutfitArea makes these (T.spawnCap limits how many
-      it returns, like unloaded squares; T.spawnCalls records the calls; they report isExistInTheWorld() false like
-      fresh zombies on a dedicated server, quest-hz-1026e); z:Kill(killer) fires OnZombieDead
+  T.zombie{ oid, outfit, attacker, inWorld, owner }  IsoZombie; addZombiesInOutfitArea makes these (T.spawnCap limits
+      how many it returns, like unloaded squares; T.spawnCalls records the calls; they report isExistInTheWorld() false
+      like fresh zombies on a dedicated server, quest-hz-1026e; T.staleOwner = p makes them still owned by p, like a
+      reused engine object); z:Kill(killer) fires OnZombieDead
   T.cmd(p, cmd, args, requestId)   fills protocol (+ requestId for mutations / admin mutation ops), advances 300 ms,
       fires OnClientCommand and returns the "result" or "admin" reply sent for it (nil when none).
   T.lastOf(p, cmd), T.sentTo(p, cmd), T.broadcastsOf(cmd), T.clientSent (sendClientCommand records)
@@ -264,7 +265,7 @@ T.nextZombieId = 1000
 function T.zombie(o)
     o = o or {}
     local z = { __class = "IsoZombie", oid = o.oid or T.nextZombieId, outfit = o.outfit or 655360, attacker = o.attacker,
-        dead = false, inWorld = o.inWorld ~= false, onSquare = true, sprinter = false }
+        dead = false, inWorld = o.inWorld ~= false, onSquare = true, sprinter = false, owner = o.owner, ownerPlayer = o.owner }
     T.nextZombieId = T.nextZombieId + 1
     function z:getOnlineID() return self.oid end
     function z:getPersistentOutfitID() return self.outfit end
@@ -273,6 +274,10 @@ function T.zombie(o)
     function z:getAttackedBy() return self.attacker end
     function z:getCurrentSquare() return nil end
     function z:doSprinter() self.sprinter = true end
+    -- network owner (IsoZombie.java:634-646): a reused zombie object keeps the one of its last life (quest-hz-1026j)
+    function z:getOwnerPlayer() return self.ownerPlayer end
+    function z:setOwner(c) self.owner = c end
+    function z:setOwnerPlayer(p) self.ownerPlayer = p end
     -- the server zombie's online id goes to -1 (IsoZombie.java:4335-4370)
     function z:removeFromWorld() self.inWorld, self.oid = false, -1 end
     function z:removeFromSquare() self.onSquare = false end
@@ -286,11 +291,12 @@ function T.zombie(o)
 end
 -- LuaManager.java:10433; returns an ArrayList, fewer when squares are not loaded (T.spawnCap). On the dedicated server
 -- these report isExistInTheWorld() false (their square's moving objects do not list them) for at least 1.5 s after the
--- spawn: quest-hz-1026e HZDBG, online id and outfit id unchanged
+-- spawn: quest-hz-1026e HZDBG, online id and outfit id unchanged. T.staleOwner: they come out of the engine's reuse
+-- pool still owned by that player (VirtualZombieManager.java:271-329)
 function addZombiesInOutfitArea(x1, y1, x2, y2, z, n, outfit, femaleChance)
     T.spawnCalls[#T.spawnCalls + 1] = { x1 = x1, y1 = y1, x2 = x2, y2 = y2, z = z, n = n, outfit = outfit, female = femaleChance }
     local list = {}
-    for i = 1, T.spawnCap and math.min(n, T.spawnCap) or n do list[i] = T.zombie{ inWorld = false } end
+    for i = 1, T.spawnCap and math.min(n, T.spawnCap) or n do list[i] = T.zombie{ inWorld = false, owner = T.staleOwner } end
     return T.javaList(list)
 end
 T.netEarly = {}
@@ -372,7 +378,7 @@ local function resetWorld(opts)
     T.unreadable = {}
     T.failWrites, T.silentWrites = false, false
     T.randQueue = {}
-    T.zombies, T.spawnCalls, T.spawnCap = {}, {}, nil
+    T.zombies, T.spawnCalls, T.spawnCap, T.staleOwner = {}, {}, nil, nil
     T.steam = opts.steam or false
     T.nextOnlineId = 0
     T.missing = {}

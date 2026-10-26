@@ -158,6 +158,7 @@ Account = {
   towns = {},                                   -- townId -> true
   achv = {},                                    -- achId -> 最高已解鎖等級
   titles = {}, title = nil,                     -- titleId -> true；目前使用的稱號
+  titleAt = nil,                                -- titleId -> 第一次拿到的伺服器時間（ms）；所有發稱號的地方都走 Store.grantTitle，撤銷時一起刪；設計稿 r13 之前拿到的沒有時間，不回補
   prefs = {},                                   -- 最多 3 個主題 id
   anon = false,                                 -- 玩家自己選匿名
   hidden = nil,                                 -- 管理員移出排行榜：{ reason, actor, at }
@@ -457,7 +458,7 @@ boards[i] = { id = "kills", cat = "combat", stat = "zombie.kills", periods = { "
   goal = { stat, target, progress, minContrib, pts, endsAt, reached } | nil,
   streak = { days, graceUsed, week = { 7 個 "done" | "grace" | "miss" | "" }, today = 1..7（週一＝1，`Clock.weekday`；客戶端金圈標示）, next = { days, pts } | nil },
   newbie = { steps = { … 5 個 bool }, pts } | nil,
-  achv = { [achId] = tier }, titles = { titleId… }, title, prefs = { … }, anon,
+  achv = { [achId] = tier }, titles = { titleId… }, titleAt = { [titleId] = ms } | nil, title, prefs = { … }, anon,
   season = { no, startMs, endsAt, state },
   exchange = { available, enabled, rate, perDay, used, min, queued, hist },   -- hist：排隊中的（新的在前，at＝申請時間）接著 ex.log，合計最多 10 筆；兌換頁的「兌換紀錄」
   events = { { name, theme, mult, endsAt } },
@@ -520,6 +521,7 @@ boards[i] = { id = "kills", cat = "combat", stat = "zombie.kills", periods = { "
 - 開視窗送 `watch {on=true}`，關視窗送 `{on=false}`；打開每日頁或成就頁時送 `seen`。
 - 追蹤面板（`Hud.lua`）：`ISPanel` 衍生、放在最底層（`backMost`：每次 UI 更新引擎都把它移到最底，`UIManager.java:562-568`），所以每個視窗都蓋在它上面，包括比它早建立的物品欄與上次沒關的角色視窗，拖曳時 `ISPanel` 的 `bringToTop` 也一樣；用頁面同一套 canvas 指令繪製（`Draw.renderOps`），資料一變才重排，`render` 只走指令列。預設在原版左側欄右邊（`getPlayerData(0).equipped` 的右緣＋12），會碰到原版物品欄的標題列時（物品欄看得到、左右重疊、物品欄的 y 在面板標題列底線之上）改放在物品欄標題列下面 6 px；拖過的位置與收合狀態用 `ISLayoutManager` 記在 `layout.ini`（拖完或收合就寫）。顯示條件：MOD 選項開、有追蹤項目、角色活著、沒按 V（`ISUIHandler.allUIVisible`）、Esc 選單沒開；任務視窗開著也照樣顯示（使用者 2026-10-24：按「追蹤」要馬上看到），視窗蓋在它上面。每 500 ms 與資料變動時檢查，介面被藏起來時不自己出現。`hello` 時面板開著就送 `track {on=true}`，選項切換時送 on／off。卡片上的「追蹤」chip 送 `pin`；滿 5 個時其他 chip 停用並以 tooltip 說明。
 - 稱號（`Titles.lua`）：`titles` 推送存成 `byUser`。聊天：檔案載入時包住 `ISChat.addLineInChat`（原版在 `OnGameStart` 才把它掛到 `OnAddMessage`，`ISChat.lua:1176`），作者戴著稱號時把訊息換成代理，`getTextWithPrefix()` 在 `[作者]` 後面插入 ` <SPACE> <PUSHRGB:…> 「稱號」 <POPRGB> `（稱號裡的 `<`、`>` 先轉成 `&lt;`、`&gt;`），其他方法轉給原訊息。頭上：每 500 ms 從 `getOnlinePlayers()` 挑 40 格內、有稱號、活著、不在車上的玩家；`OnPreUIDraw` 每幀照原版規則（`IsoGameCharacter.renderlast`／`updateUserName`）檢查後在名字上方一行畫字（黑色陰影＋金色）。兩者都只在多人、伺服器開關 `titles.head`／`titles.chat` 與玩家 MOD 選項都開時生效。
+- 稱號清單（設計稿 r13，2026-10-27）：`Draw.titleSources(achs, cfg, no)` 列出每個稱號與條件（成就各級、連續里程碑、新手、本季名次與各榜第一；各榜第一照 `Seasons` 結算，排除 `@points` 榜與沒有賽季期的榜），每列 `{ id, name, group, cond, ach?, tier?, hidden?, hint?, off?, custom?, alt? }`：`custom` 是管理員換掉預設文字、`alt` 是被換掉的預設 id（之前拿到舊名稱的玩家照樣查得到條件；只記預設 id，改名兩次時中間那個名稱查不到）。`Draw.seasonTitle(id, cfg)` 解析 `s<季數>_<kind>`，榜單已不存在（拿掉的 MOD）時回 nil。管理「稱號」分頁（`AdminTitles.lua`，排在「成就」後面，只能看）傳管理員的草稿視圖（`AdminModel.achievements`，含停用、自訂與還沒套用的修改，門檻乘上草稿的 `difficulty.mult`；其他 MOD 的成就來自 `Client.defs()`，乘的是已套用的倍率），依分類分組，停用的變灰加「（停用）」，隱藏成就多一行玩家看到的提示，已結算的前幾季只寫一行（審核期間 `season.reviewNo` 那季還沒發，不算）。玩家「我的紀錄」在稱號選單下面列「我的稱號」：只列已取得的（服主 2026-10-27 選），來源用 `Client.defs().allAch`（含停用的成就）；同一個 id 有幾個來源時（管理員可以填重複的文字）先用玩家已達成的（`state.achv[ach] >= tier`），其次是其他非隱藏的來源，沒解鎖的隱藏成就不提供條件；都找不到時寫「來源已移除」。`state.titleAt` 新的在前，沒有時間的寫「早期取得」排最後（目錄順序）。
 - 屍潮（伺服器見 §5.10）：管理「屍潮」分頁（`AdminHordes.lua`，排在「城鎮」後面）的狀態來自 `horde.status`，切進分頁、每次操作後與按「重新整理」時讀；設定全走變更草稿與底部「套用」。種類是清單框：比例大於 0 的種類一列（名稱、比例欄、移除；移除內建種類寫 0，其他種類刪鍵、送 `del`，只在草稿裡的（剛加入、還沒套用）從草稿拿掉，不送空變更），其餘已登記的種類在框下的下拉選單（選了草稿寫 10），套用的設定裡有、`horde.status` 沒列出的鍵標「未安裝」、可移除（`del`）；比例寫在 `hordes.kinds.<id>`，維持預設值的欄位不寫成變更；`horde.now`／`horde.stop` 先確認、按下就生效（像限時活動）。手動開始那一列是「預告 [欄位] 分鐘」加開始鈕：欄位預設是套用中的 `hordes.leadMin`，管理員改過就保留；不是 0～120 的整數時標紅、顯示範圍、不送出；套用中的設定沒有地點、地點只在草稿裡時，底列說先按「套用」、不確認也不送（伺服器只看套用的設定，會回 `NO_SPOTS`「請先新增地點」，清單卻看得到剛加的地點；2026-10-26 試玩按了三次）；0 時確認文字改成現在開始。追蹤面板最上面一列是屍潮（預告、等人到場、進行中），不算 5 個追蹤名額、沒有 ×，沒有追蹤項目時有屍潮也顯示，倒數只在文字變了才重排；預告中那列寫倒數與「開始時 x, y 周圍 50 格內有人就出現」。每日頁在限時活動下面放屍潮橫幅（預告、等人到場、進行中，結束後 10 分鐘內的成功／失敗／取消），這頁 30 秒才重畫，所以剩餘時間以分鐘計；預告中的橫幅寫可能出現的種類、座標與 50 格規則，右邊「剩 N」。`delta.hordes` 走通用的整份取代。`HordeMap.lua`：裝了小地圖才作用，地點前後左右各 10 格一塊區域加一個標記，資料變了才重建、其餘時候回同一張表；檔案載入時與 `OnGameStart` 各試一次註冊。
 - 清單框（設計稿 r11，使用者 2026-10-26 選「原版管理員清單」樣式，之後補要「有點顏色交錯」與排行榜、兌換紀錄的表頭）：管理頁與玩家頁的清單都畫成原版管理員清單（`ISSafehousesList.lua:23-31`、`:67-82`）的樣子：直角的 `surface` 底、`border` 外框、表頭帶（`border` 透明度 × 0.3，下緣一條線）、條目之間一條線（× 0.9），每隔一筆整筆上 `hover` 底色（第 2、4、6…筆；一筆可以是好幾列，換行的說明、按鈕列都在同一條色帶裡）。管理頁用 `Flow:list`／`listHead`／`item`／`listEnd`（`AdminPanel.lua`）：框內 `F.ox`／`F.width` 換成框的，各頁的欄位算式不變，自己放位置的按鈕要加 `F.ox`；`F:item()` 記下每筆的上緣，框由頁面 ScrollPanel 的 prerender 在所有子元件底下畫（`A.paintLists`，內容座標，不配置），不是元件，不擋按鈕，ui-mp 的版面檢查也看不到；沒關的框不畫。玩家頁用 Builder 的 `b:list`／`listHead`／`listSep`／`listEnd`（`Draw.lua`）：底色與每筆的色帶先記成指令，下一個 `listSep` 或 `listEnd` 才補高度。
 

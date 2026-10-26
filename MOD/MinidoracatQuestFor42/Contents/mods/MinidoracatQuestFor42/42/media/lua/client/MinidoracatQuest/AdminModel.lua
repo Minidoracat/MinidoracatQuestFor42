@@ -177,7 +177,7 @@ local function achSort(a, b)
 end
 
 -- merged list: built-in (Catalog order) then custom (by id). Each item:
--- { id, cid?, custom, cat, stat, name?, hidden, tiers, pts, titles, path }
+-- { id, cid?, custom, cat, stat, name?, hidden, tiers, pts, titles, defTitles? (built-in: the catalog's), path }
 function AM.achievements(S, catalog)
     local out = {}
     for i, a in ipairs(catalog and catalog.achievements or {}) do
@@ -186,7 +186,7 @@ function AM.achievements(S, catalog)
         out[#out + 1] = { id = a.id, cat = a.cat, stat = a.stat, hidden = a.hidden, order = i, path = base,
             tiers = tiers,
             pts = catalog.fillPts(AM.get(S, base .. ".pts") or a.pts or {}, a.pts, #tiers),
-            titles = AM.get(S, base .. ".titles") or a.titles or {},
+            titles = AM.get(S, base .. ".titles") or a.titles or {}, defTitles = a.titles,
             enabled = AM.get(S, base .. ".enabled") ~= false }
     end
     local ids = {}

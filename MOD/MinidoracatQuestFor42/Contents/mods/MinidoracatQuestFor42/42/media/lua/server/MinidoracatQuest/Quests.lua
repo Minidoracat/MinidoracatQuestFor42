@@ -257,7 +257,7 @@ local function countDay(acc, user, s, day, now, cfg, what)
         if s.days >= m.days and not s.paid[m.days] then
             s.paid[m.days] = true
             MQ.Points.award(acc, user, m.pts, "streak", m.days)
-            if m.title then acc.titles = acc.titles or {}; acc.titles[m.title] = true end
+            if m.title then MQ.Store.grantTitle(acc, m.title) end
             acc.unseen = (acc.unseen or 0) + 1
             MQ.EventLog.write("streak", user, { days = m.days, pts = m.pts })
             MQ.Sync.toast(user, { kind = "streak", days = m.days, pts = m.pts })
@@ -495,7 +495,7 @@ function Q.onNewbieStat(acc, user, stat, delta, opts)
     if not all then return end
     acc.newbie = nil
     MQ.Points.award(acc, user, cfg.newbie.pts, "newbie", "newbie")
-    if cfg.newbie.title then acc.titles = acc.titles or {}; acc.titles[cfg.newbie.title] = true end
+    if cfg.newbie.title then MQ.Store.grantTitle(acc, cfg.newbie.title) end
     acc.unseen = (acc.unseen or 0) + 1
     MQ.Sync.toast(user, { kind = "newbie", pts = cfg.newbie.pts })
 end

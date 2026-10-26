@@ -227,6 +227,42 @@ return function(T)
     T.check(customPath ~= nil and string.match(customPath, "^custom%.c[a-z0-9]+$") ~= nil, "new achievement drafted under custom.<id>")
     A.discard(P)
 
+    T.section("admin ui: the Titles tab lists every title through the draft (plan r13)")
+    T.check(A.TABS[2] == "achv" and A.TABS[3] == "titles", "the Titles tab comes right after Achievements")
+    AM.draftSet(P.S.draft, "achievements.zombie_kills.titles", { [4] = "Undying" })
+    AM.draftSet(P.S.draft, "achievements.zombie_kills.enabled", false)
+    AM.draftSet(P.S.draft, "difficulty.mult", 2)
+    local gtt = getText   -- arguments kept in the text, so the thresholds and the wrapped name can be read
+    getText = function(key, ...)
+        local s = key
+        for i = 1, select("#", ...) do s = s .. "|" .. tostring((select(i, ...))) end
+        return s
+    end
+    A.select(P, "titles")
+    getText = gtt
+    local groupN, offRow, hints = 0, nil, 0
+    for k, el in pairs(pool("titles")) do
+        if el:isVisible() then
+            if string.match(k, "^g%d+$") then groupN = groupN + 1 end
+            if string.match(k, "^h%d+$") then hints = hints + 1 end
+            if string.match(k, "^r%d+$") and string.find(el.cells[1].text, "IGUI_MQ_Admin_Disabled|", 1, true) == 1 then offRow = el end
+        end
+    end
+    local zk
+    for _, a in ipairs(C.achievements) do if a.id == "zombie_kills" then zk = a end end
+    local want = "|" .. Q.Draw.num(Q.Client.scale(zk.tiers, 2, zk.stat)[4])
+    local hiddenTitled = 0
+    for _, a in ipairs(C.achievements) do if a.hidden and a.titles[1] then hiddenTitled = hiddenTitled + 1 end end
+    T.check(groupN >= 4 and hints == hiddenTitled, "grouped rows; each titled hidden achievement shows the players' hint ("
+        .. hints .. "/" .. hiddenTitled .. ")")
+    T.check(offRow ~= nil and offRow.cells[1].token == "textMuted" and offRow.cells[2].token == "textMuted"
+        and string.find(offRow.cells[1].text, "IGUI_MQ_Admin_TitleCustom|IGUI_MQ_Title_Undying", 1, true) ~= nil,
+        "a switched-off, renamed title is listed grey with both marks (draft edits show before Apply)")
+    T.check(offRow ~= nil and string.find(offRow.cells[2].text, want, 1, true) ~= nil,
+        "the condition carries the draft difficulty x2 (" .. want .. "), not the base threshold")
+    T.check(#unclosed == 0, "the Titles list box is closed")
+    A.discard(P)
+
     T.section("admin ui: quick difficulty on Basic")
     A.select(P, "basic")
     pool("basic")["f:rewards.top1"]:setText("700")

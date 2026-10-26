@@ -200,7 +200,7 @@ local function achEntry(src, d, id, kind, mult)
     local pts = Q.Catalog.fillPts(d.pts or src.pts or {}, src.pts, #base)
     return {
         id = id, kind = kind, cat = src.cat, stat = src.stat, base = base, tiers = C.scale(base, mult, src.stat),
-        pts = pts, titles = d.titles or src.titles or {},
+        pts = pts, titles = d.titles or src.titles or {}, defTitles = src.titles,
         icon = src.icon, hidden = src.hidden == true, hint = src.hint, scope = src.scope,
         name = src.name, nameKey = src.nameKey, descKey = src.descKey,
     }
@@ -213,11 +213,14 @@ function C.defs()
     local Cat = Q.Catalog or {}
     local push = C.catalog or {}
     local cfg = C.merge(Cat.DEFAULTS or {}, type(push.overrides) == "table" and push.overrides or nil) or {}
-    local d = { cfg = cfg, achievements = {}, achById = {}, stats = {}, daily = {}, weekly = {}, boards = {},
+    -- allAch: every achievement, the switched-off ones too (off = true): owned titles still name their source
+    local d = { cfg = cfg, achievements = {}, achById = {}, allAch = {}, stats = {}, daily = {}, weekly = {}, boards = {},
         boardById = {}, packs = type(push.packs) == "table" and push.packs or {} }
     for id, s in pairs(Cat.stats or {}) do d.stats[id] = s end
-    local function addAch(a)
-        if d.achById[a.id] == nil then
+    local function addAch(a, off)
+        a.off = off or nil
+        d.allAch[#d.allAch + 1] = a
+        if not off and d.achById[a.id] == nil then
             d.achievements[#d.achievements + 1] = a
             d.achById[a.id] = a
         end
@@ -227,14 +230,14 @@ function C.defs()
     local cfgAch = type(cfg.achievements) == "table" and cfg.achievements or {}
     for _, a in ipairs(Cat.achievements or {}) do
         local o = cfgAch[a.id]
-        if not (type(o) == "table" and o.enabled == false) then addAch(achEntry(a, o, a.id, "builtin", mult)) end
+        addAch(achEntry(a, o, a.id, "builtin", mult), type(o) == "table" and o.enabled == false)
     end
     local custom = type(cfg.custom) == "table" and cfg.custom or {}
     for _, cid in ipairs(sortedKeys(custom)) do
         local c = custom[cid]
-        if type(c) == "table" and c.enabled ~= false and type(c.tiers) == "table" and #c.tiers > 0 then
+        if type(c) == "table" and type(c.tiers) == "table" and #c.tiers > 0 then
             local id = string.sub(cid, 1, 2) == "c:" and cid or ("c:" .. cid)
-            addAch(achEntry(c, nil, id, "custom", mult))
+            addAch(achEntry(c, nil, id, "custom", mult), c.enabled == false)
         end
     end
     for _, pack in ipairs(d.packs) do
@@ -243,7 +246,7 @@ function C.defs()
             for _, a in ipairs(type(pack.achievements) == "table" and pack.achievements or {}) do
                 if type(a) == "table" and type(a.id) == "string" then
                     local o = cfgAch[a.id]
-                    if not (type(o) == "table" and o.enabled == false) then addAch(achEntry(a, o, a.id, "pack", mult)) end
+                    addAch(achEntry(a, o, a.id, "pack", mult), type(o) == "table" and o.enabled == false)
                 end
             end
             -- facade quests carry their own nameKey (API.lua stores it; Sync.catalog sends pack.quests)

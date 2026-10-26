@@ -112,6 +112,16 @@ local function newAccount(t, sno)
     return acc
 end
 
+-- Every title grant goes through here: titleAt keeps the first grant time (titles granted before
+-- titleAt existed have none and stay without one).
+function St.grantTitle(acc, id)
+    acc.titles = acc.titles or {}
+    if acc.titles[id] then return end
+    acc.titles[id] = true
+    acc.titleAt = acc.titleAt or {}
+    acc.titleAt[id] = now()
+end
+
 -- C30: season fields reset lazily when the account belongs to an older season
 local function lazySeason(acc)
     local no = St.rootT.season.no

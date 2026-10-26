@@ -1,6 +1,7 @@
--- MinidoracatQuest/PageRecords.lua: my records (spec 16): title picker (unlocked titles), points card (balance,
---   season, all-time) and the statistics table (season / this life / all-time) from the records query, with
---   loading and timeout states. Exchanging and its history have their own page (PageExchange, user 2026-10-24).
+-- MinidoracatQuest/PageRecords.lua: my records (spec 16): title picker (unlocked titles), my titles (each with what
+--   earned it and when, plan r13), points card (balance, season, all-time) and the statistics table (season / this
+--   life / all-time) from the records query, with loading and timeout states. Exchanging and its history have their
+--   own page (PageExchange, user 2026-10-24).
 
 if isServer() then return end
 
@@ -66,6 +67,84 @@ local function titleRow(b, page, x, y, w, s)
         btns[#btns + 1] = btn
     end
     return D.placeRow(btns, x + lw + 8, y, x + w) + GAP
+end
+
+-- ===== my titles (plan r13; the owner chose owned titles only, 2026-10-27) =====
+-- newest first; titles from before titleAt existed have no time ("early") and follow in catalog order
+local function myTitles(b, page, x, y, w, s)
+    local owned = type(s.titles) == "table" and s.titles or {}
+    y = b:header(x, y, x + w, getText("IGUI_MQ_UI_MyTitles", tostring(#owned)))
+    local L = b:list(x, y, w)
+    if #owned == 0 then
+        return b:listEnd(L, b:para(x + 8, y + 6, getText("IGUI_MQ_UI_MyTitlesEmpty"), w - 16, "textMuted") + 4) + GAP
+    end
+    local defs = C.defs()
+    local no = type(s.season) == "table" and tonumber(s.season.no) or 1
+    -- a title id can come from several sources (admins may reuse a text): first the sources this player reached,
+    -- then any other one except hidden achievements, which stay secret until unlocked (PageAchievements rule)
+    local achv = type(s.achv) == "table" and s.achv or {}
+    local sources = D.titleSources(defs.allAch, defs.cfg, no)
+    local byId, order = {}, {}
+    for pass = 1, 2 do
+        for i, r in ipairs(sources) do
+            local reached = r.ach == nil or (tonumber(achv[r.ach]) or 0) >= r.tier
+            if (pass == 1 and reached) or (pass == 2 and not reached and not r.hidden) then
+                for _, id in ipairs({ r.id, r.alt }) do
+                    if byId[id] == nil then byId[id], order[id] = r, i end
+                end
+            end
+        end
+    end
+    local at = type(s.titleAt) == "table" and s.titleAt or {}
+    local hName, hCond, hGot = getText("IGUI_MQ_UI_TitleLabel"), getText("IGUI_MQ_UI_ColCond"), getText("IGUI_MQ_UI_ColGot")
+    local worn = getText("IGUI_MQ_UI_TitleWorn")
+    local nameW, timeW = D.textW(hName), D.textW(hGot)
+    local rows = {}
+    for _, id in ipairs(owned) do
+        local src = byId[id] or D.seasonTitle(id, defs.cfg)
+        local r = { name = D.titleText(id), cond = src and src.cond or getText("IGUI_MQ_UI_TitleNoSource"),
+            at = tonumber(at[id]), order = order[id] or #owned + 1e6, worn = id == s.title }
+        r.time = r.at and D.ymd(r.at) or getText("IGUI_MQ_UI_TitleEarly")
+        nameW, timeW = math.max(nameW, D.textW(r.name), r.worn and D.textW(worn) or 0), math.max(timeW, D.textW(r.time))
+        rows[#rows + 1] = r
+    end
+    Q.Util.sort(rows, function(p, q)
+        if (p.at ~= nil) ~= (q.at ~= nil) then return p.at ~= nil end
+        if p.at ~= q.at then return p.at > q.at end
+        return p.order < q.order
+    end)
+    nameW = math.min(nameW, math.floor(w * 0.35))
+    local lh = D.fontH()
+    local condX = x + 8 + nameW + 12
+    local condW = x + w - 8 - timeW - 12 - condX
+    local rh = lh + 8
+    b:listHead(L, rh)
+    b:fitText(x + 8, y + 4, hName, nameW, "text")
+    b:fitText(condX, y + 4, hCond, condW, "text")
+    b:textRight(x + w - 8, y + 4, hGot, "text")
+    y = y + rh
+    for i, r in ipairs(rows) do
+        if i > 1 then b:listSep(L, y) end
+        local names = D.wrap(b.UI, r.name, nameW, UIFont.Small)   -- admin-typed titles can be long
+        local conds = D.wrap(b.UI, r.cond, condW, UIFont.Small)
+        local ny = y + 4
+        for _, l in ipairs(names) do
+            b:text(x + 8, ny, l, "text")
+            ny = ny + lh + 2
+        end
+        if r.worn then
+            b:text(x + 8, ny, worn, "success")
+            ny = ny + lh + 2
+        end
+        local cy = y + 4
+        for _, l in ipairs(conds) do
+            b:text(condX, cy, l, "text")
+            cy = cy + lh + 2
+        end
+        b:textRight(x + w - 8, y + 4, r.time, r.at and "text" or "textFaint")
+        y = math.max(ny, cy) + 2
+    end
+    return b:listEnd(L, y) + GAP
 end
 
 -- ===== points card =====
@@ -180,6 +259,7 @@ function P.layout(page)
         return
     end
     y = titleRow(b, page, x, y, w, s)
+    y = myTitles(b, page, x, y, w, s)
     y = pointsCard(b, page, x, y, w, s)
     -- what the one-time import (Achievements Import.baseline) brought over from before the MOD was added
     y = b:para(x, y - 2, getText("IGUI_MQ_UI_ImportNote"), w, "textMuted") + GAP

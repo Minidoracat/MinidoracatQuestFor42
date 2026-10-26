@@ -207,6 +207,8 @@ Once the server has automatic hordes on or has had a horde, a "Hordes" page appe
 [list]
 [*] [b]Earned from[/b]: top achievement tiers, hidden achievements, a 30-day streak, newcomer quests and season rewards.
 [*] [b]Use one[/b]: pick one on the My records page (one at a time, or none). A server-wide notice names the title that unlock earned.
+[*] [b]My titles[/b]: My records lists every title you have, how you got it and when, newest first; the one you use says "In use". Times are recorded from the version that added this list; titles you got before show "Early".
+[*] [b]All titles for admins[/b]: the admin panel's read-only Titles tab lists every title and what earns it; titles of switched-off achievements show "(off)", changed text "(custom)", and hidden achievements add the hint players see. To change a title's text, press Edit on the Achievements tab.
 [*] [b]Where it shows[/b]: next to your name on leaderboards, one line above your name over your head, and after your name in chat (gold, multiplayer only).
 [*] [b]When the head title is hidden[/b]: it follows the vanilla name rules: hidden when the server does not show names, when the player is invisible or disguised, or out of sight; when the server shows names only on mouse-over, the title also shows only when you point at that player. It steps aside while the player speaks or sits in a vehicle. Your own title follows the vanilla option Options > Multiplayer > Show your username.
 [*] [b]Turn them off[/b]: Options > MODS > Quests & Achievements has separate ticks for head and chat titles; the host can also turn each off for everyone in the admin panel.
@@ -289,6 +291,7 @@ Once the server has automatic hordes on or has had a horde, a "Hordes" page appe
 [h3]Titles[/h3]
 [list]
 [*] [b]Pick a title[/b]: the title menu at the top of the page; choose "No title" to remove it.
+[*] [b]My titles[/b]: the list under the title menu: every title you have, how you got it and when.
 [/list]
 === 🧰 Exchanging for Survivor Coins
 {{img:06-exchange-en.jpg}}
@@ -360,7 +363,7 @@ The sandbox page "Minidoracat Quests & Achievements" has three options; everythi
 Open "Admin" on the left of the window (its own group at the bottom of the list); only roles listed in the "Admin roles" sandbox option see it, and the server checks every action again.
 [h3]How changes work[/h3]
 [list]
-[*] [b]Tabs[/b]: settings come first (General, Achievements, Quests, Season, Exchange, Towns, Hordes); after the divider come operations (Players, Report, Balance, History). For Hordes see "Hordes".
+[*] [b]Tabs[/b]: settings come first (General, Achievements, Titles, Quests, Season, Exchange, Towns, Hordes); after the divider come operations (Players, Report, Balance, History). For Hordes see "Hordes".
 [*] [b]Draft first[/b]: edits go into pending changes; press "Apply" at the bottom to see old and new values, then confirm. "Discard changes" asks before it discards.
 [*] [b]Instant buttons[/b]: timed events, horde start/cancel/stop, the payout review and account actions skip that confirmation; those sections say so.
 [*] [b]Unlocks are kept[/b]: higher thresholds only affect what comes next.

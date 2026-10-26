@@ -127,12 +127,11 @@ local function broadcastable(cfg, d, tier)
 end
 
 local function unlock(acc, user, d, from, to, quiet, cfg, now, noBroadcast)
-    acc.titles = acc.titles or {}
     for t = from + 1, to do
         local pts = d.pts[t] or 0
         if pts > 0 then MQ.Points.award(acc, user, pts, quiet and "import" or "achv", d.id .. ":" .. t) end
         local title = d.titles[t]
-        if title then acc.titles[title] = true end
+        if title then MQ.Store.grantTitle(acc, title) end
         if not quiet then
             acc.unseen = (acc.unseen or 0) + 1
             MQ.EventLog.write("achv", user, { id = d.id, tier = t, pts = pts })
@@ -204,6 +203,7 @@ function A.revoke(user, achId, toTier, reason, actor)
         local title = d.titles[t]
         if title and acc.titles then
             acc.titles[title] = nil
+            if acc.titleAt then acc.titleAt[title] = nil end
             if acc.title == title then acc.title = nil end
         end
     end

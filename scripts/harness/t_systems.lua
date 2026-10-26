@@ -200,6 +200,11 @@ return function(T)
         before = acc.points.season
         T.check(finish(Q, "alice", w) and acc.points.season - before >= w.pts, "weekly quest pays")
         T.check(bal ~= nil and twoQuests > 0, "points accrue")
+        nextDay(Q, acc, "alice")
+        acc.streak.days = 29
+        completeDay(Q, acc, "alice", 3)
+        T.check(acc.streak.days == 30 and acc.titles.streak_30 == true and acc.titleAt and acc.titleAt.streak_30 ~= nil
+            and acc.titleAt.streak_30 <= T.now, "the 30-day milestone gives its title and records the time")
     end)
 
     section("shared quest, community goal, newbie, events", function()
@@ -230,6 +235,8 @@ return function(T)
         T.check(accA.newbie == nil, "veteran (24h+) skips newbie")
         for _, step in ipairs(Q.Catalog.newbie) do push(Q, "dave", step.stat, step.target) end
         T.check(accD.newbie == nil and accD.titles.newbie == true and accD.points.total >= 100, "newbie completes with title")
+        T.check(type(accD.titleAt) == "table" and accD.titleAt.newbie ~= nil and accD.titleAt.newbie <= T.now,
+            "the newbie title records when it came (titleAt, plan r13)")
 
         local r = admin(b, "event.add", { name = "x", theme = "all", mult = 2, startMs = T.now - 1000, endMs = T.now + DAY })
         T.check(r and r.code == "FORBIDDEN", "non-admin event.add refused")
@@ -337,6 +344,11 @@ return function(T)
         T.check(acc.achv.skill_axe == 3 and not (acc.titles or {}).skill_axe_4, "level 7: tier III, no title yet")
         Q.Stats.max("alice", "level.Axe", 8)
         T.check(acc.achv.skill_axe == 4 and acc.titles.skill_axe_4 == true, "level 8: tier IV gives the title")
+        local at4 = acc.titleAt and acc.titleAt.skill_axe_4
+        T.check(at4 == T.now, "the tier IV title records the grant time")
+        T.advance(5000)
+        Q.Store.grantTitle(acc, "skill_axe_4")
+        T.check(acc.titleAt.skill_axe_4 == at4, "granting an owned title again keeps the first time")
         local pts0, nTitles = acc.points.total, count(acc.titles)
         Q.Stats.max("alice", "level.Axe", 10)
         T.check(acc.achv.skill_axe == 5 and acc.points.total - pts0 == 80 and count(acc.titles) == nTitles,
@@ -356,6 +368,8 @@ return function(T)
         cmd(b, "hello")
         T.check(accB.achv.skill_cooking == 5 and accB.achv.towns == 4 and accB.titles.towns_4 == true,
             "login catch-up: the tiers the new defaults give")
+        T.check(accB.titleAt and accB.titleAt.towns_4 ~= nil and accB.titleAt.towns_4 <= T.now and accB.titleAt.skill_cooking_4 == nil,
+            "a quiet catch-up title gets a time; a title owned before titleAt existed stays without one")
         T.check(accB.points.total - p0 == 80 + 50 and accB.points.season - season0 == 80 + 50,
             "catch-up pays only the new tiers, as normal achievement points")
         local bcast = 0
@@ -530,6 +544,8 @@ return function(T)
         T.check(accB.points.balance == balB, "excluded account gets nothing")
         T.check(dC >= 400 and dC < 450 and accC.titles.s1_top3 == true, "rank 2 (after exclusion): top3, no participation")
         T.check(accC.titles.s1_first_kills == true, "category #1 title")
+        T.check(accA.titleAt.s1_top1 ~= nil and accC.titleAt.s1_top3 ~= nil and accC.titleAt.s1_first_kills ~= nil,
+            "season rank and board-first titles record the grant time")
         T.check(Q.Store.root().seasons[1].no == 1 and Q.Store.root().seasons[1].top[1].user == "alice", "history kept")
         T.check(Q.Store.account("alice").points.season >= 50, "review-period points survive the payout")
         T.check(accA.points.total >= 700, "season rewards do not touch lifetime")
@@ -729,7 +745,12 @@ return function(T)
         local first = T.sentTo(c, "titles")[1]
         T.check(first and first.full and first.map.bob == worn and T.lastOf(a, "titles").u == "carol",
             "logging in brings the worn titles of everyone online; the others get the newcomer's entry")
+        local at = acc.titleAt and acc.titleAt[worn]
+        local st = Q.Sync.state("bob", acc)
+        T.check(at ~= nil and st.titleAt[worn] == at and type(st.titles[1]) == "string",
+            "state carries titleAt next to the unchanged titles id list")
         r = admin(a, "achv.revoke", { user = "bob", achId = "zombie_kills", tier = 0, reason = "test" })
+        T.check(acc.titles[worn] == nil and acc.titleAt[worn] == nil, "a revoke drops the title and its time")
         local told = T.lastOf(c, "titles")
         T.check(r and r.ok and acc.title == nil and told.u == "bob" and told.t == nil, "a revoked title comes off for everyone")
         T.clearOutbox()

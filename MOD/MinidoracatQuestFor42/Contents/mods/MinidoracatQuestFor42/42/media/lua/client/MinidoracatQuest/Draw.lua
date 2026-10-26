@@ -178,6 +178,79 @@ function D.achHint(a)
     return getText("IGUI_MQ_UI_AchHintGeneric")
 end
 
+-- ===== titles (plan r13): every title and what earns it; the admin Titles tab and "My titles" on Records =====
+local RANK_KEY = { top1 = "IGUI_MQ_UI_RewardTop1", top3 = "IGUI_MQ_UI_RewardTop3", top10 = "IGUI_MQ_UI_RewardTop10" }
+local RANKS = { "top1", "top3", "top10" }
+
+-- "s<no>_top1" / "s<no>_first_<board>" (Seasons.lua pay) -> a row; nil for any other id or a board no longer
+-- defined (a removed pack's): the caller shows "source removed" instead of a raw key
+function D.seasonTitle(id, cfg)
+    local no, kind = string.match(id, "^s(%d+)_(.+)$")
+    if no == nil then return nil end
+    local board = string.match(kind, "^first_(.+)$")
+    local cond
+    if board ~= nil then
+        local b = C.defs().boardById[board]
+        if b == nil then return nil end
+        cond = getText("IGUI_MQ_UI_TitleCondFirst", no, b.nameKey ~= nil and getText(b.nameKey) or getText("IGUI_MQ_Board_" .. board))
+    elseif RANK_KEY[kind] ~= nil then
+        cond = getText("IGUI_MQ_UI_TitleCondRank", no, getText(RANK_KEY[kind]))
+    else
+        return nil
+    end
+    local rw = type(cfg.rewards) == "table" and cfg.rewards or {}
+    return { id = id, name = D.titleText(id), group = "season", cond = cond,
+        off = board ~= nil and rw.firstTitles == false or nil }
+end
+
+local function seasonBoard(b)
+    if b.stat == "@points" then return false end   -- its #1 is the season's top1 (Seasons.lua freeze)
+    for _, p in ipairs(type(b.periods) == "table" and b.periods or {}) do
+        if p == "season" then return true end
+    end
+    return false
+end
+
+-- achs: achievement entries as C.defs builds them (the admin passes its draft view): id, kind, cat, hidden, tiers,
+-- titles, defTitles (the titles before admin edits), off; cfg: streak, newbie, rewards; no: the season number.
+-- Rows in catalog order: { id, name, group, cond, ach?, tier?, hidden?, hint?, off?, custom?, alt? }. ach / tier:
+-- the source achievement and tier; custom: the admin replaced the default text; alt: that default id, so a player
+-- who got it before the edit still finds the condition.
+function D.titleSources(achs, cfg, no)
+    local out = {}
+    for _, a in ipairs(achs) do
+        for t = 1, #a.tiers do
+            local id = a.titles[t]
+            if id ~= nil then
+                local def = a.defTitles and a.defTitles[t]
+                local desc = D.achDesc(a, t)
+                out[#out + 1] = { id = id, name = D.titleText(id), group = a.kind == "custom" and "custom" or a.cat,
+                    cond = #a.tiers == 1 and getText("IGUI_MQ_UI_TitleCondOne", D.achName(a), desc)
+                        or getText("IGUI_MQ_UI_TitleCond", D.achName(a), D.tierName(t), desc),
+                    ach = a.id, tier = t, hidden = a.hidden or nil, hint = a.hidden and D.achHint(a) or nil, off = a.off,
+                    custom = a.defTitles ~= nil and def ~= id or nil, alt = def ~= id and def or nil }
+            end
+        end
+    end
+    local sk = type(cfg.streak) == "table" and cfg.streak or {}
+    for _, m in ipairs(type(sk.milestones) == "table" and sk.milestones or {}) do
+        if m.title ~= nil then
+            out[#out + 1] = { id = m.title, name = D.titleText(m.title), group = "other",
+                cond = getText("IGUI_MQ_UI_TitleCondStreak", tostring(m.days), tostring(sk.need or 3)) }
+        end
+    end
+    local nb = type(cfg.newbie) == "table" and cfg.newbie or {}
+    if nb.title ~= nil then
+        out[#out + 1] = { id = nb.title, name = D.titleText(nb.title), group = "other",
+            cond = getText("IGUI_MQ_UI_TitleCondNewbie", tostring(nb.days or 7)), off = nb.enabled == false or nil }
+    end
+    for _, k in ipairs(RANKS) do out[#out + 1] = D.seasonTitle("s" .. no .. "_" .. k, cfg) end
+    for _, b in ipairs(C.defs().boards) do
+        if seasonBoard(b) then out[#out + 1] = D.seasonTitle("s" .. no .. "_first_" .. b.id, cfg) end
+    end
+    return out
+end
+
 -- quest name with arg as %1 (a number, or a range on the Settings quest list)
 function D.questText(tid, arg)
     local t = C.defs().daily[tid]
@@ -219,6 +292,12 @@ end
 function D.date(ms)
     local _, m, d, _, _, wd = D.civil(ms)
     return getText("IGUI_MQ_UI_Date", tostring(m), tostring(d), getText("IGUI_MQ_UI_Weekday_" .. wd))
+end
+
+-- full date with the year (a title list spans seasons)
+function D.ymd(ms)
+    local y, m, d = D.civil(ms)
+    return getText("IGUI_MQ_UI_DateYMD", tostring(y), string.format("%02d", m), string.format("%02d", d))
 end
 
 function D.clock(ms)

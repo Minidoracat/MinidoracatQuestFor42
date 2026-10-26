@@ -57,7 +57,7 @@ function Y.state(user, acc)
         v = 1, user = user, admin = adminOf(user), now = now,
         dayKey = K.dayKey(now), resetAt = K.nextResetMs(now), weekKey = K.weekKey(now), weekResetAt = K.weekResetMs(now),
         points = { season = acc.points.season, total = acc.points.total, balance = acc.points.balance },
-        achv = acc.achv, titles = titles, title = acc.title, prefs = acc.prefs, anon = acc.anon == true,
+        achv = acc.achv, titles = titles, titleAt = acc.titleAt, title = acc.title, prefs = acc.prefs, anon = acc.anon == true,
         unseen = acc.unseen or 0, pins = acc.pins or {}, trk = Y.trk(acc),
     }
     for _, part in ipairs(Y.PARTS) do

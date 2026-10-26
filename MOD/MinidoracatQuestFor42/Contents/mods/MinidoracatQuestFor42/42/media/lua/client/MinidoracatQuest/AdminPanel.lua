@@ -1,6 +1,6 @@
 -- MinidoracatQuest/AdminPanel.lua: admin page shell inside the quest window (ARCHITECTURE.md 6.2, 7; spec 13).
 -- Sub-tabs + one ScrollPanel per tab + bottom bar (pending draft, preview, reload, status). Pages register
--- in A.pages (AdminAchv.lua, AdminPages.lua, AdminHordes.lua). Every config edit goes into a local draft first and is only
+-- in A.pages (AdminAchv.lua, AdminTitles.lua, AdminPages.lua, AdminHordes.lua). Every config edit goes into a local draft first and is only
 -- applied through cfg.preview -> "Apply changes?" view -> cfg.apply. The server re-checks everything.
 -- Host contract (QuestClientUI): ClientUI.registerAdminPage(spec); spec.show(host)/hide()/resize(w, h)/onReply(p);
 -- host = { UI, theme, parent, x, y, width, height, D = MinidoracatQuest.Draw }; Client.send("admin", args, cb).
@@ -16,7 +16,7 @@ MQ.Admin = A
 local AM = MQ.AdminModel
 
 -- settings first (Basic is the guided first page), then the operations tabs from A.TAB_BREAK on
-A.TABS = { "basic", "achv", "quests", "season", "exchange", "towns", "hordes", "players", "report", "balance", "history" }
+A.TABS = { "basic", "achv", "titles", "quests", "season", "exchange", "towns", "hordes", "players", "report", "balance", "history" }
 A.TAB_BREAK = "players"
 A.pages = A.pages or {}   -- id -> { layout = fn(P, pg, F), load = fn(P, pg)? }
 A.PAD, A.GAP = 10, 6

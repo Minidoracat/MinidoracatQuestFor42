@@ -446,6 +446,63 @@ return function(T)
     MQ.PageRecords.layout(W.pages.records)
     check(drew(W.pages.records, "IGUI_MQ_UI_ImportNote"), "records page draws the import note")
 
+    T.section("client UI: the shared title list and My titles on Records (plan r13)")
+    local function rowOf(rows, id)
+        for _, r in ipairs(rows) do if r.id == id then return r end end
+        return nil
+    end
+    local rows = D.titleSources(C.defs().allAch, C.defs().cfg, 3)
+    local axe, unarmed = rowOf(rows, "skill_axe_4"), rowOf(rows, "h_unarmed")
+    check(axe and axe.group == "skill" and axe.cond == "IGUI_MQ_UI_TitleCond" and not axe.custom and not axe.off and axe.hint == nil,
+        "an achievement title: its category, the tier condition, no flags")
+    check(unarmed and unarmed.group == "hidden" and unarmed.cond == "IGUI_MQ_UI_TitleCondOne" and unarmed.hint ~= nil,
+        "a hidden achievement's title carries the hint the players see")
+    check(rowOf(rows, "streak_30").group == "other" and rowOf(rows, "newbie").group == "other"
+        and rowOf(rows, "s3_top1").group == "season" and rowOf(rows, "s3_first_kills") ~= nil
+        and rowOf(rows, "s3_first_points") == nil and rowOf(rows, "s3_first_skill_total") == nil,
+        "streak, newbie and this season's titles; no board-first for the points board or a total-only board")
+    -- h_unarmed (hidden, not unlocked by this player) given the newbie title's id: an admin may reuse a text
+    push("catalog", { rev = 4, overrides = { achievements = { skill_axe = { enabled = false, titles = { [4] = "Axeman" } },
+        h_unarmed = { titles = { [1] = "newbie" } } }, rewards = { firstTitles = false } }, packs = {} })
+    rows = D.titleSources(C.defs().allAch, C.defs().cfg, 3)
+    local renamed = rowOf(rows, "Axeman")
+    check(C.defs().achById.skill_axe == nil and renamed and renamed.off and renamed.custom and renamed.alt == "skill_axe_4"
+        and rowOf(rows, "s3_first_kills").off and not rowOf(rows, "s3_top1").off,
+        "switched off and renamed: still listed, flagged, with the default id; board-first titles off with the switch")
+    check(D.seasonTitle("s1_first_gone_board", C.defs().cfg) == nil and D.seasonTitle("s1_top3", C.defs().cfg) ~= nil,
+        "a board-first title of a board no longer defined (a removed pack) has no source row")
+    local st = C.state
+    local st0 = { titles = st.titles, titleAt = st.titleAt, title = st.title }
+    st.titles = { "newbie", "s3_top1", "skill_axe_4", "s1_first_kills", "gone_title" }
+    st.titleAt = { s3_top1 = now - 1000, s1_first_kills = now - 5000 }
+    st.title = "skill_axe_4"
+    local rp = W.pages.records
+    MQ.PageRecords.layout(rp)
+    local order = { "IGUI_MQ_Title_season_top1", "IGUI_MQ_Title_season_first_kills", "IGUI_MQ_Title_skill_axe_4",
+        "IGUI_MQ_Title_newbie", "IGUI_MQ_Title_gone_title" }
+    local prev, sorted = 0, true
+    for _, s in ipairs(order) do
+        local i = opIndex(rp, s)
+        if i == nil or i <= prev then sorted = false end
+        prev = i or prev
+    end
+    check(sorted, "My titles: newest first, then the ones without a time in catalog order, an unknown one last")
+    check(drew(rp, "IGUI_MQ_UI_MyTitles") and drew(rp, "IGUI_MQ_UI_DateYMD") and drew(rp, "IGUI_MQ_UI_TitleEarly")
+        and drew(rp, "IGUI_MQ_UI_TitleWorn") and drew(rp, "IGUI_MQ_UI_TitleNoSource"),
+        "dates with the year, early for no time, the worn one marked, a removed source said so")
+    check(drew(rp, "IGUI_MQ_UI_TitleCondNewbie") and not drew(rp, "IGUI_MQ_UI_TitleCondOne"),
+        "a title id shared with a hidden achievement the player has not unlocked shows the reached source, not the secret")
+    check(opIndex(rp, "IGUI_MQ_UI_MyTitles") < opIndex(rp, "IGUI_MQ_UI_Balance"), "the list sits above the points card")
+    st.achv.h_unarmed = 1
+    MQ.PageRecords.layout(rp)
+    check(drew(rp, "IGUI_MQ_UI_TitleCondOne"), "once the player unlocked that hidden achievement, it is the source shown")
+    st.achv.h_unarmed = nil
+    st.titles = {}
+    MQ.PageRecords.layout(rp)
+    check(drew(rp, "IGUI_MQ_UI_MyTitlesEmpty"), "no titles: the box says how to get one")
+    st.titles, st.titleAt, st.title = st0.titles, st0.titleAt, st0.title
+    push("catalog", { rev = 5, overrides = {}, packs = {} })
+
     T.section("client UI: the player Hordes page (design r12)")
     check(not MQ.PageHordes.shown(), "no hordes part: the page is not in the nav")
     local PA = MQ.PageAchievements

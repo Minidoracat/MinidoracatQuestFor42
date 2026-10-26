@@ -135,7 +135,7 @@ Once the server has automatic hordes on or has had a horde, a "Hordes" page appe
 [*] [b]Pool[/b]: zombies spawned × points per zombie (5 by default).
 [*] [b]Split[/b]: the admin picks "Split by kill share" (default, at least 1 point each) or "Full pool to everyone with a kill".
 [*] [b]Where it counts[/b]: season, all-time and balance, so it can be exchanged.
-[*] [b]Horde achievements[/b]: the "Hordes" category on the achievements page: hordes cleared, horde kills and top killer (cleared hordes with 2 or more players, ties count for all), five tiers each. The first horde you help clear also unlocks a hidden achievement and the title "Horde Hunter".
+[*] [b]Horde achievements[/b]: once the server has automatic hordes on or has had a horde, the achievements page gets a "Hordes" category: hordes cleared, horde kills and top killer (cleared hordes with 2 or more players, ties count for all), five tiers each. The first horde you help clear also unlocks a hidden achievement and the title "Horde Hunter".
 [*] [b]Kills still count[/b]: horde kills count for kill stats, quests and achievements as usual.
 [/list]
 [h3]Failing[/h3]
@@ -174,7 +174,7 @@ Once the server has automatic hordes on or has had a horde, a "Hordes" page appe
 [tr][td]Farming & Wilds[/td][td]Planting, harvesting, fishing, foraging, trapping, butchering, milking, shearing, collecting eggs, chopping trees[/td][/tr]
 [tr][td]Exploration[/td][td]Towns visited, walking, driving, reading, placing furniture[/td][/tr]
 [tr][td]Quests[/td][td]Daily, weekly, longest streak, server goals, seasons joined, achievement tiers[/td][/tr]
-[tr][td]Hordes[/td][td]Hordes cleared, horde kills, top killer (only on servers that run hordes)[/td][/tr]
+[tr][td]Hordes[/td][td]Hordes cleared, horde kills, top killer (listed only on servers that run hordes)[/td][/tr]
 [tr][td]Hidden[/td][td]17 achievements, only a hint until unlocked[/td][/tr]
 [tr][td]Professions[/td][td]None built in; other mods add them through the API[/td][/tr]
 [/table]

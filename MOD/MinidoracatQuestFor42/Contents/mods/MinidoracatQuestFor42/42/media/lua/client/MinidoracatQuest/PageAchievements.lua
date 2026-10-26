@@ -2,6 +2,7 @@
 --   with unlocked/total each (categories without achievements are hidden), one card per achievement: icon with a
 --   tier-colored frame, tier badge in text and color, next tier with threshold and points, progress bar from the
 --   records totals (scope "life" reads the this-life column); hidden achievements show only their hint until unlocked.
+--   The horde category only where hordes run (state.hordes.on, the rule of the Hordes page; user 2026-10-26).
 --   Icons: media/ui/MinidoracatQuest/ach/<icon>.png, missing -> framework icon tinted with the tier color.
 
 if isServer() then return end
@@ -31,6 +32,18 @@ function P.model(a, tier, row)
     end
     if row ~= nil then m.value = tonumber(a.scope == "life" and row.life or row.total) or 0 end
     return m
+end
+
+-- the achievements this page lists: without hordes on this server the horde ones cannot be earned, so they stay out
+-- of the cards, the chips and the counts (the catalog keeps them: toasts and the admin pages still find them)
+function P.visible(defs)
+    local H = Q.PageHordes
+    if H == nil or H.shown() then return defs end
+    local list = {}
+    for _, a in ipairs(defs.achievements) do
+        if a.cat ~= "horde" then list[#list + 1] = a end
+    end
+    return { achievements = list }
 end
 
 -- categories that have at least one achievement, in catalog order (extras appended)
@@ -163,7 +176,7 @@ function P.layout(page)
     local w = D.contentW(page) - 2 * PAD
     local x, y = PAD, PAD
     local s = C.state
-    local defs = C.defs()
+    local defs = P.visible(C.defs())
     local achv = s and type(s.achv) == "table" and s.achv or {}
     local got, total, byCat = P.counts(defs, achv)
     y = b:header(x, y, x + w, getText("IGUI_MQ_UI_Achievements"),

@@ -448,8 +448,18 @@ return function(T)
 
     T.section("client UI: the player Hordes page (design r12)")
     check(not MQ.PageHordes.shown(), "no hordes part: the page is not in the nav")
+    local PA = MQ.PageAchievements
+    local function hordeCat(defs)
+        for _, c in ipairs(PA.categories(defs)) do if c == "horde" then return true end end
+        return false
+    end
+    local _, allN = PA.counts(C.defs(), {})
+    local _, offN = PA.counts(PA.visible(C.defs()), {})
+    check(hordeCat(C.defs()) and not hordeCat(PA.visible(C.defs())) and offN == allN - 3,
+        "hordes off: the achievements page leaves out the horde category and its 3 from the count")
     C.state.hordes = { on = true }
     check(MQ.PageHordes.shown(), "on: the page is in the nav")
+    check(hordeCat(PA.visible(C.defs())), "on: the horde achievements are listed")
     local gtH = getText
     getText = function(key, ...)
         local s = key

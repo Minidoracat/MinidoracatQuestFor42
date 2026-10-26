@@ -1,5 +1,5 @@
 [h1]Minidoracat Quests & Achievements for B42 42.21.0-0.1.0[/h1]
-[i]Unreleased[/i]
+[i]2026-10-26[/i]
 
 首次發布：每日與每週任務、成就與稱號、賽季排行榜與屍潮任務。照常玩就會累積進度，完成任務、解鎖成就賺積分；搭配 Minidoracat Economy（多人伺服器）可以把積分換成倖存幣。單人與多人都能用，需要 Minidoracat UI Library。
 

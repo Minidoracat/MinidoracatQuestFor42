@@ -14,6 +14,8 @@
   4. 裸 % 檢查           — 42.20.1 起 formatted() 遇裸 % 崩潰；只允許 %1-%9 與 %%
  4b. 翻譯佔位與 EN 相同   — 各語系同一鍵的 %1-%9（多重集合）與 %% 數量要和 EN 一樣：漏掉的佔位少顯示資料，
                           多出的沒有參數可填（12 語多數是 AI 翻譯，鍵集一致與裸 % 檢查都抓不到）
+ 4c. 稱號在同一語言不重複 — IGUI_MQ_Title_* 的值：玩家在頭上、聊天、排行榜只看到稱號，同名就分不出是哪個成就給的
+                          （2026-10-26 查到 7 組，例如 CH「誘捕大師」同時是誘捕技能與陷阱收穫的稱號）
   5. Kahlua 禁用全域       — next/xpcall 不存在（BaseLib 未註冊），呼叫→
                            「Object tried to call nil」。luac 與標準 Lua 測試都攔不住
                            （語法合法、標準 Lua 有這些函式），只能靜態掃描
@@ -286,6 +288,21 @@ for m in MEDIA_DIRS:
     if "EN" in langs:
         label = "翻譯佔位與 EN 相同（%1-%9、%%）"
         fail(label, pctdiff) if pctdiff else ok(label)
+    # 4c. 稱號在同一語言不重複（見檔頭）
+    dup_titles = []
+    for l in langs:
+        p = os.path.join(troot, l, "IG_UI.json")
+        try:
+            with open(p, encoding="utf-8") as fh:
+                data = json.load(fh)
+        except Exception:
+            continue  # 缺檔與解析失敗由上面的檢查回報
+        by_name = {}
+        for k, v in data.items():
+            if k.startswith("IGUI_MQ_Title_") and isinstance(v, str):
+                by_name.setdefault(v.strip().casefold(), []).append(k)
+        dup_titles += [f"{l}: {'、'.join(ks)} 都是「{data[ks[0]]}」" for ks in by_name.values() if len(ks) > 1]
+    fail("稱號在同一語言不重複", dup_titles) if dup_titles else ok("稱號在同一語言不重複")
 
 # ---- 4b. Lua 字串字面值不得含非 ASCII ----
 # Kahlua 的 LexState 以 Reader 讀入 char 卻用 byte[] 存 token（LexState.java:70,178,194-199），任何 code point > 255

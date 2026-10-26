@@ -458,15 +458,16 @@ function B:card(x, y, w, h, frame)
 end
 
 -- list box (design r11 B: the vanilla admin lists, ISSafehousesList.lua:23-31 and :67-82; the admin pages draw the
--- same with Flow:list): a square surface box, a header band, a line between entries, a border frame (square like
--- vanilla, so the band's corners stay inside the frame).
---   local L = b:list(x, y, w); b:listHead(L, h) (the band is the first h px; texts after); b:listSep(L, y) between
---   two entries; return b:listEnd(L, y) at the bottom (returns y). Ops draw in order: the background goes first
---   and gets its height at listEnd, so the texts recorded between stay on top.
+-- same with Flow:list): a square surface box, a header band, a line between entries and every second entry
+-- shaded (hover), a border frame (square like vanilla, so the band's corners stay inside the frame).
+--   local L = b:list(x, y, w); b:listHead(L, h) (the band is the first h px; texts after); b:listSep(L, y) at the
+--   top of every entry after the first; return b:listEnd(L, y) at the bottom (returns y). Ops draw in order: the
+--   background and an entry's shade are recorded first and get their heights later (the next listSep, listEnd),
+--   so the texts recorded between stay on top.
 function B:list(x, y, w)
     self:fill(x, y, w, 0, "surface", "rect")
     local cv = self.cv
-    return { x = x, y = y, w = w, bg = cv.ops[cv.n] }
+    return { x = x, y = y, w = w, bg = cv.ops[cv.n], k = 1 }
 end
 
 function B:listHead(L, h)
@@ -475,12 +476,27 @@ function B:listHead(L, h)
     self:rect(L.x, L.y + h - 1, L.w, 1, c)
 end
 
+local function closeShade(L, y)
+    local s = L.shade
+    if s then
+        s.h = y - s.y
+        L.shade = nil
+    end
+end
+
 function B:listSep(L, y)
+    closeShade(L, y)
+    L.k = L.k + 1
+    if L.k % 2 == 0 then
+        self:rect(L.x, y, L.w, 0, "hover")
+        L.shade = self.cv.ops[self.cv.n]
+    end
     local c = self:col("border")
     self:rect(L.x, y, L.w, 1, { r = c.r, g = c.g, b = c.b, a = 0.9 * (c.a or 1) })
 end
 
 function B:listEnd(L, y)
+    closeShade(L, y)
     L.bg.h = y - L.y
     self:border(L.x, L.y, L.w, y - L.y, "border", "rect")
     return y

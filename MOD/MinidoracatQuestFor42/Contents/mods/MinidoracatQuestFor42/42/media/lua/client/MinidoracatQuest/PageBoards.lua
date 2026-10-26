@@ -179,6 +179,10 @@ local function podium(b, x, y, w, rows, stops)
     return baseY + GAP
 end
 
+-- width of the rank-change column right of the value (the "new" label is translated: FR "NOUVEAU" ran into the
+-- value with a width taken from "NEW")
+local function deltaW() return math.max(D.textW(getText("IGUI_MQ_UI_RankNew")), D.textW("99") + 10) + 14 end
+
 local function row(b, x, y, w, r, frame, label, stops)
     local lh = D.fontH()
     local h = lh + 10
@@ -187,19 +191,27 @@ local function row(b, x, y, w, r, frame, label, stops)
     end
     local ty = y + 5
     b:textRight(x + 40, ty, label or tostring(r.r or "-"), frame or "textMuted")
-    local valueW = D.textW("000,000,000") + 8
-    -- the "new" label is translated (FR "NOUVEAU" ran into the value with a width taken from "NEW")
-    local deltaW = math.max(D.textW(getText("IGUI_MQ_UI_RankNew")), D.textW("99") + 10) + 14
-    local nameX, nameMax = x + 50, w - 50 - valueW - deltaW - 8
+    local valueW, dW = D.textW("000,000,000") + 8, deltaW()
+    local nameX, nameMax = x + 50, w - 50 - valueW - dW - 8
     local nw = b:fitText(nameX, ty, frame and (r.n or "") or nameOf(r), nameMax, "text")
     if r.t ~= nil and not frame then
         local t = getText("IGUI_MQ_UI_TitleBracket", D.titleText(r.t))
         local room = nameMax - nw - 6
         if room > 30 then b:fitText(nameX + nw + 6, ty, t, room, "textFaint") end
     end
-    b:textRight(x + w - deltaW - 8, ty, D.num(r.v or 0), frame or "text")
+    b:textRight(x + w - dW - 8, ty, D.num(r.v or 0), frame or "text")
     delta(b, x + w - 6, ty, r.d)
     if stops ~= nil then addStop(stops, x, y, w, h, r.r, r.full or nameOf(r), r.t, r.v) end
+    return y + h
+end
+
+-- the header band over ranks 4+, on the columns of row(): rank, player, score (the change column needs none)
+local function rowsHead(b, L, x, y, w)
+    local h = D.fontH() + 8
+    b:listHead(L, h)
+    b:textRight(x + 40, y + 4, "#", "text")
+    b:text(x + 50, y + 4, getText("IGUI_MQ_UI_ColPlayer"), "text")
+    b:textRight(x + w - deltaW() - 8, y + 4, getText("IGUI_MQ_UI_ColScore"), "text")
     return y + h
 end
 
@@ -341,11 +353,17 @@ local function boardView(b, page, x, y, w, bd, period, e)
     y = podium(b, x, y + 22, w, rows, stops)
     local me = data.me
     local myRank = type(me) == "table" and tonumber(me.r) or nil
-    -- ranks 4+ in one list box (design r11 B); my own row inside it keeps the gold frame of the pinned row below
+    -- ranks 4+ in one list box with a header (design r11 B); my own row inside it keeps the gold frame of the pinned
+    -- row below
     local L = nil
     for _, r in ipairs(rows) do
         if (tonumber(r.r) or 0) > 3 then
-            if L == nil then L = b:list(x, y, w) else b:listSep(L, y) end
+            if L == nil then
+                L = b:list(x, y, w)
+                y = rowsHead(b, L, x, y, w)
+            else
+                b:listSep(L, y)
+            end
             if myRank ~= nil and tonumber(r.r) == myRank then b:card(x, y, w, D.fontH() + 10, D.EXTRA.gold) end
             y = row(b, x, y, w, r, nil, nil, stops)
         end

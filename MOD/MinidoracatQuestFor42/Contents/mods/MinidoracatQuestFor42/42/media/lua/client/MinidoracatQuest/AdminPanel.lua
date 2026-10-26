@@ -252,12 +252,13 @@ end
 -- F:list(key) opens a box at the current y; inside it F.ox / F.width are the box's, so the A.PAD / F.width column
 -- math of the caller stays (open the box first, then measure). F:listHead(cells, hkey?) puts the header band on top
 -- (hkey = its pool key, default key .. ":th"), F:item() starts each entry (an entry can be several rows: cells, a
--- wrapped text, a row of controls) and a line separates the entries. F:listEnd(L, empty, token) closes the box,
--- with the empty text inside when no entry came. A.paintLists draws the boxes in the page ScrollPanel's prerender,
--- under every child: no frame covers a row, a field or a button, and the ui-mp layout detector sees no extra
--- element. Boxes do not nest.
+-- wrapped text, a row of controls); a line separates the entries and every second one is shaded (the user asked
+-- for alternating colours on top of B, 2026-10-26), the whole entry, so a wrapped line stays in its entry's band.
+-- F:listEnd(L, empty, token) closes the box, with the empty text inside when no entry came. A.paintLists draws the
+-- boxes in the page ScrollPanel's prerender, under every child: no frame covers a row, a field or a button, and the
+-- ui-mp layout detector sees no extra element. Boxes do not nest.
 function Flow:list(key)
-    local L = { key = key, x = self.ox + A.PAD, y = self.y, w = self.width - 2 * A.PAD, hh = 0, seps = {}, n = 0,
+    local L = { key = key, x = self.ox + A.PAD, y = self.y, w = self.width - 2 * A.PAD, hh = 0, starts = {},
         ox = self.ox, width = self.width }
     self.lists[#self.lists + 1] = L
     self.ox, self.width, self.L = L.x, L.w, L
@@ -269,13 +270,12 @@ function Flow:listHead(cells, hkey)
 end
 
 function Flow:item()
-    local L = self.L
-    if L.n > 0 then L.seps[#L.seps + 1] = self.y end
-    L.n = L.n + 1
+    local starts = self.L.starts
+    starts[#starts + 1] = self.y
 end
 
 function Flow:listEnd(L, empty, token)
-    if L.n == 0 and empty then
+    if #L.starts == 0 and empty then
         self:item()
         self:text(L.key .. ":0", empty, token or "textMuted")
     end
@@ -285,13 +285,14 @@ function Flow:listEnd(L, empty, token)
 end
 
 -- the boxes of the current layout, in content coordinates: the panel's own drawing scrolls with its children
--- (UIElement.java:469-483). Background surface, header band border x 0.3, lines border (vanilla 0.4 grey a0.9)
+-- (UIElement.java:469-483). Background surface, header band border x 0.3, every second entry hover (the player
+-- pages' old stripe), lines border (vanilla 0.4 grey a0.9)
 function A.paintLists(sp, F)
     local lists = F.lists
     local n = #lists
     if n == 0 then return end
     local colors = F.P.theme.colors
-    local bg, ln = colors.surface, colors.border
+    local bg, ln, hv = colors.surface, colors.border, colors.hover
     local a = ln.a or 1
     for i = 1, n do
         local L = lists[i]
@@ -302,8 +303,12 @@ function A.paintLists(sp, F)
                 sp:drawRect(L.x, L.y, L.w, L.hh, 0.3 * a, ln.r, ln.g, ln.b)
                 sp:drawRect(L.x, L.y + L.hh - 1, L.w, 1, a, ln.r, ln.g, ln.b)
             end
-            local seps = L.seps
-            for k = 1, #seps do sp:drawRect(L.x, seps[k], L.w, 1, 0.9 * a, ln.r, ln.g, ln.b) end
+            local starts = L.starts
+            for k = 2, #starts do
+                local y0 = starts[k]
+                if k % 2 == 0 then sp:drawRect(L.x, y0, L.w, (starts[k + 1] or (L.y + h)) - y0, hv.a or 1, hv.r, hv.g, hv.b) end
+                sp:drawRect(L.x, y0, L.w, 1, 0.9 * a, ln.r, ln.g, ln.b)
+            end
             sp:drawRectBorder(L.x, L.y, L.w, h, a, ln.r, ln.g, ln.b)
         end
     end

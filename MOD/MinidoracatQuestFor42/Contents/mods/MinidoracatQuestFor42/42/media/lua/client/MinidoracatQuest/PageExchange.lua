@@ -88,7 +88,8 @@ local function history(b, x, y, w, s)
     if type(hist) ~= "table" or #hist == 0 then
         return b:listEnd(L, b:para(x + 8, y + 6, getText("IGUI_MQ_UI_ExHistoryEmpty"), w - 16, "textMuted") + 4) + GAP
     end
-    local rows, timeW, stateW = {}, 0, 0
+    local hTime, hDetail, hState = getText("IGUI_MQ_UI_ColTime"), getText("IGUI_MQ_UI_ColDetail"), getText("IGUI_MQ_UI_ColState")
+    local rows, timeW, stateW = {}, D.textW(hTime), D.textW(hState)
     for _, h in ipairs(hist) do
         local st = EX_STATE[h.state] or EX_STATE.paid
         local r = { D.dateTime(h.at or 0), getText("IGUI_MQ_UI_ExArrow", D.num(h.amount or 0), D.num(h.coins or 0)),
@@ -99,6 +100,11 @@ local function history(b, x, y, w, s)
     local rh = D.fontH() + 8
     local midX = x + 8 + timeW + 16
     local midW = x + w - 8 - stateW - 16 - midX
+    b:listHead(L, rh)
+    b:text(x + 8, y + 4, hTime, "text")
+    b:fitText(midX, y + 4, hDetail, midW, "text")
+    b:textRight(x + w - 8, y + 4, hState, "text")
+    y = y + rh
     for i, r in ipairs(rows) do
         if i > 1 then b:listSep(L, y) end
         b:text(x + 8, y + 4, r[1], "textMuted")

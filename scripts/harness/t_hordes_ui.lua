@@ -358,6 +358,12 @@ return function(T)
     press("now")
     T.check(P.msg == "IGUI_MQ_Admin_HordeSpotsUnapplied" and count("horde.now") == sentNow and #dialogs == askedNow,
         "Start a horde with the spots only in the draft: says to apply first, nothing asked or sent")
+    P.S.overrides.hordes = { spots = { { name = "Gas", x = 10620, y = 9810, z = 0 } } }
+    press("now")
+    T.check(#dialogs == askedNow + 1 and dialogs[#dialogs].confirmText == "IGUI_MQ_Admin_HordeNow",
+        "an applied spot plus one more in the draft: Start a horde asks as usual")
+    answer(false)
+    P.S.overrides.hordes = nil
     local full = {}
     for i = 1, AM.MAX_SPOTS do full[i] = { name = "s" .. i, x = i, y = i, z = 0 } end
     AM.draftSet(P.S.draft, "hordes.spots", full)

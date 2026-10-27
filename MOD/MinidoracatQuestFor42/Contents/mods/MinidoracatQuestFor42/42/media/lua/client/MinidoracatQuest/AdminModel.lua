@@ -17,9 +17,12 @@ AM.RANGE = {
     eventMult = { 1, 5 }, coord = { 0, 100000, true }, ceil = { 1, 1e6, true },
     -- hordes.* (Config.SCHEMA.hordes)
     hordeChance = { 0, 100, true }, hordePerDay = { 1, 24, true }, hordeLead = { 0, 120, true }, hordeWait = { 1, 240, true },
-    hordeCount = { 1, 100, true }, hordeWeight = { 0, 100, true }, hordeLimit = { 1, 120, true }, hordePerZombie = { 0, 1000, true },
+    hordeBase = { 1, 9999, true }, hordePerPlayer = { 0, 1000, true }, hordeRest = { 0, 600, true }, hordeAlive = { 10, 2000, true },
+    hordeWeight = { 0, 100, true }, hordePoints = { 0, 1000, true }, hordeLimit = { 1, 120, true }, hordeCap = { 1, 1000000, true },
 }
 AM.MAX_SPOTS = 32
+AM.MAX_WINDOWS = 8   -- hordes.windows items (Config.SCHEMA.hordes)
+AM.MAX_WAVES = 10    -- hordes.waves items
 AM.MAX_TIERS = 10
 AM.DEL = {}   -- draft marker: path removed (falls back to defaults)
 

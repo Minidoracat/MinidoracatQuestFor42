@@ -126,17 +126,37 @@ return function(T)
     -- a pick in the dropdown, as the framework calls it: onChange(target, id, dropdown)
     local function pick(key, id) local dd = pool()[key]; dd.opts.onChange(dd.opts.target, id, dd) end
 
-    T.section("horde admin: the tab after towns, defaults, status on open")
+    T.section("horde admin: the tab after towns, defaults, sections in the design's order, status on open")
     local ti, hi = 0, 0
     for i, id in ipairs(A.TABS) do if id == "towns" then ti = i elseif id == "hordes" then hi = i end end
     T.check(hi == ti + 1, "the hordes tab comes right after towns")
     A.select(P, "hordes")
     T.check(count("horde.status") == 1 and not T.printed("admin layout"), "opening the tab asks horde.status and lays out")
-    T.check(field("hordes.from"):getText() == "19:00" and field("hordes.to"):getText() == "23:00"
-        and field("hordes.chance"):getText() == "30" and field("hordes.count.1"):getText() == "20" and field("hordes.count.2"):getText() == "40"
+    local function chipsOn(w)
+        local s = ""
+        for d = 1, 7 do if pool()["w:d" .. w .. ":" .. d].active then s = s .. d end end
+        return s
+    end
+    T.check(field("hordes.windows.1.from"):getText() == "19:00" and field("hordes.windows.1.to"):getText() == "23:00"
+        and field("hordes.windows.1.chance"):getText() == "30" and chipsOn(1) == "1234567"
+        and field("hordes.waves.1.base"):getText() == "30" and field("hordes.waves.1.perPlayer"):getText() == "50"
         and field("hordes.kinds.vanilla"):getText() == "80" and field("hordes.kinds.runner"):getText() == "20"
-        and field("hordes.split"):getSelected() == "share" and field("hordes.enabled"):getChecked() == false,
-        "every field shows Catalog.DEFAULTS.hordes")
+        and field("hordes.points.vanilla"):getText() == "5" and field("hordes.points.runner"):getText() == "8"
+        and field("hordes.restSec"):getText() == "30" and field("hordes.maxAlive"):getText() == "200"
+        and field("hordes.cap"):getText() == "500" and field("hordes.waitMin"):getText() == "60"
+        and field("hordes.enabled"):getChecked() == false, "every field shows Catalog.DEFAULTS.hordes")
+    local order, prevY, inOrder = { "h", "hs", "hl", "hp", "hw", "hv", "hk", "hr" }, -1, true
+    for _, k in ipairs(order) do
+        inOrder = inOrder and shown(k) and pool()[k].y > prevY
+        prevY = pool()[k] and pool()[k].y or prevY
+    end
+    T.check(inOrder and pool()["hw"].lines[1] == "IGUI_MQ_Admin_HordeWindowsHead" and pool()["hv"].lines[1] == "IGUI_MQ_Admin_HordeWavesHead"
+        and pool()["hk"].lines[1] == "IGUI_MQ_Admin_HordeKindsHead" and pool()["hr"].lines[1] == "IGUI_MQ_Admin_HordeRewardHead",
+        "sections: hordes, status, recent results, spots, windows, waves, kinds, reward")
+    T.check(pool()["l:hordes.waitMin"].lines[1] == "IGUI_MQ_Admin_F_hordes_waitMin" and pool()["l:hordes.cap"] ~= nil
+        and pool()["ks:th"].cells[2].text == "IGUI_MQ_Admin_ColWeight" and pool()["ks:th"].cells[3].text == "IGUI_MQ_Admin_HordeColShare"
+        and pool()["ks:th"].cells[4].text == "IGUI_MQ_Admin_HordeColPoints" and shown("est") and shown("rn"),
+        "the wait label, kinds columns weight / share / points, the cap with its note and estimate in the reward section")
     T.check(shown("cur") and has(pool()["cur"].lines[1], "IGUI_MQ_Admin_HordeNone") and pool()["now"]:isEnabled(),
         "no horde: says so, Start one now enabled")
     T.check(shown("p:0") and shown("sp:add") and pool()["sp:add"]:isEnabled(), "no spots: the warning inside the list box, the add row")
@@ -146,29 +166,32 @@ return function(T)
     A.select(P, "hordes")
     T.check(count("horde.status") == 2, "coming back to the tab asks again (live status)")
 
-    T.section("horde admin: a status payload (active horde, log, a pack kind)")
+    T.section("horde admin: a status payload (wave 2 of 3, log with waves, a pack kind, the cull line)")
     local log = {}
     for i = 1, 6 do
         log[i] = { id = 10 - i, name = "Spot" .. i, town = "muldraugh", state = i == 1 and "success" or (i == 2 and "cancelled" or "failed"),
-            why = i > 2 and "time" or nil, endedAt = now - i * 3600000, spawned = 30, killed = 20, pool = 150 }
+            why = i > 2 and "time" or nil, endedAt = now - i * 3600000, waves = 3, cleared = i == 1 and 3 or 2, spawned = 300,
+            killed = 280, pool = 500, capped = i == 1 }
     end
+    local threeWaves = { { base = 20, perPlayer = 50 }, { base = 30, perPlayer = 50 }, { base = 50, perPlayer = 100 } }
     status = { cur = { id = 3, auto = true, name = "Gas", town = "muldraugh", x = 10620, y = 9810, z = 0, state = "active",
-        count = 30, spawned = 30, left = 13, endsAt = now + 600000, startMs = now - 60000,
-        mix = { { kind = "vanilla", n = 24, nameKey = "IGUI_MQ_Horde_Kind_vanilla" }, { kind = "mod:brute", n = 6, nameKey = "Brute_Name" } } },
-        roll = { day = "2026-10-26", slot = 2, n = 1, max = 2, nextAt = now + 3600000, enabled = true }, log = log,
+        wave = 2, waves = threeWaves, size = 30, killed = 17, left = 13, endsAt = now + 600000, startMs = now - 60000,
+        expireAt = now + 3600000, nextAt = now + 24000, weights = { vanilla = 70, ["mod:brute"] = 30, runner = 0 } },
+        roll = { n = 1, max = 2, nextAt = now + 3600000, enabled = true }, log = log, cull = 300,
         kinds = { { id = "vanilla", nameKey = "IGUI_MQ_Horde_Kind_vanilla", builtin = true },
             { id = "runner", nameKey = "IGUI_MQ_Horde_Kind_runner", builtin = true }, { id = "mod:brute", nameKey = "Brute_Name", builtin = false } } }
     press("refresh")
     T.check(count("horde.status") == 3 and shown("stop") and pool()["stop"].opts.title == "IGUI_MQ_Admin_HordeStop"
         and pool()["stop"].style == "danger", "Refresh asks again; an active horde has a danger Stop")
-    T.check(has(pool()["cur"].lines[1], "IGUI_MQ_Admin_HordeCurLive|IGUI_MQ_Admin_HordeState_active|") and has(pool()["cur"].lines[1], "|17|30|"),
-        "the current line: state, place, cleared 17 / 30")
+    T.check(has(pool()["cur"].lines[1], "IGUI_MQ_Admin_HordeCurActive|IGUI_MQ_Admin_HordeState_active|") and has(pool()["cur"].lines[1], "|2|3|17|30|"),
+        "the current line: state, place, wave 2 / 3, cleared 17 / 30")
     T.check(has(pool()["roll"].lines[1], "IGUI_MQ_Admin_HordeToday|1|2|"), "today n / max and the next roll")
+    T.check(shown("cull") and pool()["cull"].lines[1] == "IGUI_MQ_Admin_HordeCull|300", "the sandbox cull line under the max alive field")
     T.check(not pool()["now"]:isEnabled(), "Start one now is off while a horde exists")
-    T.check(shown("l5") and not shown("l6") and has(cell("l1", 3), "IGUI_MQ_Admin_HordeRes_success|20|30|150")
+    T.check(shown("l5") and not shown("l6") and cell("l1", 3) == "IGUI_MQ_Admin_HordeResWin|3|3|280|500IGUI_MQ_Admin_HordeCapped"
         and pool()["l1"].cells[3].token == "success" and has(cell("l2", 3), "IGUI_MQ_Admin_HordeRes_cancelled")
-        and has(cell("l3", 3), "IGUI_MQ_Admin_HordeWhy_time") and pool()["l3"].cells[3].token == "errorText"
-        and cell("l:th", 1) == "IGUI_MQ_Admin_ColTime", "recent results: a header and 5 rows of the 6, success / cancelled / failed with why")
+        and cell("l3", 3) == "IGUI_MQ_Admin_HordeResFail|IGUI_MQ_Admin_HordeWhy_time|2|3|500" and pool()["l3"].cells[3].token == "errorText"
+        and cell("l:th", 1) == "IGUI_MQ_Admin_ColTime", "recent results: 5 of 6, cleared waves / waves, the pool, capped marked")
     T.check(field("hordes.kinds.mod:brute") == nil and options("ks:add")["mod:brute"] == "Brute_Name"
         and options("ks:add").vanilla == nil and options("ks:add").runner == nil,
         "a pack kind (no weight yet) waits in the dropdown, named by its nameKey; the weighted kinds are rows")
@@ -181,11 +204,24 @@ return function(T)
     answer(true)
     T.check(last("horde.stop").id == 3 and count("horde.status") == 4 and P.msg == "IGUI_MQ_Admin_HordeStopped",
         "horde.stop with the id, then the status again")
-    status.cur.state = "announced"
+    status.cur.state = "rest"
     press("refresh")
-    T.check(pool()["stop"].opts.title == "IGUI_MQ_Admin_HordeCancel" and has(pool()["cur"].lines[1], "IGUI_MQ_Admin_HordeCurSoon|")
-        and has(pool()["cur"].lines[1], "IGUI_MQ_Horde_Kind_vanilla 24") and has(pool()["cur"].lines[1], "Brute_Name 6"),
-        "before it starts the button says Cancel; the admin sees count and mix")
+    T.check(has(pool()["cur"].lines[1], "IGUI_MQ_Admin_HordeCurRest|IGUI_MQ_Admin_HordeState_rest|") and has(pool()["cur"].lines[1], "|2|3|0:2")
+        and pool()["stop"].opts.title == "IGUI_MQ_Admin_HordeStop", "rest: wave 2 / 3 cleared, the countdown to the next; Stop")
+    local CL, skew0 = MinidoracatQuest.Client, MinidoracatQuest.Client.skew
+    CL.skew = -30000   -- this computer's clock 30 s ahead of the server's
+    press("refresh")
+    T.check(has(pool()["cur"].lines[1], "|2|3|0:5"), "the rest countdown runs on the server clock (30 s more here)")
+    CL.skew = skew0
+    status.cur.state, status.cur.wave = "waiting", 3
+    press("refresh")
+    T.check(has(pool()["cur"].lines[1], "IGUI_MQ_Admin_HordeCurWaiting|IGUI_MQ_Admin_HordeState_waiting|") and has(pool()["cur"].lines[1], "|3|3|"),
+        "waiting: the wave it waits for")
+    status.cur.state, status.cur.wave = "announced", 1
+    press("refresh")
+    T.check(pool()["stop"].opts.title == "IGUI_MQ_Admin_HordeCancel" and has(pool()["cur"].lines[1], "IGUI_MQ_Admin_HordeCurPlan|")
+        and has(pool()["cur"].lines[1], "|3|IGUI_MQ_Horde_Kind_vanillaIGUI_MQ_UI_ListSepBrute_Name"),
+        "before it starts the button says Cancel; the admin sees the waves and the kinds with a weight")
     status.cur = nil
     status.roll.enabled = false
     press("refresh")
@@ -233,15 +269,20 @@ return function(T)
         return good and not marked
     end
     local cases = {
-        { "hordes.from", { "0:00", "9:05", "23:59", " 19:30 " }, { "24:00", "12:60", "1200", "7:5", "", "ab:cd" } },
-        { "hordes.chance", { "0", "100" }, { "-1", "101", "2.5", "x" } },
+        { "hordes.windows.1.from", { "0:00", "9:05", "23:59", " 19:30 " }, { "24:00", "12:60", "1200", "7:5", "", "ab:cd" } },
+        { "hordes.windows.1.to", { "0:00", "23:59" }, { "24:00", "" } },
+        { "hordes.windows.1.chance", { "0", "100" }, { "-1", "101", "2.5", "x" } },
         { "hordes.maxPerDay", { "1", "24" }, { "0", "25" } },
         { "hordes.leadMin", { "0", "120" }, { "-1", "121" } },
         { "hordes.waitMin", { "1", "240" }, { "0", "241" } },
-        { "hordes.count.1", { "1", "40" }, { "0", "101" } },
-        { "hordes.kinds.runner", { "0", "100" }, { "-1", "101", "1.5" } },
+        { "hordes.waves.1.base", { "1", "9999" }, { "0", "10000", "1.5" } },
+        { "hordes.waves.1.perPlayer", { "0", "1000" }, { "-1", "1001" } },
+        { "hordes.restSec", { "0", "600" }, { "-1", "601" } },
         { "hordes.limitMin", { "1", "120" }, { "0", "121" } },
-        { "hordes.perZombie", { "0", "1000" }, { "-1", "1001" } },
+        { "hordes.maxAlive", { "10", "2000" }, { "9", "2001" } },
+        { "hordes.kinds.runner", { "0", "100" }, { "-1", "101", "1.5" } },
+        { "hordes.points.runner", { "0", "1000" }, { "-1", "1001" } },
+        { "hordes.cap", { "1", "1000000" }, { "0", "1000001" } },
     }
     for _, c in ipairs(cases) do
         local goodOk, badOk = true, false
@@ -251,56 +292,152 @@ return function(T)
     end
     T.check(AM.clock(" 19:30 ") == "19:30" and AM.clock("9:05") == "9:05" and AM.clock("24:00") == nil and AM.clock("1:2") == nil,
         "AM.clock keeps the typed text, rejects what the server rejects")
-    field("hordes.count.1"):setText("50")
-    local before = count("cfg.preview")
-    A.onPreview(P)
-    T.check(count("cfg.preview") == before and field("hordes.count.1").invalid ~= nil and field("hordes.count.2").invalid ~= nil,
-        "count min 50 > max 40: both marked, nothing sent")
-    field("hordes.count.1"):setText("25")
-    field("hordes.count.2"):setText("45")
-    field("hordes.from"):setText("20:00")
-    field("hordes.chance"):setText("60")
+    field("hordes.windows.1.from"):setText("20:00")
+    field("hordes.windows.1.chance"):setText("60")
     field("hordes.maxPerDay"):setText("3")
+    field("hordes.waves.1.base"):setText("25")
     field("hordes.kinds.runner"):setText("0")
+    field("hordes.cap"):setText("800")
     pick("ks:add", "mod:brute")
-    T.check(field("hordes.kinds.mod:brute"):getText() == "10" and shown("ks:n:mod:brute") and not shown("ks:add") and shown("ks:all")
-        and field("hordes.kinds.runner"):getText() == "0", "picked: the kind is a row at 10, typed values stay, nothing left to add")
-    field("hordes.split"):setSelected("each")
+    T.check(field("hordes.kinds.mod:brute"):getText() == "10" and field("hordes.points.mod:brute"):getText() == "5"
+        and shown("ks:n:mod:brute") and not shown("ks:add") and shown("ks:all") and field("hordes.kinds.runner"):getText() == "0",
+        "picked: the kind is a row at weight 10 and the regular zombie's 5 points, typed values stay, nothing left to add")
     field("hordes.enabled"):setChecked(true)
     A.onPreview(P)
     local changes = Q.Util.decode(last("cfg.preview").changes)
     local by = {}
     for _, ch in ipairs(changes) do by[ch.path] = ch.value end
-    T.check(by["hordes.from"] == "20:00" and by["hordes.chance"] == 60 and by["hordes.maxPerDay"] == 3 and by["hordes.enabled"] == true
-        and by["hordes.count"][1] == 25 and by["hordes.count"][2] == 45 and by["hordes.kinds.runner"] == 0
-        and by["hordes.kinds.mod:brute"] == 10 and by["hordes.split"] == "each", "valid values land in the draft and the preview")
-    T.check(by["hordes.kinds.vanilla"] == nil and by["hordes.to"] == nil and by["hordes.waitMin"] == nil and #changes == 8,
-        "untouched fields (and the pack kind's unset default) add nothing")
-    local rows = P.confirm.rows
+    local w1, v1 = by["hordes.windows"] and by["hordes.windows"][1], by["hordes.waves"] and by["hordes.waves"][1]
+    T.check(w1 and #by["hordes.windows"] == 1 and w1.from == "20:00" and w1.to == "23:00" and w1.chance == 60 and w1.days == "1234567"
+        and v1 and #by["hordes.waves"] == 1 and v1.base == 25 and v1.perPlayer == 50,
+        "windows and waves go as whole values with every item key the server wants")
+    T.check(by["hordes.maxPerDay"] == 3 and by["hordes.enabled"] == true and by["hordes.kinds.runner"] == 0
+        and by["hordes.kinds.mod:brute"] == 10 and by["hordes.points.mod:brute"] == 5 and by["hordes.cap"] == 800,
+        "valid values land in the draft and the preview; the picked kind brings its points key")
+    T.check(by["hordes.kinds.vanilla"] == nil and by["hordes.points.vanilla"] == nil and by["hordes.waitMin"] == nil and #changes == 8,
+        "untouched fields add nothing")
     local labels = {}
-    for _, r in ipairs(rows) do labels[r.label] = r end
+    for _, r in ipairs(P.confirm.rows) do labels[r.label] = r end
     T.check(labels["IGUI_MQ_Admin_F_hordes_kinds - IGUI_MQ_Horde_Kind_runner"] ~= nil
-        and labels["IGUI_MQ_Admin_F_hordes_kinds - Brute_Name"] ~= nil, "preview rows name each kind")
-    T.check(labels["IGUI_MQ_Admin_F_hordes_count"] ~= nil and labels["IGUI_MQ_Admin_F_hordes_count"].after == "25 / 45"
-        and labels["IGUI_MQ_Admin_F_hordes_split"].after == "IGUI_MQ_Admin_HordeSplit_each",
-        "count is one row (25 / 45), the split is named")
+        and labels["IGUI_MQ_Admin_F_hordes_kinds - Brute_Name"] ~= nil and labels["IGUI_MQ_Admin_F_hordes_points - Brute_Name"] ~= nil
+        and labels["IGUI_MQ_Admin_F_hordes_cap"] ~= nil, "preview rows name the weight and points of each kind, the cap")
+    T.check(labels["IGUI_MQ_Admin_F_hordes_windows"].after == "IGUI_MQ_Admin_HordeWindowText|20:00|23:00|60|IGUI_MQ_Admin_HordeEveryDay"
+        and labels["IGUI_MQ_Admin_F_hordes_waves"].after == "IGUI_MQ_Admin_HordeWaveText|25|50",
+        "windows and waves read as one line each")
+    T.check(A.hordeValue("hordes.windows", { { days = "67", from = "14:00", to = "23:00", chance = 20 } })
+        == "IGUI_MQ_Admin_HordeWindowText|14:00|23:00|20|IGUI_MQ_UI_Weekday_6IGUI_MQ_UI_ListSepIGUI_MQ_UI_Weekday_7",
+        "a weekend window names its days")
     A.onConfirmCancel(P)
     A.discard(P)
 
-    T.section("horde admin: the kinds list box (design r11)")
+    T.section("horde admin: windows (claim 3)")
+    T.check(not pool()["w:r1"]:isEnabled() and pool()["w:add"]:isEnabled() and pool()["w:max"].lines[1] == "IGUI_MQ_Admin_HordeWindowsMax|8",
+        "one window: its Remove is off (at least one), Add on, the limit said")
+    field("hordes.windows.1.chance"):setText("45")
+    press("w:add")
+    local wins = AM.get(P.S, "hordes.windows")
+    T.check(#wins == 2 and wins[1].chance == 45 and wins[2].days == "1234567" and field("hordes.windows.1.chance"):getText() == "45"
+        and field("hordes.windows.2.from"):getText() == "19:00" and pool()["w:r1"]:isEnabled(),
+        "Add: what was typed stays, the new window starts at the default, Remove comes on")
+    for _ = 1, 8 do press("w:add") end
+    T.check(#AM.get(P.S, "hordes.windows") == AM.MAX_WINDOWS and not pool()["w:add"]:isEnabled(), "8 windows: Add is off")
+    press("w:r1")
+    wins = AM.get(P.S, "hordes.windows")
+    T.check(#wins == 7 and wins[1].chance == 30, "Remove drops that window")
+    A.discard(P)
+    for dd = 1, 7 do press("w:d1:" .. dd) end
+    T.check(AM.get(P.S, "hordes.windows")[1].days == "" and chipsOn(1) == "" and shown("w:e1")
+        and pool()["w:e1"].lines[1] == "IGUI_MQ_Admin_HordeErrDays", "every day off: the window shows the error")
+    local previews = count("cfg.preview")
+    A.onPreview(P)
+    T.check(count("cfg.preview") == previews and P.msg == "IGUI_MQ_Admin_HordeErrDays", "a window without a day stops Apply")
+    press("w:d1:6")
+    press("w:d1:7")
+    T.check(AM.get(P.S, "hordes.windows")[1].days == "67" and chipsOn(1) == "67" and not shown("w:e1"), "weekend only: days 67, no error")
+    A.onPreview(P)
+    T.check(count("cfg.preview") == previews + 1, "with a day the preview goes out")
+    A.onConfirmCancel(P)
+    for dd = 1, 5 do press("w:d1:" .. dd) end
+    T.check(P.S.draft.by["hordes.windows"] == nil, "toggled back to every day: the window is the applied one again, out of the draft")
+    A.discard(P)
+
+    T.section("horde admin: waves, share and the estimate (design numbers)")
+    T.check(not pool()["v:r1"]:isEnabled() and pool()["v:add"]:isEnabled() and pool()["v:1:1"].lines[1] == "30"
+        and pool()["v:4:1"].lines[1] == "75", "one wave: Remove off; previews 1 player 30, 4 players 75 (base 30, +50%)")
+    AM.draftSet(P.S.draft, "hordes.waves", T.deepcopy(threeWaves))
+    AM.draftSet(P.S.draft, "hordes.kinds.vanilla", 70)
+    AM.draftSet(P.S.draft, "hordes.kinds.runner", 50)
+    AM.draftSet(P.S.draft, "hordes.points.vanilla", 1)
+    AM.draftSet(P.S.draft, "hordes.points.runner", 2)
+    A.resync(P)
+    T.check(pool()["v:1:1"].lines[1] == "20" and pool()["v:4:1"].lines[1] == "50" and pool()["v:1:2"].lines[1] == "30"
+        and pool()["v:4:2"].lines[1] == "75" and pool()["v:4:3"].lines[1] == "200", "wave previews: 20/50, 30/75, 50/200")
+    T.check(pool()["ks:s:vanilla"].lines[1] == "IGUI_MQ_Admin_HordePct|58" and pool()["ks:s:runner"].lines[1] == "IGUI_MQ_Admin_HordePct|42",
+        "weights 70 and 50: shares 58% and 42%")
+    local est = pool()["est"].lines
+    T.check(est[1] == "IGUI_MQ_Admin_HordeEstHead" and est[2] == "IGUI_MQ_Admin_HordeEst1|1|140   IGUI_MQ_Admin_HordeEst|4|459   IGUI_MQ_Admin_HordeEstCap|8|500"
+        and pool()["v:th"].cells[4].text == "IGUI_MQ_Admin_HordeColPlayers1|1" and pool()["v:th"].cells[5].text == "IGUI_MQ_Admin_HordeColPlayers|4",
+        "estimate: 1 player 140, 4 players 459, 8 players capped at 500")
+    T.check(A.hordeEstimate(P, pg, { { id = "vanilla" }, { id = "runner" } }, 8) == 884, "8 players before the cap: 884")
+    -- a pack kind with a weight but no points of its own pays the regular points as typed (Hordes.lua does the same)
+    AM.draftSet(P.S.draft, "hordes.kinds.mod:brute", 50)
+    A.layout(P)
+    local brute = { { id = "mod:brute" } }
+    local estBefore = A.hordeEstimate(P, pg, brute, 1)
+    field("hordes.points.vanilla"):setText("3")
+    A.layout(P)
+    T.check(estBefore == 100 and A.hordeEstimate(P, pg, brute, 1) == 300 and field("hordes.points.mod:brute"):getText() == "1",
+        "an unset pack kind's points follow the regular points as typed (100 -> 300 over 100 zombies)")
+    field("hordes.points.vanilla"):setText("1")
+    AM.draftUnset(P.S.draft, "hordes.kinds.mod:brute")
+    A.layout(P)
+    field("hordes.waves.1.base"):setText("40")
+    field("hordes.kinds.runner"):setText("70")
+    A.layout(P)
+    T.check(pool()["v:1:1"].lines[1] == "40" and pool()["ks:s:runner"].lines[1] == "IGUI_MQ_Admin_HordePct|50"
+        and field("hordes.waves.1.base").onChange ~= nil, "previews and shares follow the typed values (fields relayout on change)")
+    field("hordes.kinds.runner"):setText("0")
+    field("hordes.kinds.vanilla"):setText("0")
+    A.layout(P)
+    T.check(pool()["ks:s:runner"].lines[1] == "IGUI_MQ_Admin_HordePct|0" and shown("ks:n:runner"), "every weight 0: 0%, the rows stay until applied")
+    A.discard(P)
+    AM.draftSet(P.S.draft, "hordes.waves", T.deepcopy(threeWaves))
+    A.resync(P)
+    press("v:add")
+    local waves = AM.get(P.S, "hordes.waves")
+    T.check(#waves == 4 and waves[4].base == 50 and waves[4].perPlayer == 100, "Add a wave copies the last row")
+    for _ = 1, 8 do press("v:add") end
+    T.check(#AM.get(P.S, "hordes.waves") == AM.MAX_WAVES and not pool()["v:add"]:isEnabled() and pool()["v:max"].lines[1] == "IGUI_MQ_Admin_HordeWavesMax|10",
+        "10 waves: Add is off")
+    press("v:r1")
+    waves = AM.get(P.S, "hordes.waves")
+    T.check(#waves == 9 and waves[1].base == 30, "Remove drops that wave")
+    A.discard(P)
+
+    T.section("horde admin: the kinds list box (design r11, points per kind)")
     T.check(shown("ks:n:vanilla") and shown("ks:n:runner") and shown("ks:add") and pool()["ks:add"].opts.placeholder == "IGUI_MQ_Admin_HordeKindAdd",
         "defaults: both built-in kinds are rows, the dropdown says what it does")
-    press("ks:r:vanilla")
-    T.check(P.S.draft.by["hordes.kinds.vanilla"] == 0 and not shown("ks:n:vanilla") and options("ks:add").vanilla == "IGUI_MQ_Horde_Kind_vanilla"
-        and has(P.draftSummary, "IGUI_MQ_Admin_HordeSumKindDel|IGUI_MQ_Horde_Kind_vanilla"),
-        "Remove on a built-in kind writes 0 (its default is 80) and puts it back in the dropdown")
+    field("hordes.points.vanilla"):setText("6")
     pick("ks:add", "mod:brute")
-    T.check(P.S.draft.by["hordes.kinds.mod:brute"] == 10 and has(P.draftSummary, "IGUI_MQ_Admin_HordeSumKindAdd|Brute_Name"),
-        "a pick adds the kind at 10 through the draft")
+    T.check(P.S.draft.by["hordes.points.mod:brute"] == 6 and P.S.draft.by["hordes.points.vanilla"] == nil
+        and field("hordes.points.vanilla"):getText() == "6",
+        "a pick copies the regular points as typed (6); the typed field stays typed, not folded")
+    A.discard(P)
+    press("ks:r:vanilla")
+    T.check(P.S.draft.by["hordes.kinds.vanilla"] == 0 and P.S.draft.by["hordes.points.vanilla"] == nil and not shown("ks:n:vanilla")
+        and options("ks:add").vanilla == "IGUI_MQ_Horde_Kind_vanilla" and has(P.draftSummary, "IGUI_MQ_Admin_HordeSumKindDel|IGUI_MQ_Horde_Kind_vanilla"),
+        "Remove on a built-in kind writes 0 (its default is 80), keeps its points, puts it back in the dropdown")
+    AM.draftSet(P.S.draft, "hordes.points.vanilla", 7)
+    pick("ks:add", "mod:brute")
+    T.check(P.S.draft.by["hordes.kinds.mod:brute"] == 10 and P.S.draft.by["hordes.points.mod:brute"] == 7
+        and field("hordes.points.mod:brute"):getText() == "7" and has(P.draftSummary, "IGUI_MQ_Admin_HordeSumKindAdd|Brute_Name"),
+        "a pick adds the kind at weight 10 and the draft's regular points (7)")
+    AM.draftUnset(P.S.draft, "hordes.points.vanilla")
     local n = AM.draftCount(P.S.draft)
     press("ks:r:mod:brute")
-    T.check(P.S.draft.by["hordes.kinds.mod:brute"] == nil and AM.draftCount(P.S.draft) == n - 1 and not shown("ks:n:mod:brute")
-        and options("ks:add")["mod:brute"] == "Brute_Name", "picked and removed before Apply: the draft forgets it, nothing to send")
+    T.check(P.S.draft.by["hordes.kinds.mod:brute"] == nil and P.S.draft.by["hordes.points.mod:brute"] == nil and AM.draftCount(P.S.draft) == n - 2
+        and not shown("ks:n:mod:brute") and options("ks:add")["mod:brute"] == "Brute_Name",
+        "picked and removed before Apply: the draft forgets weight and points, nothing to send")
     press("ks:r:runner")
     T.check(shown("ks:0") and has(pool()["ks:0"].lines[1], "IGUI_MQ_Admin_HordeKindsNone"), "an empty list says every zombie is a regular one")
     A.onPreview(P)
@@ -316,7 +453,7 @@ return function(T)
     T.check(AM.draftCount(P.S.draft) == 0 and P.draftSummary == nil and P.msg == nil,
         "picked and removed with nothing else pending: no summary, no in-the-draft note")
     -- as a cfg.get reply sets them: overrides, then a resync (fields read the server values again)
-    P.S.overrides.hordes = { kinds = { ["old:gone"] = 15, ["mod:brute"] = 30 } }
+    P.S.overrides.hordes = { kinds = { ["old:gone"] = 15, ["mod:brute"] = 30 }, points = { ["old:gone"] = 4, ["mod:brute"] = 12 } }
     local keep = P.pages.hordes.data
     P.pages.hordes.data = nil
     A.resync(P)
@@ -326,15 +463,18 @@ return function(T)
     T.check(shown("ks:o:old:gone") and pool()["ks:g:old:gone"].lines[1] == "IGUI_MQ_Admin_HordeKindGone" and pool()["ks:w:old:gone"].lines[1] == "15",
         "a key no mod registers any more: a row marked not installed, with its weight")
     press("ks:r:old:gone")
-    T.check(P.S.draft.by["hordes.kinds.old:gone"] == AM.DEL and not shown("ks:o:old:gone"), "its Remove drops the key")
-    T.check(shown("ks:n:mod:brute") and field("hordes.kinds.mod:brute"):getText() == "30", "a pack kind applied at 30 is a row")
+    T.check(P.S.draft.by["hordes.kinds.old:gone"] == AM.DEL and P.S.draft.by["hordes.points.old:gone"] == AM.DEL and not shown("ks:o:old:gone"),
+        "its Remove drops the weight and points keys")
+    T.check(shown("ks:n:mod:brute") and field("hordes.kinds.mod:brute"):getText() == "30" and field("hordes.points.mod:brute"):getText() == "12",
+        "a pack kind applied at 30 / 12 points is a row")
     press("ks:r:mod:brute")
-    T.check(P.S.draft.by["hordes.kinds.mod:brute"] == AM.DEL and not shown("ks:n:mod:brute"), "Remove on an applied pack kind drops its key")
+    T.check(P.S.draft.by["hordes.kinds.mod:brute"] == AM.DEL and P.S.draft.by["hordes.points.mod:brute"] == AM.DEL and not shown("ks:n:mod:brute"),
+        "Remove on an applied pack kind drops both keys")
     A.discard(P)
     P.S.overrides.hordes = nil
 
-    T.section("horde admin: spots through the draft")
-    before = count("towns.here")
+    T.section("horde admin: spots through the draft, the Map button")
+    local before = count("towns.here")
     press("sp:add")
     T.check(count("towns.here") == before and P.msg == "IGUI_MQ_Admin_ErrName" and pool()["sp:name"].invalid ~= nil,
         "no name: nothing asked, the name is marked")
@@ -346,6 +486,16 @@ return function(T)
         "towns.here adds { name, x, y, z } to hordes.spots (control chars and spaces trimmed)")
     T.check(has(P.draftSummary, "IGUI_MQ_Admin_HordeSumSpotAdd|Gasstation") and shown("pl1") and not shown("p:0"),
         "the summary names it, the list shows it")
+    local shownBefore = #T.mapShown
+    T.check(shown("pm1") and pool()["pm1"].opts.title == "IGUI_MQ_UI_Map" and pool()["pm1"].tooltip == "IGUI_MQ_UI_ShowOnMap",
+        "a spot row has a Map button")
+    press("pm1")
+    local m = T.mapShown[#T.mapShown]
+    T.check(#T.mapShown == shownBefore + 1 and m.x == 10620 and m.y == 9810 and m.zoom == 16, "Map opens the world map on the spot")
+    T.mapAllowed = false
+    A.layout(P)
+    T.check(not shown("pm1") and shown("pr1"), "the server turned the map off: no Map button, Remove stays")
+    T.mapAllowed = true
     pool()["sp:name"]:setText("School")
     press("sp:add")
     press("pr1")
@@ -384,37 +534,73 @@ return function(T)
     A.hide()
     A.instance = nil
 
-    -- ===== player side =====
+    -- ===== player side (hordes v2: waves, rest, labelled countdowns, the Map button) =====
     local kinds = { { id = "vanilla", nameKey = "IGUI_MQ_Horde_Kind_vanilla" }, { id = "runner", nameKey = "IGUI_MQ_Horde_Kind_runner" } }
     local function cur(state, extra)
         local c = { id = 3, name = "Gas", town = "muldraugh", x = 10620, y = 9810, z = 0, state = state, kinds = kinds,
-            startMs = now + 15 * 60000, expireAt = now + 75 * 60000, endsAt = now + 600000, spawned = 30, left = 13,
-            pool = 150, perZombie = 5, split = "share", limitMin = 15, mine = 9 }
+            startMs = now + 15 * 60000, expireAt = now + 75 * 60000, endsAt = now + 600000, nextAt = now + 24000,
+            wave = 1, waves = 1, size = 30, left = 13, killed = 17, limitMin = 15, mine = 9, got = 0 }
         for k, v in pairs(extra or {}) do c[k] = v end
         return c
     end
     local place = "IGUI_MQ_Horde_Place|Gas|IGUI_MQ_Town_muldraugh"
     local Hd, PD, E = Q.Hud, Q.PageDaily, Q.Entry
     local defs = Cl.defs()
+    local worldMap = ISWorldMap
+    T.mapAllowed, T.mapShown = true, {}
+    local function row(state, extra) return Hd.rows({ hordes = { cur = cur(state, extra) } }, defs, now)[1] end
 
     T.section("horde tracker row")
-    local s = { pins = {}, hordes = { cur = cur("active") } }
-    local r = Hd.rows(s, defs, now)
-    T.check(#r == 1 and r[1].horde and r[1].name == place and r[1].time == "10:00" and r[1].prog == 17 and r[1].target == 30
-        and r[1].line == "IGUI_MQ_Horde_HudCleared|17|30", "active: name, time to endsAt, cleared 17 / 30")
-    r = Hd.rows({ hordes = { cur = cur("waiting") } }, defs, now)
-    T.check(r[1].time == "1:15:00" and r[1].line == "IGUI_MQ_Horde_HudWait|10620|9810" and r[1].target == nil, "waiting: time to expireAt and the spot")
-    r = Hd.rows({ hordes = { cur = cur("announced") } }, defs, now)
-    T.check(r[1].time == "15:00" and r[1].line == "IGUI_MQ_Horde_HudSoon|10620|9810",
-        "announced: time to the start and the 50-tile rule at the spot")
+    local r = Hd.rows({ pins = {}, hordes = { cur = cur("active") } }, defs, now)
+    T.check(#r == 1 and r[1].horde and r[1].name == place and r[1].time == "IGUI_MQ_UI_Left|10:00" and r[1].prog == 17
+        and r[1].target == 30 and r[1].line == "IGUI_MQ_Horde_HudCleared|17|30" and r[1].mapX == nil,
+        "active: the place, 'left' to endsAt, cleared 17 / wave size 30, no Map button")
+    r = row("waiting")
+    T.check(r.name == place and r.time == "IGUI_MQ_UI_Left|1:15:00" and r.line == "IGUI_MQ_Horde_HudWait|10620|9810"
+        and r.target == nil and r.mapX == 10620 and r.mapY == 9810, "waiting: 'left' to expireAt, the spot first, Map button")
+    r = row("announced", { waves = 3 })
+    T.check(r.name == place and r.time == "IGUI_MQ_Horde_StartsIn|15:00" and r.line == "IGUI_MQ_Horde_HudSoon|10620|9810"
+        and r.mapX == 10620, "announced: no wave prefix, 'starts in' countdown, the spot first, Map button")
+    r = row("rest", { wave = 2, waves = 3, left = 0 })
+    T.check(r.name == "IGUI_MQ_Horde_WaveDone|2|3|Gas" and r.time == "IGUI_MQ_Horde_NextIn|0:24"
+        and r.line == "IGUI_MQ_Horde_HudRest|3" and r.target == nil and r.mapX == 10620,
+        "rest: 'wave 2/3 cleared', 'next wave in' countdown, the next wave comes from the edges, Map button")
+    T.check(row("waiting", { wave = 1, waves = 3 }).name == "IGUI_MQ_Horde_Wave|1|3|Gas"
+        and row("active", { wave = 2, waves = 3 }).name == "IGUI_MQ_Horde_Wave|2|3|Gas"
+        and row("waiting", { waves = 1 }).name == place and row("active", { waves = nil }).name == place,
+        "'Wave W/N' and the spot without its town in front only when N > 1")
+    T.mapAllowed = false
+    T.check(row("announced").mapX == nil and row("waiting").mapX == nil and row("rest", { waves = 2 }).mapX == nil,
+        "the sandbox turns the world map off: no Map button")
+    T.mapAllowed, ISWorldMap = true, nil
+    T.check(row("waiting").mapX == nil and D.mapAllowed() == false and D.showOnMap(0, 1, 2) == false and #T.mapShown == 0,
+        "no ISWorldMap: no button, showOnMap refuses")
+    ISWorldMap = worldMap
     T.check(#Hd.rows({ hordes = { cur = cur("planned") } }, defs, now) == 0 and #Hd.rows({ hordes = {} }, defs, now) == 0,
         "planned (not announced yet) or no cur: no row")
     T.check(D.countdown(0) == "0:00" and D.countdown(1500) == "0:02" and D.countdown(3723000) == "1:02:03", "countdown text")
+    -- line 2 keeps the coordinates when a long language cuts it (design 5.2): %1, %2 open the text in every language
+    local notFirst = {}
+    for _, lang in ipairs({ "AR", "CH", "CN", "DE", "EN", "ES", "ES_CL", "ES_MX", "FR", "JP", "KO", "PL", "PT", "PTBR", "RU", "TR" }) do
+        local f = io.open(T.MEDIA .. "/shared/Translate/" .. lang .. "/IG_UI.json", "r")
+        local src = f and f:read("a") or ""
+        if f then f:close() end
+        for _, key in ipairs({ "IGUI_MQ_Horde_HudSoon", "IGUI_MQ_Horde_HudWait" }) do
+            local v = string.match(src, '"' .. key .. '"%s*:%s*"([^"]*)"')
+            if v == nil or string.find(v, "^%%1, %%2") == nil then notFirst[#notFirst + 1] = lang .. " " .. key end
+        end
+    end
+    T.check(#notFirst == 0, "tracker line 2 starts with the coordinates in all 16 languages " .. table.concat(notFirst, ", "))
+
     -- the panel's own layout: the horde row is on top, no unpin x, and the count is pins only
     local hp = { x = 0, y = 0, width = 300, height = 10, UI = UI, theme = { colors = colors } }
     function hp:setHeight(h) self.height = h end
     function hp:setX(v) self.x = v end
     function hp:setY(v) self.y = v end
+    local function drewOp(s)
+        for i = 1, hp.n do if hp.ops[i].s == s then return hp.ops[i] end end
+        return nil
+    end
     local cat = Q.Catalog
     local quests = {}
     for i = 1, 4 do quests[i] = { tid = cat.daily[i].tid, target = 10, prog = 1, pts = 5, state = "active" } end
@@ -423,10 +609,30 @@ return function(T)
     Hd.layout(hp)
     local countText = nil
     for i = 1, hp.n do if has(hp.ops[i].s, "IGUI_MQ_UI_Count|") then countText = hp.ops[i].s end end
-    T.check(#hp.rows == 6 and hp.rows[1].horde and #hp.hits == 5 and countText == "IGUI_MQ_UI_Count|5|5" and hp.hordeTime == "10:00",
-        "five pins and the horde: six rows, five unpin targets, the title still counts 5 / 5")
+    T.check(#hp.rows == 6 and hp.rows[1].horde and #hp.hits == 5 and countText == "IGUI_MQ_UI_Count|5|5"
+        and hp.hordeTime == "IGUI_MQ_UI_Left|10:00" and hp.mapHit == nil and drewOp("IGUI_MQ_UI_Map") == nil,
+        "five pins and an active horde: six rows, five unpin targets, the title still counts 5 / 5, no Map button")
+    Cl.state.hordes = { cur = cur("waiting") }
+    Hd.layout(hp)
+    local m, label = hp.mapHit, drewOp("IGUI_MQ_UI_Map")
+    local tip = nil
+    for _, t in ipairs(hp.tips) do if t.text == "IGUI_MQ_UI_ShowOnMap" then tip = t end end
+    T.check(#hp.hits == 5 and m ~= nil and label ~= nil and m.x1 == hp.width - Hd.PAD and label.y > Hd.titleH() + D.chipH()
+        and tip ~= nil and tip.x == m.x0 and tip.y == m.y0,
+        "waiting: a Map button at the right of line 2 with its hover text; still five unpin targets")
+    local lineOp = drewOp("IGUI_MQ_Horde_HudWait|10620|9810")
+    T.check(lineOp ~= nil and lineOp.x == Hd.PAD and lineOp.y == label.y, "line 2: the spot text left of the button")
+    T.check(Hd.onMouseDown(hp, m.x0 + 2, m.y0 + 2) == true and #T.mapShown == 1 and T.mapShown[1].playerNum == 0
+        and T.mapShown[1].x == 10620 and T.mapShown[1].y == 9810 and T.mapShown[1].zoom == 16,
+        "a click on Map opens the world map on the spot")
+    T.mapAllowed = false
+    Hd.layout(hp)
+    T.check(hp.mapHit == nil and drewOp("IGUI_MQ_UI_Map") == nil and #hp.hits == 5, "map not allowed: the button is gone")
+    T.mapAllowed, T.mapShown = true, {}
     Cl.state = { pins = {}, hordes = { cur = cur("waiting") } }
     T.check(Hd.wanted(), "no pins but a horde: the panel is wanted")
+    Cl.state.hordes = { cur = cur("rest", { waves = 2 }) }
+    T.check(Hd.wanted(), "a horde resting between waves keeps the panel")
     Cl.state.hordes = { cur = nil, last = { state = "success" } }
     T.check(not Hd.wanted() and #Hd.rows(Cl.state, defs, now) == 0, "cur gone: no row, no panel without pins")
     Hd.show = false
@@ -438,76 +644,119 @@ return function(T)
     local function banner(h, l, at)
         return PD.hordeBanner({ hordes = { cur = h, last = l } }, at or now)
     end
-    local tok, title, body, right = banner(cur("announced"))
+    local ann = cur("announced", { waves = 3 })
+    local tok, title, body, right, spot = banner(ann)
     T.check(tok == D.EXTRA.hordeSoon and title == "IGUI_MQ_Horde_Title_soon|" .. place
         and has(body, "IGUI_MQ_Horde_SoonBanner|IGUI_MQ_Horde_Kind_vanilla") and has(body, "|10620|9810")
-        and right == "IGUI_MQ_UI_Left|" .. D.duration(15 * 60000), "announced: place, kinds, the 50-tile rule and the time left")
-    tok, title, body, right = banner(cur("waiting"))
-    T.check(title == "IGUI_MQ_Horde_Title_wait|" .. place and body == "IGUI_MQ_Horde_WaitBody|10620|9810" and has(right, "IGUI_MQ_UI_Left|"),
-        "waiting: where to go and the time left")
-    tok, title, body = banner(cur("active"))
-    T.check(tok == D.EXTRA.horde and title == "IGUI_MQ_Horde_Title_active|" .. place and body == "IGUI_MQ_Horde_ActiveBody_share|17|30|150",
-        "active, share: cleared and the pool split by kills")
-    tok, title, body = banner(cur("active", { split = "each" }))
-    T.check(body == "IGUI_MQ_Horde_ActiveBody_each|17|30|150", "active, each: every participant gets the pool")
-    local lastWin = { id = 3, name = "Gas", town = "muldraugh", state = "success", endedAt = now - 60000, spawned = 30, killed = 30,
-        pool = 150, split = "share", mine = 9, got = 45 }
-    tok, title, body, right = banner(nil, lastWin)
-    T.check(tok == D.EXTRA.success and title == "IGUI_MQ_Horde_Title_win|" .. place and body == "IGUI_MQ_Horde_WinMine_share|9|30"
-        and right == "IGUI_MQ_UI_PlusPoints|45", "won, share: my kills and share (45 of 150 = 30%), +45")
-    lastWin.split, lastWin.got = "each", 150
-    tok, title, body, right = banner(nil, lastWin)
-    T.check(body == "IGUI_MQ_Horde_WinMine_each|9" and right == "IGUI_MQ_UI_PlusPoints|150", "won, each: the whole pool")
+        and right == "IGUI_MQ_Horde_StartsIn|" .. D.duration(15 * 60000) and spot == ann,
+        "announced: place, kinds, the 30-tile rule, a 'starts in' countdown (not 'left') and the spot for the Map button")
+    tok, title, body, right, spot = banner(cur("waiting", { waves = 3 }))
+    T.check(title == "IGUI_MQ_Horde_Title_wait|IGUI_MQ_Horde_Wave|1|3|" .. place and body == "IGUI_MQ_Horde_WaitBody|10620|9810"
+        and has(right, "IGUI_MQ_UI_Left|") and spot ~= nil, "waiting: wave 1/3, where to go, the time left, Map")
+    tok, title, body, right, spot = banner(cur("active", { wave = 2, waves = 3 }))
+    T.check(tok == D.EXTRA.horde and title == "IGUI_MQ_Horde_Title_active|IGUI_MQ_Horde_Wave|2|3|" .. place
+        and body == "IGUI_MQ_Horde_ActiveBody|17|30|9" and right == "IGUI_MQ_UI_Left|" .. D.duration(600000) and spot == nil,
+        "active: wave 2/3, cleared / wave size and my kills, no pool, no Map")
+    tok, title, body, right, spot = banner(cur("rest", { wave = 2, waves = 3, left = 0 }))
+    T.check(tok == D.EXTRA.hordeSoon and title == "IGUI_MQ_Horde_Title_rest|2|3|" .. place
+        and body == "IGUI_MQ_Horde_RestBody|3|10620|9810" and right == "IGUI_MQ_Horde_NextIn|" .. D.duration(24000)
+        and spot ~= nil, "rest: wave 2/3 cleared, the next wave and where, 'next wave in', Map")
+    T.mapAllowed = false
+    T.check(select(5, banner(ann)) == nil, "map not allowed: no spot for a button")
+    T.mapAllowed = true
+    local lastWin = { id = 3, name = "Gas", town = "muldraugh", state = "success", endedAt = now - 60000, waves = 3, cleared = 3,
+        spawned = 325, killed = 325, pool = 500, capped = false, mine = 92, got = 130 }
+    tok, title, body, right, spot = banner(nil, lastWin)
+    T.check(tok == D.EXTRA.success and title == "IGUI_MQ_Horde_Title_win|" .. place and body == "IGUI_MQ_Horde_WinMine|3|3|92"
+        and right == "IGUI_MQ_UI_PlusPoints|130" and spot == nil, "won: waves cleared, my kills, +points, no Map")
+    lastWin.capped = true
+    T.check(select(3, banner(nil, lastWin)) == "IGUI_MQ_Horde_Join|IGUI_MQ_Horde_WinMine|3|3|92|IGUI_MQ_Horde_Capped",
+        "won over the cap: the shares-scaled note")
     lastWin.got, lastWin.mine = nil, 0
     tok, title, body, right = banner(nil, lastWin)
-    T.check(body == "IGUI_MQ_Horde_WinOthers|30|30" and right == nil, "won without me: who gets points")
+    T.check(body == "IGUI_MQ_Horde_WinOthers|3|3|325" and right == nil, "won without me: who gets points")
+    local lastFail = { name = "Gas", state = "failed", why = "time", endedAt = now - 60000, waves = 3, cleared = 2, pool = 130,
+        capped = false, mine = 31, got = 44 }
+    tok, title, body, right = banner(nil, lastFail)
+    T.check(tok == "errorText" and title == "IGUI_MQ_Horde_Title_fail|Gas"
+        and body == "IGUI_MQ_Horde_Join|IGUI_MQ_Horde_FailWave|3|IGUI_MQ_Horde_Why_time|IGUI_MQ_Horde_FailPaid|2|130"
+        and right == "IGUI_MQ_UI_PlusPoints|44", "failed in wave 3: why, the 2 cleared waves still pay, +my points")
     for _, why in ipairs({ "time", "nobody", "admin", "restart", "spawn" }) do
-        tok, title, body, right = banner(nil, { name = "Gas", state = "failed", why = why, endedAt = now - 60000 })
+        tok, title, body, right = banner(nil, { name = "Gas", state = "failed", why = why, endedAt = now - 60000, waves = 1, cleared = 0 })
         T.check(tok == "errorText" and title == "IGUI_MQ_Horde_Title_fail|Gas" and body == "IGUI_MQ_Horde_Why_" .. why
-            and right == "IGUI_MQ_Horde_NoReward", "failed (" .. why .. "): why, no reward")
+            and right == "IGUI_MQ_Horde_NoReward", "failed (" .. why .. ") with one wave: why, no reward")
     end
     tok, title, body = banner(nil, { name = "Gas", state = "cancelled", endedAt = now - 60000 })
     T.check(title == "IGUI_MQ_Horde_Title_cancel|Gas" and body == "IGUI_MQ_Horde_CancelBody", "cancelled")
     T.check(banner(nil, { name = "Gas", state = "failed", why = "time", endedAt = now - PD.LAST_MS + 1000 }) ~= nil
         and banner(nil, { name = "Gas", state = "failed", why = "time", endedAt = now - PD.LAST_MS }) == nil and banner(nil, nil) == nil,
         "the last result shows for 10 minutes only; nothing without a horde")
-    T.check(banner(cur("planned"), lastWin) ~= nil and banner(cur("active"), lastWin) ~= nil
-        and select(2, banner(cur("active"), lastWin)) == "IGUI_MQ_Horde_Title_active|" .. place, "a live horde wins over the last result")
+    T.check(banner(cur("planned"), lastWin) ~= nil and select(2, banner(cur("active"), lastWin)) == "IGUI_MQ_Horde_Title_active|" .. place,
+        "a live horde wins over the last result")
+    -- the banner block (daily and Hordes pages): a pooled Map button at the bottom right while the spot matters
+    local par = setmetatable({}, { __index = Base })
+    local pg = { UI = UI, theme = { colors = colors }, pool = D.pool(par) }
+    local bb = D.begin({ UI = UI, theme = pg.theme })
+    pg.pool:begin()
+    local ny = PD.hordeBlock(pg, bb, 10, 20, 400, { hordes = { cur = cur("waiting") } })
+    pg.pool:finish()
+    local mb = pg.pool.items.hordeMap
+    T.check(mb ~= nil and mb.visible ~= false and mb.opts.title == "IGUI_MQ_UI_Map" and mb.tooltip == "IGUI_MQ_UI_ShowOnMap"
+        and mb.x == 10 + 400 - 10 - mb.width and mb.y + mb.height + 6 + D.GAP == ny, "waiting: Map button inside the banner, bottom right")
+    mb.onclick(mb.target, mb)
+    T.check(#T.mapShown == 1 and T.mapShown[1].x == 10620 and T.mapShown[1].y == 9810 and T.mapShown[1].playerNum == 0,
+        "the banner's Map opens the world map on the spot")
+    pg.pool:begin()
+    T.check(PD.hordeBlock(pg, bb, 10, 20, 400, { hordes = { cur = cur("active") } }) ~= nil, "active: the banner")
+    pg.pool:finish()
+    T.check(mb.visible == false, "active: no Map button")
+    T.check(PD.hordeBlock(pg, bb, 10, 20, 400, { hordes = {} }) == nil, "no horde: no banner")
+    T.mapShown = {}
 
     T.section("horde toasts")
     local function toast(t) t.kind = t.kind or "horde"; t.name, t.town = "Gas", "muldraugh"; return E.toastText(t) end
-    title, body = toast({ ev = "soon", startMs = now + 15 * 60000, kinds = kinds })
+    title, body = toast({ ev = "soon", startMs = now + 15 * 60000, kinds = kinds, waves = 3 })
     T.check(title == "IGUI_MQ_Horde_Title_soon|" .. place and has(body, "IGUI_MQ_Horde_SoonBody|15|")
-        and has(body, "IGUI_MQ_Horde_Kind_vanilla") and has(body, "IGUI_MQ_Horde_Kind_runner"), "soon: minutes to the start and the kinds, no count")
-    title, body = toast({ ev = "soon", startMs = now - 60000, kinds = kinds })
+        and has(body, "IGUI_MQ_Horde_Kind_vanilla") and has(body, "IGUI_MQ_Horde_Kind_runner") and has(body, "|3"),
+        "soon: minutes to the start, the kinds (no count) and the waves")
+    title, body = toast({ ev = "soon", startMs = now - 60000, kinds = kinds, waves = 1 })
     T.check(has(body, "IGUI_MQ_Horde_SoonBody|1|"), "a late warning still says at least 1 minute")
     title, body = toast({ ev = "remind", startMs = now + 2 * 60000 })
     T.check(title == "IGUI_MQ_Horde_Title_remind|2|" .. place and body == "IGUI_MQ_Horde_Remind", "remind: minutes left; get ready or leave")
-    title, body = toast({ ev = "open", startMs = now, kinds = { kinds[2] } })
-    T.check(title == "IGUI_MQ_Horde_Title_wait|" .. place and body == "IGUI_MQ_Horde_OpenBody|IGUI_MQ_Horde_Kind_runner", "open: starts now")
-    title, body = toast({ ev = "spawn", endsAt = now + 900000, limitMin = 15, spawned = 30, pool = 150, split = "share" })
-    T.check(title == "IGUI_MQ_Horde_Title_spawn|" .. place and body == "IGUI_MQ_Horde_SpawnBody_share|15|150", "spawn, share")
-    title, body = toast({ ev = "spawn", limitMin = 15, spawned = 30, pool = 150, split = "each" })
-    T.check(body == "IGUI_MQ_Horde_SpawnBody_each|15|150", "spawn, each")
-    title, body = toast({ ev = "win", spawned = 30, killed = 30, pool = 150, split = "share", n = 4 })
-    T.check(title == "IGUI_MQ_Horde_Title_win|" .. place and body == "IGUI_MQ_Horde_WinBody_share|4|150", "win, share")
-    title, body = toast({ ev = "win", pool = 150, split = "each", n = 4 })
-    T.check(body == "IGUI_MQ_Horde_WinBody_each|4|150", "win, each")
-    title, body = toast({ ev = "fail", why = "time", left = 6 })
-    T.check(title == "IGUI_MQ_Horde_Title_fail|" .. place and body == "IGUI_MQ_Horde_Why_timeLeft|6", "fail by time names how many were removed")
-    for _, why in ipairs({ "nobody", "admin", "restart", "spawn" }) do
-        title, body = toast({ ev = "fail", why = why, left = 0 })
-        T.check(body == "IGUI_MQ_Horde_Why_" .. why, "fail (" .. why .. ")")
+    title, body = toast({ ev = "open", startMs = now, kinds = { kinds[2] }, waves = 2 })
+    T.check(title == "IGUI_MQ_Horde_Title_wait|" .. place and body == "IGUI_MQ_Horde_OpenBody|IGUI_MQ_Horde_Kind_runner|2",
+        "open: starts now, the kinds and the waves")
+    title, body = toast({ ev = "spawn", wave = 1, waves = 1, size = 75, endsAt = now + 900000, limitMin = 15 })
+    T.check(title == "IGUI_MQ_Horde_Title_spawn|" .. place and body == "IGUI_MQ_Horde_SpawnBody|15|75", "spawn: limit and size")
+    title = toast({ ev = "spawn", wave = 2, waves = 3, size = 75, limitMin = 15 })
+    T.check(title == "IGUI_MQ_Horde_Title_spawn|IGUI_MQ_Horde_Wave|2|3|" .. place, "spawn of wave 2/3")
+    local nextAt = Cl.serverNow() + 30000
+    title, body = toast({ ev = "rest", wave = 2, waves = 3, nextAt = nextAt })
+    T.check(title == "IGUI_MQ_Horde_Title_rest|2|3|" .. place and body == "IGUI_MQ_Horde_RestToast|3|0:30",
+        "rest: wave 2/3 cleared, wave 3 in 0:30")
+    title, body = toast({ ev = "win", waves = 3, spawned = 325, killed = 325, pool = 500, capped = false, n = 4 })
+    T.check(title == "IGUI_MQ_Horde_Title_win|" .. place and body == "IGUI_MQ_Horde_WinBody|3|325|4|500", "win: waves, zombies, players, paid")
+    title, body = toast({ ev = "win", waves = 3, spawned = 325, pool = 500, capped = true, n = 8 })
+    T.check(body == "IGUI_MQ_Horde_Join|IGUI_MQ_Horde_WinBody|3|325|8|500|IGUI_MQ_Horde_Capped", "win over the cap")
+    title, body = toast({ ev = "fail", why = "time", wave = 3, waves = 3, cleared = 2, pool = 130, capped = false })
+    T.check(title == "IGUI_MQ_Horde_Title_fail|" .. place
+        and body == "IGUI_MQ_Horde_Join|IGUI_MQ_Horde_FailWave|3|IGUI_MQ_Horde_Why_time|IGUI_MQ_Horde_FailPaid|2|130",
+        "fail in wave 3: why, the cleared waves pay")
+    title, body = toast({ ev = "fail", why = "time", wave = 3, waves = 3, cleared = 2, pool = 500, capped = true })
+    T.check(body == "IGUI_MQ_Horde_Join|IGUI_MQ_Horde_Join|IGUI_MQ_Horde_FailWave|3|IGUI_MQ_Horde_Why_time|IGUI_MQ_Horde_FailPaid|2|500|IGUI_MQ_Horde_Capped",
+        "fail over the cap")
+    for _, why in ipairs({ "time", "nobody", "admin", "restart", "spawn" }) do
+        title, body = toast({ ev = "fail", why = why, wave = 1, waves = 1, cleared = 0, pool = 0 })
+        T.check(body == "IGUI_MQ_Horde_Why_" .. why, "fail (" .. why .. "), one wave, nothing paid")
     end
-    title, body = toast({ ev = "fail", why = "time", left = 0 })
-    T.check(body == "IGUI_MQ_Horde_Why_time", "fail by time with nothing left")
     title, body = toast({ ev = "cancel" })
     T.check(title == "IGUI_MQ_Horde_Title_cancel|" .. place and body == "IGUI_MQ_Horde_CancelBody", "cancel")
     T.check(toast({ ev = "bogus" }) == nil, "an unknown ev shows nothing")
-    title, body = toast({ kind = "hordePaid", id = 3, pts = 45, kills = 9, pct = 30 })
-    T.check(title == "IGUI_MQ_Horde_Paid|45" and body == "IGUI_MQ_Horde_WinMine_share|9|30", "paid, share: kills and percent")
-    title, body = toast({ kind = "hordePaid", id = 3, pts = 150, kills = 9 })
-    T.check(title == "IGUI_MQ_Horde_Paid|150" and body == "IGUI_MQ_Horde_WinMine_each|9", "paid, each: no percent")
+    title, body = toast({ kind = "hordePaid", id = 3, pts = 45, kills = 9, capped = false })
+    T.check(title == "IGUI_MQ_Horde_Paid|45" and body == "IGUI_MQ_Horde_PaidBody|9", "paid: points and my kills")
+    title, body = toast({ kind = "hordePaid", id = 3, pts = 63, kills = 92, capped = true })
+    T.check(title == "IGUI_MQ_Horde_Paid|63" and body == "IGUI_MQ_Horde_Join|IGUI_MQ_Horde_PaidBody|92|IGUI_MQ_Horde_Capped",
+        "paid over the cap: the shares-scaled note")
 
     T.section("horde MiniMap providers")
     local M = Q.HordeMap
@@ -527,6 +776,9 @@ return function(T)
     T.check(M.zoneProvider() == z1 and M.markerProvider(0) == m1, "same view: the very same cached tables")
     Cl.receive("delta", { hordes = { cur = cur("active") } })
     T.check(M.zoneProvider() ~= z1 and M.markerProvider(0).revision > m1.revision, "state changed: rebuilt")
+    Cl.receive("delta", { hordes = { cur = cur("rest", { wave = 1, waves = 3 }) } })
+    T.check(M.zoneProvider() ~= M.NONE and M.markerProvider(0).markers[1].x == 10620,
+        "rest between waves: the spot stays on the map")
     Cl.receive("delta", { hordes = { cur = nil, last = lastWin } })
     T.check(M.zoneProvider() == M.NONE and M.markerProvider(0) == nil, "horde over: nothing on the map")
     local reg = {}

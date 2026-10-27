@@ -367,10 +367,12 @@ function D.tex(path)
 end
 
 -- ===== toast (framework Toast; without it a halo line over the player) =====
+-- up to 6 message lines: the horde warning (waves, the edges rule, then the kinds) and the capped win / reward cut
+-- their last words at 4 in EN and ES (quest-hui-*-1027b)
 function D.toast(title, message, border)
     local UI = D.ui({ "toast" })
     if UI ~= nil and UI.Toast ~= nil then
-        UI.Toast.show({ title = title, message = message ~= "" and message or title, maxLines = 4,
+        UI.Toast.show({ title = title, message = message ~= "" and message or title, maxLines = 6,
             colors = border and { border = border } or nil })
         return
     end
@@ -729,12 +731,13 @@ function B:header(x, y, maxX, title, chips)
     return bottom + D.GAP
 end
 
--- tinted banner box: title line + wrapped body; returns y below
-function B:banner(x, y, w, token, title, body, rightText)
+-- tinted banner box: title line + wrapped body; footH leaves room at the bottom for a button row the caller places
+-- (its top at the returned y - D.GAP - 6 - its height). Returns y below
+function B:banner(x, y, w, token, title, body, rightText, footH)
     local c = self:col(token)
     local lh = D.fontH(UIFont.Small)
     local lines = body ~= nil and D.wrap(self.UI, body, w - 20, UIFont.Small) or {}
-    local h = 10 + lh + #lines * (lh + 2) + 8
+    local h = 10 + lh + #lines * (lh + 2) + 8 + (footH or 0)
     self:fill(x, y, w, h, { r = c.r, g = c.g, b = c.b, a = 0.12 })
     self:border(x, y, w, h, c)
     local rw = rightText ~= nil and self:textRight(x + w - 10, y + 6, rightText, c) or 0
@@ -778,12 +781,28 @@ function D.eventMult(theme)
 end
 
 -- ===== hordes (state.hordes = { cur, last }; toasts kind "horde") =====
-local LIVE = { announced = true, waiting = true, active = true }
+local LIVE = { announced = true, waiting = true, active = true, rest = true }
+-- the states where the spot matters (players walk there or stay away): the Map button shows (design 5)
+D.HORDE_MAP = { announced = true, waiting = true, rest = true }
 
--- the current horde while players see it (announced / waiting / active), else nil
+-- the current horde while players see it (announced / waiting / active / rest between waves), else nil
 function D.hordeLive(cur)
     if type(cur) == "table" and LIVE[cur.state] then return cur end
     return nil
+end
+
+-- the vanilla world map (ISWorldMap.lua:1491): false in Tutorial or when the sandbox turns the map off.
+-- The admin spot rows call these too.
+function D.mapAllowed()
+    return ISWorldMap ~= nil and ISWorldMap.IsAllowed()
+end
+
+-- open the world map centred on x, y (ISWorldMap.lua:1500); MiniMap wraps ShowWorldMap, so its horde marker shows too.
+-- false when the map is not allowed
+function D.showOnMap(playerNum, x, y)
+    if not D.mapAllowed() then return false end
+    ISWorldMap.ShowWorldMap(playerNum, tonumber(x) or 0, tonumber(y) or 0, 16)
+    return true
 end
 
 -- built-in towns by key, custom ones (config towns.custom, in every client's catalog push) by their name
@@ -805,6 +824,22 @@ function D.hordePlace(h)
     return getText("IGUI_MQ_Horde_Place", name, town)
 end
 
+-- the place, prefixed "Wave W/N - " (or "Wave W/N cleared - " in the rest) when the horde has more than one wave;
+-- an announced one shows the place alone (design 1). spotOnly: after the prefix the spot name without its town (the
+-- tracker row, as in the design mock; with the town the prefix and countdown cut the spot off, quest-hui-en-1027a)
+function D.hordeName(h, spotOnly)
+    local place, n = D.hordePlace(h), tonumber(h.waves) or 1
+    if n <= 1 or h.state == "announced" then return place end
+    return getText(h.state == "rest" and "IGUI_MQ_Horde_WaveDone" or "IGUI_MQ_Horde_Wave", tostring(h.wave or 1),
+        tostring(n), spotOnly and tostring(h.name or "") or place)
+end
+
+-- text, then the "every share was scaled down" note when the horde paid more than its cap
+function D.hordeCapped(text, capped)
+    if not capped then return text end
+    return getText("IGUI_MQ_Horde_Join", text, getText("IGUI_MQ_Horde_Capped"))
+end
+
 -- the kinds that may appear ({ { id, nameKey } }), never a count
 function D.hordeKinds(kinds)
     local names = {}
@@ -814,11 +849,20 @@ function D.hordeKinds(kinds)
     return table.concat(names, getText("IGUI_MQ_UI_ListSep"))
 end
 
--- why a horde failed; "time" names how many were removed when the toast says
-function D.hordeWhy(why, left)
-    left = tonumber(left)
-    if why == "time" and left ~= nil and left > 0 then return getText("IGUI_MQ_Horde_Why_timeLeft", D.num(left)) end
-    return D.textOrNull("IGUI_MQ_Horde_Why_" .. tostring(why)) or ""
+-- why a horde failed, "Wave W: " first when it has more than one wave
+function D.hordeWhy(why, wave, waves)
+    local s = D.textOrNull("IGUI_MQ_Horde_Why_" .. tostring(why)) or ""
+    if (tonumber(waves) or 1) > 1 and wave ~= nil then return getText("IGUI_MQ_Horde_FailWave", tostring(wave), s) end
+    return s
+end
+
+-- a failed horde still pays its cleared waves (design 4.3): why, then what was paid
+function D.hordeFailText(why, wave, waves, cleared, pool, capped)
+    local s = D.hordeWhy(why, wave, waves)
+    cleared = tonumber(cleared) or 0
+    if cleared <= 0 then return s end
+    return D.hordeCapped(getText("IGUI_MQ_Horde_Join", s, getText("IGUI_MQ_Horde_FailPaid", tostring(cleared),
+        D.num(tonumber(pool) or 0))), capped)
 end
 
 -- "12:34" / "1:02:03" (the tracker counts down by the second)

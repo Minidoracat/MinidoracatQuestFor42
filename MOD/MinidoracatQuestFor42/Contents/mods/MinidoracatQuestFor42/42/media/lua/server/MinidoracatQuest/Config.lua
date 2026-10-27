@@ -171,10 +171,39 @@ local function clock(v)
     if h == nil or tonumber(h) > 23 or tonumber(m) > 59 then return false, "time" end
     return true
 end
-local hordeCount = int(1, 100)
-local function countRange(v)
-    if not isArray(v, 2) or #v ~= 2 or not hordeCount(v[1]) or not hordeCount(v[2]) or v[1] > v[2] then
-        return false, "count"
+-- true when t has exactly the keys in names (a set)
+local function onlyKeys(t, names)
+    if type(t) ~= "table" then return false end
+    for k in pairs(t) do if not names[k] then return false end end
+    for k in pairs(names) do if t[k] == nil then return false end end
+    return true
+end
+local WINDOW_KEYS = { days = true, from = true, to = true, chance = true }
+local chanceV = int(0, 100)
+-- weekdays "1".."7" (1 = Monday), each at most once
+local function weekdays(v)
+    if type(v) ~= "string" or #v < 1 or #v > 7 or not string.find(v, "^[1-7]+$") then return false end
+    for i = 1, #v do
+        if string.find(v, string.sub(v, i, i), i + 1) then return false end   -- digits: no pattern magic
+    end
+    return true
+end
+local function hordeWindows(v)
+    if not isArray(v, 8) or #v < 1 then return false, "windows" end
+    for _, w in ipairs(v) do
+        if not onlyKeys(w, WINDOW_KEYS) or not weekdays(w.days) or not clock(w.from) or not clock(w.to)
+            or not chanceV(w.chance) then
+            return false, "windows"
+        end
+    end
+    return true
+end
+local WAVE_KEYS = { base = true, perPlayer = true }
+local waveBase, wavePer = int(1, 9999), int(0, 1000)
+local function hordeWaves(v)
+    if not isArray(v, 10) or #v < 1 then return false, "waves" end
+    for _, w in ipairs(v) do
+        if not onlyKeys(w, WAVE_KEYS) or not waveBase(w.base) or not wavePer(w.perPlayer) then return false, "waves" end
     end
     return true
 end
@@ -210,10 +239,12 @@ Cf.SCHEMA = {
     titles = { head = bool, chat = bool },
     boards = { inactiveDays = int(7, 365), rebuildSeasonMs = int(60000, 86400000), rebuildTotalMs = int(60000, 86400000) },
     towns = { custom = townsCustom, disabled = townsDisabled },
-    -- timed hordes (Hordes.lua); kinds: kindId ("vanilla", "runner", "<modId>:<id>") -> weight; spots whole-set only
-    hordes = { enabled = bool, from = clock, to = clock, chance = int(0, 100), maxPerDay = int(1, 24),
-        leadMin = int(0, C.LIMIT.MAX_LEAD), waitMin = int(1, 240), count = countRange, kinds = { ["*"] = int(0, 100) },
-        limitMin = int(1, 120), perZombie = int(0, 1000), split = oneOf({ "share", "each" }), spots = hordeSpots },
+    -- timed hordes (Hordes.lua); kinds: kindId ("vanilla", "runner", "<modId>:<id>") -> weight, points: kindId -> points
+    -- per kill; windows, waves and spots are whole-set only
+    hordes = { enabled = bool, windows = hordeWindows, maxPerDay = int(1, 24), leadMin = int(0, C.LIMIT.MAX_LEAD),
+        waitMin = int(1, 240), waves = hordeWaves, restSec = int(0, 600), maxAlive = int(10, 2000),
+        kinds = { ["*"] = int(0, 100) }, points = { ["*"] = int(0, 1000) }, limitMin = int(1, 120),
+        cap = int(1, 1000000), spots = hordeSpots },
     ceilings = ceilingsMap,
     -- season.lengthDays only changes through the season ops (section 3.4); not a config path
 }
@@ -526,12 +557,56 @@ local function changesTo(tree)
     return changes
 end
 
+-- Rewrites the pre-2026-10-27 hordes keys of an overrides-shaped tree in place (design plan-hordes-1027); true when
+-- anything changed. from / to / chance -> the first window (every weekday), count { a, b } -> one wave of their
+-- average with no per-player growth, perZombie -> the points of vanilla, runner and every kind with a weight; split
+-- goes (only the kill-value share is left). Keys the old tree did not override keep the new defaults. An old key that
+-- does not convert stays, so the tree fails validation on its path (status.json names it): a value the old validation
+-- would have refused (no silent new default), or one next to its new key (an edit in the old shape is not dropped).
+local oldChance, oldCount, oldPer = int(0, 100), int(1, 100), int(0, 1000)
+function Cf.migrate(tree)
+    local h = type(tree) == "table" and tree.hordes or nil
+    if type(h) ~= "table" then return false end
+    local changed = false
+    if h.from ~= nil or h.to ~= nil or h.chance ~= nil then
+        -- only a missing key takes the default: false is a value, and the old validation refused it
+        local from, to, chance = h.from, h.to, h.chance
+        if from == nil then from = "19:00" end
+        if to == nil then to = "23:00" end
+        if chance == nil then chance = 30 end
+        if h.windows == nil and clock(from) and clock(to) and oldChance(chance) then
+            h.windows = { { days = "1234567", from = from, to = to, chance = chance } }
+            h.from, h.to, h.chance, changed = nil, nil, nil, true
+        end
+    end
+    if h.count ~= nil then
+        local c = h.count
+        if h.waves == nil and isArray(c, 2) and #c == 2 and oldCount(c[1]) and oldCount(c[2]) and c[1] <= c[2] then
+            h.waves = { { base = math.floor((c[1] + c[2]) / 2 + 0.5), perPlayer = 0 } }
+            h.count, changed = nil, true
+        end
+    end
+    if h.perZombie ~= nil then
+        local p = h.perZombie
+        if h.points == nil and oldPer(p) then
+            h.points = { vanilla = p, runner = p }
+            if type(h.kinds) == "table" then
+                for k in pairs(h.kinds) do h.points[k] = p end
+            end
+            h.perZombie, changed = nil, true
+        end
+    end
+    if h.split ~= nil then h.split, changed = nil, true end
+    return changed
+end
+
 -- source "boot" | "file"
 local function applyFile(text, source)
     local tree, why, line = U.decode(text, Cf.FILE_BYTES)
     if type(tree) ~= "table" then
         return setStatus({ ok = false, source = source, why = why == "TOO_LARGE" and "too large" or "json", line = line })
     end
+    local migrated = Cf.migrate(tree)
     local changes = changesTo(tree)
     if #changes > 0 then
         local ok, code, detail = applyChanges(changes, Cf.FILE_ACTOR, Cf.FILE_ACTOR)
@@ -543,6 +618,8 @@ local function applyFile(text, source)
         if Q.EventLog then Q.EventLog.write("admin", Cf.FILE_ACTOR, { op = "cfg.file" }) end
     end
     setStatus({ ok = true, source = source, changed = #changes })
+    -- the file still has the old keys: write it in the new shape
+    if migrated then mirror(source) end
 end
 
 -- true, historyId, rev | false, code, detail
@@ -565,6 +642,9 @@ function Cf.undo(historyId, actor)
         else changes[#changes + 1] = { op = "set", path = r.path, value = r.before } end
     end
     if #changes == 0 then return false, CODE.BAD_CONFIG end
+    -- a change from before a schema change (old hordes keys) no longer validates: refused like a bad apply
+    local ok, detail = validateAll(changes)
+    if not ok then return false, CODE.BAD_CONFIG, detail end
     local id, rev = write(changes, "undo #" .. tostring(historyId), actor)
     mirror("panel")
     return true, id, rev
@@ -586,6 +666,10 @@ function Cf.fileBoot()
     Cf.file = { nextPoll = getTimestampMs() + Cf.POLL_MS }
     if not Q.Store.ready() or Q.Store.readOnly then return end
     U.log("settings files: Zomboid/Lua/" .. Q.Store.path(""))   -- the folder owners look for (sp_<save> in single player)
+    if Cf.migrate(Q.Store.root().config.overrides) then
+        Cf.invalidate()
+        U.log("config: hordes settings moved to the windows / waves / points shape")
+    end
     local defaults, all = {}, Cf.defaults()
     for k in pairs(Cf.SCHEMA) do defaults[k] = all[k] end
     writeText(Cf.DEFAULTS_FILE, U.encode(defaults, true))

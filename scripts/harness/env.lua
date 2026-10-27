@@ -12,10 +12,16 @@ Quick reference
       false); replies reach MinidoracatQuest.Client.receive and are also recorded in T.outbox.
   T.bootClient{}           MP client: loads shared+client (T.mode = "client").
   T.player{ name, admin, role, sid, x, y, z, num, oid, dead, noRole, offline }  online IsoPlayer (p.veh, p.hand)
-  T.zombie{ oid, outfit, attacker, inWorld, owner }  IsoZombie; addZombiesInOutfitArea makes these (T.spawnCap limits
+  T.zombie{ oid, outfit, attacker, inWorld, owner, useless, cell, x, y }  IsoZombie; addZombiesInOutfitArea makes these at (x1, y1) (T.spawnCap limits
       how many it returns, like unloaded squares; T.spawnCalls records the calls; they report isExistInTheWorld() false
-      like fresh zombies on a dedicated server, quest-hz-1026e; T.staleOwner = p makes them still owned by p, like a
-      reused engine object); z:Kill(killer) fires OnZombieDead
+      like fresh zombies on a dedicated server, quest-hz-1026e; T.staleOwner = p makes them still owned by p and
+      T.staleUseless = true keeps them useless, like a reused engine object); z:Kill(killer) fires OnZombieDead;
+      cell = true: also in getCell():getZombieList() (T.cellZombies, a client's list; removeFromWorld takes it out,
+      z.unregistered after z:getEmitter():unregister()).
+      T.boot{ sp = true }: online id -1 (only the dedicated server hands them out) and spawns join the cell's list.
+      Spawns fire OnZombieCreate; T.reuseZombie(z): the engine hands the object out again (OnZombieCreate, back in the
+      cell's list, a new online id on the dedicated server)
+  T.square(x, y, z) -> nil | "water" | "solid" | other: getCell():getGridSquare for horde exits; T.sounds: addSound calls
   T.cmd(p, cmd, args, requestId)   fills protocol (+ requestId for mutations / admin mutation ops), advances 300 ms,
       fires OnClientCommand and returns the "result" or "admin" reply sent for it (nil when none).
   T.lastOf(p, cmd), T.sentTo(p, cmd), T.broadcastsOf(cmd), T.clientSent (sendClientCommand records)
@@ -81,6 +87,10 @@ function T.javaList(items)
     function l:get(i) return items[i + 1] end
     function l:add(v) items[#items + 1] = v return true end
     function l:isEmpty() return #items == 0 end
+    function l:contains(v)
+        for _, x in ipairs(items) do if x == v then return true end end
+        return false
+    end
     return l
 end
 ArrayList = { new = function() return T.javaList({}) end }
@@ -266,14 +276,18 @@ function T.disconnect(p)
 end
 
 -- ===== zombies (IsoZombie) =====
-T.zombies, T.spawnCalls, T.spawnCap = {}, {}, nil
+T.zombies, T.cellZombies, T.spawnCalls, T.spawnCap = {}, {}, {}, nil
 T.nextZombieId = 1000
 function T.zombie(o)
     o = o or {}
-    local z = { __class = "IsoZombie", oid = o.oid or T.nextZombieId, outfit = o.outfit or 655360, attacker = o.attacker,
-        dead = false, inWorld = o.inWorld ~= false, onSquare = true, sprinter = false, owner = o.owner, ownerPlayer = o.owner }
+    -- single player: no online id (VirtualZombieManager.java:207-221 sets it on GameServer only; quest-hsp-pre-1027a)
+    local z = { __class = "IsoZombie", oid = o.oid or (T.mode == "sp" and -1 or T.nextZombieId), outfit = o.outfit or 655360, attacker = o.attacker,
+        dead = false, inWorld = o.inWorld ~= false, onSquare = true, sprinter = false, owner = o.owner, ownerPlayer = o.owner,
+        x = o.x or 0, y = o.y or 0, useless = o.useless == true }
     T.nextZombieId = T.nextZombieId + 1
     function z:getOnlineID() return self.oid end
+    function z:getX() return self.x end
+    function z:getY() return self.y end
     function z:getPersistentOutfitID() return self.outfit end
     function z:isDead() return self.dead end
     function z:isExistInTheWorld() return self.inWorld end
@@ -284,26 +298,68 @@ function T.zombie(o)
     function z:getOwnerPlayer() return self.ownerPlayer end
     function z:setOwner(c) self.owner = c end
     function z:setOwnerPlayer(p) self.ownerPlayer = p end
-    -- the server zombie's online id goes to -1 (IsoZombie.java:4335-4370)
-    function z:removeFromWorld() self.inWorld, self.oid = false, -1 end
+    -- useless (IsoZombie.java:4764-4770): a reused zombie object keeps it from its last life (quest-hz-1027l)
+    function z:isUseless() return self.useless end
+    function z:setUseless(b) self.useless = b end
+    -- the server zombie's online id goes to -1 (IsoZombie.java:4335-4370, GameServer only); it leaves the cell's
+    -- zombie list (:4366)
+    function z:removeFromWorld()
+        self.inWorld = false
+        if T.mode ~= "client" then self.oid = -1 end
+        for i, c in ipairs(T.cellZombies) do if c == self then table.remove(T.cellZombies, i) break end end
+    end
     function z:removeFromSquare() self.onSquare = false end
+    function z:getEmitter() return { unregister = function() z.unregistered = true end } end
     -- IsoGameCharacter.Kill: attacker set, then OnZombieDead (IsoZombie.onKilled)
     function z:Kill(killer)
         self.attacker, self.dead = killer, true
         T.fire("OnZombieDead", self)
     end
     T.zombies[#T.zombies + 1] = z
+    if o.cell then T.cellZombies[#T.cellZombies + 1] = z end
     return z
+end
+-- the engine reuses a zombie object that left the world (VirtualZombieManager.java:78-99, :272): OnZombieCreate (:203),
+-- then the cell's zombie list (:206) and, on the dedicated server, a new online id (:211-212)
+function T.reuseZombie(z)
+    z:removeFromWorld()
+    z.dead, z.attacker, z.inWorld = false, nil, true
+    if T.mode ~= "sp" then z.oid, T.nextZombieId = T.nextZombieId, T.nextZombieId + 1 end
+    T.fire("OnZombieCreate", z)
+    T.cellZombies[#T.cellZombies + 1] = z
 end
 -- LuaManager.java:10433; returns an ArrayList, fewer when squares are not loaded (T.spawnCap). On the dedicated server
 -- these report isExistInTheWorld() false (their square's moving objects do not list them) for at least 1.5 s after the
--- spawn: quest-hz-1026e HZDBG, online id and outfit id unchanged. T.staleOwner: they come out of the engine's reuse
+-- spawn: quest-hz-1026e HZDBG, online id and outfit id unchanged. Single player: false in the spawn frame too, but in
+-- the cell's zombie list from the start (quest-hsp-pre-1027a). T.staleOwner: they come out of the engine's reuse
 -- pool still owned by that player (VirtualZombieManager.java:271-329)
 function addZombiesInOutfitArea(x1, y1, x2, y2, z, n, outfit, femaleChance)
     T.spawnCalls[#T.spawnCalls + 1] = { x1 = x1, y1 = y1, x2 = x2, y2 = y2, z = z, n = n, outfit = outfit, female = femaleChance }
     local list = {}
-    for i = 1, T.spawnCap and math.min(n, T.spawnCap) or n do list[i] = T.zombie{ inWorld = false, owner = T.staleOwner } end
+    for i = 1, T.spawnCap and math.min(n, T.spawnCap) or n do
+        list[i] = T.zombie{ inWorld = false, owner = T.staleOwner, useless = T.staleUseless, x = x1, y = y1, cell = T.mode == "sp" }
+        T.fire("OnZombieCreate", list[i])   -- createRealZombieAlways fires it before the caller gets the list
+    end
     return T.javaList(list)
+end
+-- ===== horde server mocks (Hordes.lua exits and lure) =====
+-- getCell():getGridSquare(x, y, z): the server's square (IsoCell.java:3190-3192, nil when the cell is not loaded).
+-- T.square(x, y, z) -> nil (not loaded) | "water" | "solid" | anything else (a free floor); default: every square free.
+-- addSound (LuaManager.java:11753-11758) records { x, y, z, radius, volume } in T.sounds.
+T.sounds, T.square = {}, nil
+function getCell()
+    return { getZombieList = function() return T.javaList(T.cellZombies) end, getGridSquare = function(_, x, y, z)
+        local kind = "free"
+        if T.square then kind = T.square(x, y, z) end
+        if kind == nil then return nil end
+        return {
+            isFree = function() return kind ~= "solid" end,
+            isWaterSquare = function() return kind == "water" end,
+        }
+    end }
+end
+function addSound(source, x, y, z, radius, volume)
+    T.sounds[#T.sounds + 1] = { x = x, y = y, z = z, radius = radius, volume = volume }
 end
 T.netEarly = {}
 local function early(what)
@@ -341,6 +397,16 @@ function sendClientCommand(player, module, command, args)
     T.clientSent[#T.clientSent + 1] = { player = player, module = module, command = command, args = args }
     if T.mode == "sp" then T.fire("OnClientCommand", module, command, player, args) end
 end
+
+-- ===== vanilla world map (ISWorldMap.lua:1491 IsAllowed, :1500 ShowWorldMap; horde Map buttons) =====
+-- T.mapAllowed (default true) is what IsAllowed returns; T.mapShown records every ShowWorldMap call
+T.mapAllowed, T.mapShown = true, {}
+ISWorldMap = {
+    IsAllowed = function() return T.mapAllowed end,
+    ShowWorldMap = function(playerNum, x, y, zoom)
+        T.mapShown[#T.mapShown + 1] = { playerNum = playerNum, x = x, y = y, zoom = zoom }
+    end,
+}
 
 -- ===== loading the mod =====
 local loaded = {}
@@ -384,7 +450,8 @@ local function resetWorld(opts)
     T.unreadable = {}
     T.failWrites, T.silentWrites = false, false
     T.randQueue = {}
-    T.zombies, T.spawnCalls, T.spawnCap, T.staleOwner = {}, {}, nil, nil
+    T.zombies, T.cellZombies, T.spawnCalls, T.spawnCap, T.staleOwner, T.staleUseless = {}, {}, {}, nil, nil, nil
+    T.sounds, T.square = {}, nil   -- horde server mocks
     T.steam = opts.steam or false
     T.nextOnlineId = 0
     T.missing = {}

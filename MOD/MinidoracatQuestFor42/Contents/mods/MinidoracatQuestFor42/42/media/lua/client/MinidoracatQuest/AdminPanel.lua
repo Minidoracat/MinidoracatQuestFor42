@@ -461,9 +461,11 @@ function A.pathLabel(P, path)
     local kind, tid
     kind, tid, f = string.match(path, "^(%a+)%.pool%.([^%.]+)%.(%a+)$")
     if kind then return A.questName(tid) .. " - " .. A.fieldName(f) end
-    -- per-kind horde weights (AdminHordes.lua names the kinds, pack kinds by the nameKey horde.status gave)
-    local kid = string.match(path, "^hordes%.kinds%.(.+)$")
-    if kid and A.hordeKindName then return A.fLabel("hordes.kinds") .. " - " .. A.hordeKindName(P, kid) end
+    -- per-kind horde weights and points (AdminHordes.lua names the kinds, pack kinds by the nameKey horde.status gave)
+    local group, kid = string.match(path, "^hordes%.(%a+)%.(.+)$")
+    if (group == "kinds" or group == "points") and A.hordeKindName then
+        return A.fLabel("hordes." .. group) .. " - " .. A.hordeKindName(P, kid)
+    end
     return getTextOrNull("IGUI_MQ_Admin_F_" .. string.gsub(path, "%.", "_")) or path
 end
 
@@ -509,7 +511,7 @@ function A.diffRows(P, rows)
     local out = {}
     for _, r in ipairs(type(rows) == "table" and rows or {}) do
         local label = A.pathLabel(P, tostring(r.path))
-        if isNumList(r.before) and isNumList(r.after) and r.path ~= "hordes.count" then
+        if isNumList(r.before) and isNumList(r.after) then
             local n = math.max(#r.before, #r.after)
             for i = 1, n do
                 if r.before[i] ~= r.after[i] then
@@ -521,9 +523,8 @@ function A.diffRows(P, rows)
             ceilRows(out, label, r.before, r.after)
         else
             local b, a = r.before, r.after
-            if r.path == "hordes.split" then
-                b, a = b and getText("IGUI_MQ_Admin_HordeSplit_" .. tostring(b)), a and getText("IGUI_MQ_Admin_HordeSplit_" .. tostring(a))
-            end
+            -- whole horde windows / waves: one readable line each (AdminHordes.lua)
+            if A.hordeValue then b, a = A.hordeValue(r.path, b), A.hordeValue(r.path, a) end
             out[#out + 1] = { label = label, before = A.valueText(b), after = A.valueText(a) }
         end
     end
@@ -665,14 +666,14 @@ function A.boolField(P, pg, key, label, path, part)
     return f.el
 end
 
--- "HH:MM" text bound to a config path (AM.clock checks it like the server)
-function A.clockField(P, pg, key, path)
+-- "HH:MM" text bound to a config path (part = key list inside the value); AM.clock checks it like the server
+function A.clockField(P, pg, key, path, part)
     local f = field(pg, key)
-    f.path, f.kind = path, "clock"
+    f.path, f.part, f.kind = path, part, "clock"
     f.el = pg.flow:field("f:" .. key, textW("00:00") + 30, "HH:MM", 5)
     if f.at ~= pg.version then
         f.at = pg.version
-        local v = AM.get(P.S, path)
+        local v = valueAt(P, f)
         f.el:setText(type(v) == "string" and v or "")
         markError(P, f.el, nil)
     end
@@ -749,8 +750,8 @@ function A.collect(P, pg)
                     bad = true
                 else
                     values[#values + 1] = { field = f, value = v }
-                    -- target / horde count {min, max}: min <= max
-                    if f.part and (f.part[1] == 1 or f.part[1] == 2) and (string.match(f.path, "%.target$") or f.path == "hordes.count") then
+                    -- target {min, max}: min <= max
+                    if f.part and (f.part[1] == 1 or f.part[1] == 2) and string.match(f.path, "%.target$") then
                         local t = pairsOf[f.path] or {}
                         pairsOf[f.path] = t
                         t[f.part[1]] = { v, f }

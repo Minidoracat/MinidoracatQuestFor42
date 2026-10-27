@@ -129,59 +129,78 @@ local function events(b, x, y, w, s)
     return y
 end
 
--- horde banner (plan r10 state screens): announced / waiting / active from state.hordes.cur, else the last result
--- for LAST_MS after it ended. Returns token, title, body, rightText | nil. The page ticks every 30 s, so the
--- countdowns here are coarse (the tracker panel counts by the second). Announced counts down to the start and says
--- the 50-tile rule, so players who stay away know when and how far (design r12; a clock read as the game time).
--- The player Hordes page shows the same banner.
+-- horde banner (plan r10 state screens, hordes v2): announced / waiting / active / rest from state.hordes.cur, else
+-- the last result for LAST_MS after it ended (waves cleared, points, the cap note). Returns token, title, body,
+-- rightText, spot | nil; spot (the cur) while the spot matters and the vanilla map is allowed: the caller adds the
+-- Map button. The page ticks every 30 s, so the countdowns here are coarse (the tracker panel counts by the second).
+-- Announced counts down to the start and says the 30-tile rule, so players who stay away know when and how far
+-- (design r12; a clock read as the game time). The player Hordes page shows the same banner.
 P.LAST_MS = 600000
 function P.hordeBanner(s, now)
     local hs = type(s) == "table" and type(s.hordes) == "table" and s.hordes or {}
     local h = D.hordeLive(hs.cur)
     if h ~= nil then
-        local place = D.hordePlace(h)
-        if h.state == "announced" then
-            return D.EXTRA.hordeSoon, getText("IGUI_MQ_Horde_Title_soon", place),
+        local st = h.state
+        local spot = D.HORDE_MAP[st] and D.mapAllowed() and h or nil
+        if st == "announced" then
+            return D.EXTRA.hordeSoon, getText("IGUI_MQ_Horde_Title_soon", D.hordePlace(h)),
                 getText("IGUI_MQ_Horde_SoonBanner", D.hordeKinds(h.kinds), tostring(h.x), tostring(h.y)),
-                getText("IGUI_MQ_UI_Left", D.duration((tonumber(h.startMs) or now) - now))
+                getText("IGUI_MQ_Horde_StartsIn", D.duration((tonumber(h.startMs) or now) - now)), spot
         end
-        if h.state == "waiting" then
-            return D.EXTRA.hordeSoon, getText("IGUI_MQ_Horde_Title_wait", place),
+        if st == "waiting" then
+            return D.EXTRA.hordeSoon, getText("IGUI_MQ_Horde_Title_wait", D.hordeName(h)),
                 getText("IGUI_MQ_Horde_WaitBody", tostring(h.x), tostring(h.y)),
-                getText("IGUI_MQ_UI_Left", D.duration((tonumber(h.expireAt) or now) - now))
+                getText("IGUI_MQ_UI_Left", D.duration((tonumber(h.expireAt) or now) - now)), spot
         end
-        local n = tonumber(h.spawned) or 0
-        return D.EXTRA.horde, getText("IGUI_MQ_Horde_Title_active", place),
-            getText(h.split == "each" and "IGUI_MQ_Horde_ActiveBody_each" or "IGUI_MQ_Horde_ActiveBody_share",
-                D.num(math.max(0, n - (tonumber(h.left) or 0))), D.num(n), D.num(tonumber(h.pool) or 0)),
+        if st == "rest" then
+            local w = tonumber(h.wave) or 1
+            return D.EXTRA.hordeSoon, getText("IGUI_MQ_Horde_Title_rest", tostring(w), tostring(h.waves or w), D.hordePlace(h)),
+                getText("IGUI_MQ_Horde_RestBody", tostring(w + 1), tostring(h.x), tostring(h.y)),
+                getText("IGUI_MQ_Horde_NextIn", D.duration((tonumber(h.nextAt) or now) - now)), spot
+        end
+        local n = tonumber(h.size) or 0
+        return D.EXTRA.horde, getText("IGUI_MQ_Horde_Title_active", D.hordeName(h)),
+            getText("IGUI_MQ_Horde_ActiveBody", D.num(math.max(0, n - (tonumber(h.left) or 0))), D.num(n),
+                D.num(tonumber(h.mine) or 0)),
             getText("IGUI_MQ_UI_Left", D.duration((tonumber(h.endsAt) or now) - now))
     end
     local l = hs.last
     if type(l) ~= "table" or now - (tonumber(l.endedAt) or 0) >= P.LAST_MS then return nil end
     local place = D.hordePlace(l)
+    local got, cleared, waves = tonumber(l.got) or 0, tonumber(l.cleared) or 0, tonumber(l.waves) or 1
     if l.state == "success" then
-        local got, mine = tonumber(l.got) or 0, D.num(tonumber(l.mine) or 0)
         if got <= 0 then
             return D.EXTRA.success, getText("IGUI_MQ_Horde_Title_win", place),
-                getText("IGUI_MQ_Horde_WinOthers", D.num(tonumber(l.killed) or 0), D.num(tonumber(l.spawned) or 0)), nil
+                getText("IGUI_MQ_Horde_WinOthers", tostring(cleared), tostring(waves), D.num(tonumber(l.killed) or 0)), nil
         end
-        local pool = tonumber(l.pool) or 0
-        -- share: the server split pool by kill share, so got / pool is this player's share
-        local body = (l.split ~= "each" and pool > 0)
-            and getText("IGUI_MQ_Horde_WinMine_share", mine, tostring(math.floor(got * 100 / pool + 0.5)))
-            or getText("IGUI_MQ_Horde_WinMine_each", mine)
-        return D.EXTRA.success, getText("IGUI_MQ_Horde_Title_win", place), body, getText("IGUI_MQ_UI_PlusPoints", D.num(got))
+        return D.EXTRA.success, getText("IGUI_MQ_Horde_Title_win", place),
+            D.hordeCapped(getText("IGUI_MQ_Horde_WinMine", tostring(cleared), tostring(waves), D.num(tonumber(l.mine) or 0)),
+                l.capped), getText("IGUI_MQ_UI_PlusPoints", D.num(got))
     end
     if l.state == "cancelled" then
         return "textMuted", getText("IGUI_MQ_Horde_Title_cancel", place), getText("IGUI_MQ_Horde_CancelBody"), nil
     end
-    return "errorText", getText("IGUI_MQ_Horde_Title_fail", place), D.hordeWhy(l.why), getText("IGUI_MQ_Horde_NoReward")
+    -- the sync has no failed wave: it is the one after the cleared ones
+    return "errorText", getText("IGUI_MQ_Horde_Title_fail", place),
+        D.hordeFailText(l.why, tonumber(l.wave) or cleared + 1, waves, cleared, l.pool, l.capped),
+        got > 0 and getText("IGUI_MQ_UI_PlusPoints", D.num(got)) or getText("IGUI_MQ_Horde_NoReward")
 end
 
-local function horde(b, x, y, w, s)
-    local token, title, body, right = P.hordeBanner(s, C.serverNow())
-    if token == nil then return y end
-    return b:banner(x, y, w, token, title, body, right)
+function P.onHordeMap(page, btn) D.showOnMap(0, btn.spotX, btn.spotY) end
+
+-- the banner, with the Map button at its bottom right while the spot matters (design 5.3). Returns the y below,
+-- or nil without a horde to show. The Hordes page draws it too.
+function P.hordeBlock(page, b, x, y, w, s)
+    local token, title, body, right, spot = P.hordeBanner(s, C.serverNow())
+    if token == nil then return nil end
+    if spot == nil then return b:banner(x, y, w, token, title, body, right) end
+    local btn = page.pool:button("hordeMap", page.UI, page.theme, getText("IGUI_MQ_UI_Map"), page, P.onHordeMap)
+    btn:setTooltip(getText("IGUI_MQ_UI_ShowOnMap"))
+    btn.spotX, btn.spotY = spot.x, spot.y
+    local ny = b:banner(x, y, w, token, title, body, right, btn.height + 4)
+    btn:setX(x + w - 10 - btn.width)
+    btn:setY(ny - D.GAP - 6 - btn.height)
+    return ny
 end
 
 local function newbie(b, x, y, w, s)
@@ -299,7 +318,7 @@ function P.layout(page)
         return
     end
     y = events(b, x, y, w, s)
-    y = horde(b, x, y, w, s)
+    y = P.hordeBlock(page, b, x, y, w, s) or y
     local st = type(s.streak) == "table" and s.streak or {}
     local chips = {}
     if (tonumber(st.days) or 0) > 0 then chips[#chips + 1] = { getText("IGUI_MQ_UI_StreakDays", tostring(st.days)), "textMuted" } end

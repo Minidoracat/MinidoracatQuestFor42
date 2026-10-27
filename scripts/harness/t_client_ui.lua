@@ -552,17 +552,20 @@ return function(T)
     end
     push("records", { rows = { { stat = "horde.joined", season = 2, life = 0, total = 12 }, { stat = "horde.kills", season = 5, life = 0, total = 214 } },
         points = { season = 640, total = 1240, balance = 840 },
-        hordes = { { id = 9, name = "Gas", state = "success", endedAt = now - 3600000, spawned = 30, killed = 30, mine = 18, got = 72 },
-            { id = 8, name = "School", state = "failed", why = "time", endedAt = now - 86400000, spawned = 20, killed = 12, mine = 0, got = 0 },
+        hordes = { { id = 9, name = "Gas", state = "success", endedAt = now - 3600000, waves = 3, cleared = 3, spawned = 30, killed = 30, mine = 18, got = 72 },
+            { id = 8, name = "School", state = "failed", why = "time", endedAt = now - 86400000, waves = 1, cleared = 0, spawned = 20, killed = 12, mine = 0, got = 0 },
+            { id = 6, name = "Mall", state = "failed", why = "time", endedAt = now - 90000000, waves = 3, cleared = 2, spawned = 90, killed = 80, mine = 5, got = 20 },
             { id = 7, name = "Clinic", state = "cancelled", endedAt = now - 2 * 86400000, spawned = 0, killed = 0, mine = 0, got = 0 } } })
     W.select("hordes")
     local hp = W.pages.hordes
     MQ.PageHordes.layout(hp)
     check(drew(hp, "IGUI_MQ_UI_HordesNone") and drew(hp, "12") and drew(hp, "214") and drew(hp, "0"),
         "no horde now: the note; the tiles show the all-time totals, 0 for a stat never counted")
-    check(drew(hp, "IGUI_MQ_UI_HordeRes_success|30|30") and drew(hp, "18") and drew(hp, "+72"), "a win: cleared n/n, my kills, +points")
+    check(drew(hp, "IGUI_MQ_UI_HordeRes_success|3|3") and drew(hp, "18") and drew(hp, "+72"), "a win: waves cleared n/n, my kills, +points")
     check(drew(hp, "IGUI_MQ_UI_HordeRes_failed|IGUI_MQ_Admin_HordeWhy_time") and drew(hp, "IGUI_MQ_UI_HordeAbsent"),
-        "a fail without me: the reason and Absent")
+        "a one-wave fail without me: the reason and Absent")
+    check(drew(hp, "IGUI_MQ_UI_HordeRes_failedWave|3|IGUI_MQ_Admin_HordeWhy_time|2") and drew(hp, "+20"),
+        "a fail in wave 3 of 3: the wave, the reason and the 2 cleared waves; their points")
     check(drew(hp, "IGUI_MQ_UI_HordeRes_cancelled") and drew(hp, "IGUI_MQ_UI_HordesNote"), "a cancel; the note under the list")
     C.state.hordes = { on = true, cur = { id = 10, name = "Gas", x = 10620, y = 9810, state = "announced", kinds = {}, startMs = now + 600000 },
         last = { id = 11, name = "Gas", state = "success", endedAt = now - 60000, spawned = 4, killed = 4, mine = 0 } }

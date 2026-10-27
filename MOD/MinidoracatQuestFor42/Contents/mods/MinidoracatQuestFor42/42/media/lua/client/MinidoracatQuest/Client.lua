@@ -568,6 +568,28 @@ function H.toast(p) C.emit("toast", p) end
 -- { full, map = { user -> titleId } } at hello, { u, t } on a change (Titles.lua keeps the table)
 function H.titles(p) C.emit("titles", p) end
 
+-- { ids }: online ids of horde zombies the server just cleared (Hordes.finish). The server's removeFromWorld sends
+-- no delete, so this client would keep them as remote zombies until lastRemoteUpdate passes 5000, counted
+-- 1000 / LockFPS per update (IsoZombie.java:3294-3295, :3466-3469): 200 stayed 15-91 s at a 244 cap and ~85 fps
+-- (quest-hclear-pre-1027a), longer the lower the frame rate.
+-- Removed here like the engine's own ZombieDeleteOnClient does (ZombieDeleteOnClientPacket.java:44-47 ->
+-- VirtualZombieManager.removeZombieFromWorld, VirtualZombieManager.java:70-76); owned ones too (the next
+-- simulation packet just finds no zombie for that id, NetworkZombieSimulator.java:100-105, :294-298).
+function H.hordeClear(p)
+    if type(p.ids) ~= "table" then return end
+    local want = {}
+    for _, id in ipairs(p.ids) do want[id] = true end
+    local list = getCell():getZombieList()
+    for i = list:size() - 1, 0, -1 do   -- removeFromWorld takes it out of this list (IsoZombie.java:4366)
+        local z = list:get(i)
+        if want[z:getOnlineID()] then
+            z:getEmitter():unregister()
+            z:removeFromWorld()
+            z:removeFromSquare()
+        end
+    end
+end
+
 function C.receive(cmd, payload)
     if type(payload) ~= "table" then return end
     local h = H[cmd]

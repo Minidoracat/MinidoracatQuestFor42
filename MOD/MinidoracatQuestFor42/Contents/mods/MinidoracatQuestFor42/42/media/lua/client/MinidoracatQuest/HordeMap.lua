@@ -1,5 +1,5 @@
 -- MinidoracatQuest/HordeMap.lua: optional MinidoracatMiniMap integration for hordes (MiniMap docs/addon-api.md 3.3, 3.14).
---   While state.hordes.cur is announced / waiting / active: one zone of +-ZONE_R squares around the spot and one
+--   While state.hordes.cur is announced / waiting / active / rest: one zone of +-ZONE_R squares around the spot and one
 --   marker on it. MiniMap calls both providers every frame, so they only return cached tables; the tables are built
 --   again when a state / delta push changes the horde view (id, state, spot, name, town). MiniMap is not a require
 --   of this mod: the providers are registered when its API is there (file load, else OnGameStart); without it, nothing.

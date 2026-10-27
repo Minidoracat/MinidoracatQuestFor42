@@ -2,6 +2,7 @@
 -- Pure data plus small lookups; both sides load it. Display text comes from keys derived from ids.
 
 require "MinidoracatQuest/Contract"
+require "MinidoracatQuest/Util"
 
 MinidoracatQuest = MinidoracatQuest or {}
 local Q = MinidoracatQuest
@@ -433,10 +434,46 @@ Cat.DEFAULTS = {
     boards = { inactiveDays = 180, rebuildSeasonMs = 300000, rebuildTotalMs = 1800000 },
     towns = { custom = {}, disabled = {} },
     ceilings = {},
-    -- timed horde events (Hordes.lua). from / to: "HH:MM" in the sandbox TimezoneOffset, to < from runs past midnight,
-    -- to == from is all day; chance: % per hourly roll; count: { min, max } zombies; kinds: kindId -> weight;
-    -- perZombie x spawned = the reward pool; split "share" (by kill share) | "each" (every participant gets the pool)
-    hordes = { enabled = false, from = "19:00", to = "23:00", chance = 30, maxPerDay = 1, leadMin = 15, waitMin = 60,
-        count = { 20, 40 }, kinds = { vanilla = 80, runner = 20 }, limitMin = 15, perZombie = 5, split = "share",
-        spots = {} },
+    -- timed horde events (Hordes.lua). windows: { days ("1".."7", 1 = Monday), from / to "HH:MM" in the sandbox
+    -- TimezoneOffset (to < from runs past midnight, to == from is all day), chance % per hourly roll }; maxPerDay counts
+    -- every window. waves: { base, perPlayer (% of base per extra player near the spot) }; maxAlive horde zombies at
+    -- once; kinds: kindId -> relative weight; points: kindId -> points per kill (no entry = points.vanilla); cap: the
+    -- most one horde pays, split by kill value
+    hordes = { enabled = false, windows = { { days = "1234567", from = "19:00", to = "23:00", chance = 30 } },
+        maxPerDay = 1, leadMin = 15, waitMin = 60, waves = { { base = 30, perPlayer = 50 } }, restSec = 30,
+        maxAlive = 200, kinds = { vanilla = 80, runner = 20 }, points = { vanilla = 5, runner = 8 }, limitMin = 15,
+        cap = 500, spots = {} },
 }
+
+-- zombies in a horde wave: base, plus perPlayer % of base for every player near the spot after the first (the server
+-- and the admin preview use it)
+function Cat.hordeWaveSize(base, perPlayer, players)
+    return math.max(1, math.floor(base * (1 + perPlayer / 100 * (math.max(players, 1) - 1)) + 0.5))
+end
+
+-- { { kind, n } } in kindIds order for the ids with weight > 0; n sums to count: floors first, then the remainder one
+-- each to the largest weights (ties by id). No usable weight: all vanilla.
+function Cat.hordeMix(kindIds, weights, count)
+    local list, sum = {}, 0
+    for _, id in ipairs(kindIds) do
+        local w = type(weights) == "table" and weights[id] or 0
+        if type(w) == "number" and w > 0 then
+            list[#list + 1] = { kind = id, n = 0 }
+            sum = sum + w
+        end
+    end
+    if sum == 0 then return { { kind = "vanilla", n = count } } end
+    local left, order = count, {}
+    for i, m in ipairs(list) do
+        m.n = math.floor(count * weights[m.kind] / sum)
+        left = left - m.n
+        order[i] = m
+    end
+    Q.Util.sort(order, function(a, b)
+        local wa, wb = weights[a.kind], weights[b.kind]
+        if wa ~= wb then return wa > wb end
+        return a.kind < b.kind
+    end)
+    for i = 1, left do order[i].n = order[i].n + 1 end   -- left < #order: the fractions sum to less than #order
+    return list
+end

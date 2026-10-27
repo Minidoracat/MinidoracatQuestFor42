@@ -107,21 +107,25 @@ Daily and weekly quests, achievements, season leaderboards and titles; pair it w
 [/list]
 === 🧰 Hordes
 {{img:13-horde-en.jpg}}
-Once an admin sets up spots, the server starts hordes during a daily time window: a pack of zombies appears at a spot, and clearing it within the time limit pays points.
+Once an admin sets up spots, the server can start a horde during its time windows: zombies come at a spot in waves, and every wave cleared in time pays points for its kills.
 [h3]How to take part[/h3]
 [olist]
-[*] [b]The warning[/b]: before it starts, everyone gets a "Horde warning" with the place, how many minutes until the start and the kinds that may appear (for example Regular zombies and Sprinters), never the count. When an admin starts one with a warning of 0, the message says it starts now.
-[*] [b]Reminder[/b]: when the warning is longer than 2 minutes, players within 50 tiles of the spot get one more notice 2 minutes before the start. If you do not want to take part, leave then: the horde appears when someone is nearby at the start.
-[*] [b]Get there[/b]: once it has started, the horde appears as soon as someone comes within 50 tiles of the spot, and the timer starts. The wait for players is limited; if nobody comes, the horde fails.
-[*] [b]Clear it[/b]: kill every zombie of this horde within the time limit while a player is within 50 tiles of the spot. Zombies killed by others or burnt count as cleared too.
+[*] [b]The warning[/b]: before it starts, everyone gets a "Horde warning" with the place, how many minutes until the start, the number of waves and the kinds that may appear (for example Regular zombies and Sprinters), never the count. When an admin starts one with a warning of 0, the message says it starts now.
+[*] [b]Reminder[/b]: when the warning is longer than 2 minutes, players within 30 tiles of the spot get one more notice 2 minutes before the start. If you do not want to take part, leave then: the first wave comes when someone is within 30 tiles.
+[*] [b]Get there[/b]: once it has started, a wave comes as soon as someone is within 30 tiles of the spot, and the wave's timer starts. Each wave waits only so long for players; if nobody comes, the horde fails.
+[*] [b]How big a wave is[/b]: it depends on how many living players are within 30 tiles when it starts: the admin sets a base count and how many % of it each extra player adds.
+[*] [b]Where it comes from[/b]: the zombies appear 30 to 40 tiles from the spot, from up to 8 directions and at least 25 tiles from every player, and a sound at the spot draws them in. In very heavy rain (or rain with thick fog), or when zombie hearing is set to Poor, Random or Random between Normal and Poor in the sandbox (with Random some zombies hear poorly), the sound does not carry that far and the wave appears right at the spot.
+[*] [b]Not all at once[/b]: only so many horde zombies are on the field at a time; more come in as they die.
+[*] [b]Clear it[/b]: kill every zombie of the wave within its time limit while a player is within 50 tiles of the spot, so chasing the last ones out to the edges is fine. Zombies killed by others or burnt count as cleared too. After a short rest the next wave comes, again once someone is within 30 tiles; clearing the last wave clears the horde.
 [*] [b]Get points[/b]: only players with a kill get points; see "Reward" below.
 [/olist]
 [h3]Where to see it[/h3]
 [list]
-[*] [b]Tracker panel[/b]: a horde row on top shows the place, the countdown and "Cleared N/M". It does not use one of the 5 slots, has no ×, and shows even when you track nothing. "Show the tracker panel" in the mod options must be on.
-[*] [b]Daily quests page[/b]: a horde banner under the timed events shows the current state; for 10 minutes after the end it shows the result, your kills and the points you got.
+[*] [b]Tracker panel[/b]: a horde row on top shows the place, "Wave W/N" when there is more than one, the countdown ("Starts in", "left" or "Next wave in") and "Cleared N/M". It does not use one of the 5 slots, has no ×, and shows even when you track nothing. "Show the tracker panel" in the mod options must be on.
+[*] [b]Daily quests page[/b]: a horde banner under the timed events shows the current state; for 10 minutes after the end it shows the result, the waves cleared, your kills and the points you got.
+[*] [b]Map button[/b]: before the start, while waiting for players and during a rest, the tracker row and the banner have a "Map" button that opens the world map on the spot. It is hidden when the server turns the world map off.
 [*] [b]Minimap[/b]: with Minidoracat MiniMap installed, the minimap marks the area around the spot.
-[*] [b]Notices[/b]: the warning, the horde appearing, cleared, failed and cancelled go to everyone; the reminder 2 minutes before the start goes only to players near the spot; points you get come with a "Horde reward" notice.
+[*] [b]Notices[/b]: the warning, each wave appearing, the rest between waves, cleared, failed and cancelled go to everyone; the reminder 2 minutes before the start goes only to players near the spot; points you get come with a "Horde reward" notice and your kills in the cleared waves.
 [/list]
 [h3]Hordes page[/h3]
 {{img:15-hordes-en.jpg}}
@@ -129,40 +133,24 @@ Once the server has automatic hordes on or has had a horde, a "Hordes" page appe
 [list]
 [*] [b]Now[/b]: the same banner as on the daily quests page; with no horde it says so.
 [*] [b]My hordes[/b]: your totals for hordes joined, hordes cleared, horde kills and hordes where you were the top killer. One kill counts as joining.
-[*] [b]Recent hordes[/b]: the last 10 hordes on the server with time, place, result, your kills and your points; older ones only count in your totals.
+[*] [b]Recent hordes[/b]: the last 10 hordes on the server with time, place, result (waves cleared, or the wave it failed in), your kills and your points; older ones only count in your totals.
 [/list]
 [h3]Reward[/h3]
 [list]
-[*] [b]Pool[/b]: zombies spawned × points per zombie (5 by default).
-[*] [b]Split[/b]: the admin picks "Split by kill share" (default, at least 1 point each) or "Full pool to everyone with a kill".
+[*] [b]Points per kill[/b]: each kill earns that kind's points (by default Regular zombies 5, Sprinters 8; a kind without its own points pays like a regular zombie).
+[*] [b]Only cleared waves pay[/b]: kills in a wave that fails earn nothing; the waves cleared before it still pay, whatever the result.
+[*] [b]Cap[/b]: one horde pays at most a set total (500 by default). When the kills add up to more, everyone's share shrinks in proportion.
 [*] [b]Where it counts[/b]: season, all-time and balance, so it can be exchanged.
 [*] [b]Horde achievements[/b]: once the server has automatic hordes on or has had a horde, the achievements page gets a "Hordes" category: hordes cleared, horde kills and top killer (cleared hordes with 2 or more players, ties count for all), five tiers each. The first horde you help clear also unlocks a hidden achievement and the title "Horde Hunter".
 [*] [b]Kills still count[/b]: horde kills count for kill stats, quests and achievements as usual.
 [/list]
 [h3]Failing[/h3]
 [list]
-[*] [b]Time runs out[/b]: the zombies left are removed and nobody gets points.
-[*] [b]Other reasons[/b]: nobody came, an admin stopped it, the server restarted while it was running, or the horde could not appear at the spot. Zombies already out when the server restarts stay as normal zombies.
+[*] [b]Time runs out[/b]: the zombies left in that wave are removed; the waves already cleared still pay.
+[*] [b]Other reasons[/b]: nobody came within 30 tiles in time, an admin stopped it, the server restarted during a wave, or the wave could not appear at the spot. Zombies already out when the server restarts stay as normal zombies; a horde that is not in the middle of a wave (planned, announced, waiting for players or resting) carries on.
 [*] [b]Zombies that wander off[/b]: horde zombies that follow someone far away and get stored by the game become normal zombies; they no longer count for the horde, so there is no need to chase them.
 [/list]
-[h3]Admins: "Admin > Hordes"[/h3]
-{{img:14-admin-hordes-en.jpg}}
-[list]
-[*] [b]Spots[/b]: stand where a horde should appear, fill in "Spot name" and press "Add my current position"; up to 32 spots, one picked at random for each horde. Automatic hordes and "Start a horde" need at least one spot. Keep spots 50 tiles or more away from player bases.
-[*] [b]Schedule[/b]: "Automatic hordes" (off by default), "Window from" and "Window to" (HH:MM in the sandbox time zone; a "to" earlier than "from" runs past midnight, equal means all day), "Chance per hour", "Hordes per day at most", "Warning before start", "Wait for players". Inside the window the server rolls once an hour and, on a hit, schedules a horde within that hour.
-[*] [b]The horde[/b]: "Zombies (min - max)", the kind list (one row per kind with its weight and Remove; add others from the "Add a kind..." dropdown; only kinds above 0 appear), "Time limit", "Points per zombie", "Reward split".
-[*] [b]Like other settings[/b]: spots and fields go into pending changes and take effect with "Apply" at the bottom; they are kept in History and written to config.json (see "Settings file config.json"). A horde already scheduled keeps the settings it was planned with.
-[*] [b]Now[/b]: the current horde's place, times, count and kinds. "Cancel this horde" before it starts, "Stop this horde" after (it fails, nobody gets points, its zombies are removed); both ask first.
-[*] [b]Start a horde[/b]: skips the roll and starts a horde at a random spot with the applied settings; it does not count toward the daily limit. Fill in the warning in minutes to the left of the button (the applied "Warning before start" by default, 0 to 120; 0 starts it now). With a horde already planned or running, cancel or stop it first. Starting and stopping are listed in History but cannot be undone.
-[*] [b]Today and recent results[/b]: "Today N / M hordes, next roll HH:MM", and the last 5 results with the reason for failures.
-[/list]
-[table]
-[tr][th]Setting[/th][th]Default[/th][/tr]
-[tr][td]Window[/td][td]19:00 to 23:00, 30% per hour, 1 horde per day at most[/td][/tr]
-[tr][td]Warning / wait for players[/td][td]15 min / 60 min[/td][/tr]
-[tr][td]The horde[/td][td]20 to 40 zombies, Regular zombies 80, Sprinters 20[/td][/tr]
-[tr][td]Time limit / points per zombie[/td][td]15 min / 5 points, split by kill share[/td][/tr]
-[/table]
+[b]Admins[/b]: spots, time windows, waves, kinds and the reward are set up as described in "Horde settings".
 === 🧰 Achievements and titles
 {{img:03-achievements-en.jpg}}
 [h3]Categories[/h3]
@@ -335,12 +323,12 @@ The server needs Minidoracat Economy (multiplayer only). The Exchange page on th
 The sandbox page "Minidoracat Quests & Achievements" has three options; everything else is set in the in-game admin panel or directly in config.json on the server (see "Settings file config.json").
 [table]
 [tr][th]Option[/th][th]Default[/th][th]Notes[/th][/tr]
-[tr][td]Time zone (UTC offset, hours)[/td][td]8[/td][td]-12 to 14; time zone for the daily reset, times on screen and the horde window[/td][/tr]
+[tr][td]Time zone (UTC offset, hours)[/td][td]8[/td][td]-12 to 14; time zone for the daily reset, times on screen and the horde time windows[/td][/tr]
 [tr][td]Daily reset hour[/td][td]0[/td][td]0-23; local hour when daily quests reset; weekly quests reset at this hour on Monday[/td][/tr]
 [tr][td]Admin roles[/td][td]admin[/td][td]Role names that can open the admin panel, separated by commas or semicolons, case-sensitive; use English names, as non-English characters are corrupted on every server restart[/td][/tr]
 [/table]
 [list]
-[*] [b]With the Economy mod[/b]: when the Economy mod provides its day-change API, the daily and weekly reset follow the Economy mod's daily reward reset and the first two options no longer decide it; the horde window still uses this time zone.
+[*] [b]With the Economy mod[/b]: when the Economy mod provides its day-change API, the daily and weekly reset follow the Economy mod's daily reward reset and the first two options no longer decide it; the horde time windows still use this time zone.
 [/list]
 [h3]Main admin panel defaults[/h3]
 [table]
@@ -357,7 +345,7 @@ The sandbox page "Minidoracat Quests & Achievements" has three options; everythi
 [tr][td]Season length[/td][td]28 days (7-180)[/td][/tr]
 [tr][td]Exchange[/td][td]On, 1 point = 1 Survivor Coin, 100 points per player per day, at least 10[/td][/tr]
 [tr][td]Server-wide notices[/td][td]On, from tier 3, 1 per player per minute[/td][/tr]
-[tr][td]Hordes[/td][td]Automatic hordes off (settings in "Hordes")[/td][/tr]
+[tr][td]Hordes[/td][td]Automatic hordes off (settings in "Horde settings")[/td][/tr]
 [tr][td]Not ranked[/td][td]Offline for 180 days[/td][/tr]
 [/table]
 === ⚙️ Admin panel
@@ -365,7 +353,7 @@ The sandbox page "Minidoracat Quests & Achievements" has three options; everythi
 Open "Admin" on the left of the window (its own group at the bottom of the list); only roles listed in the "Admin roles" sandbox option see it, and the server checks every action again.
 [h3]How changes work[/h3]
 [list]
-[*] [b]Tabs[/b]: settings come first (General, Achievements, Titles, Quests, Season, Exchange, Towns, Hordes); after the divider come operations (Players, Report, Balance, History). For Hordes see "Hordes".
+[*] [b]Tabs[/b]: settings come first (General, Achievements, Titles, Quests, Season, Exchange, Towns, Hordes); after the divider come operations (Players, Report, Balance, History). For Hordes see "Horde settings".
 [*] [b]Draft first[/b]: edits go into pending changes; press "Apply" at the bottom to see old and new values, then confirm. "Discard changes" asks before it discards.
 [*] [b]Instant buttons[/b]: timed events, horde start/cancel/stop, the payout review and account actions skip that confirmation; those sections say so.
 [*] [b]Unlocks are kept[/b]: higher thresholds only affect what comes next.
@@ -441,6 +429,28 @@ Steps 1-5 cover the common settings; the other tabs hold the rest.
 [*] [b]Settings file state[/b]: below the list you see the folder of config.json and when it was last in sync; when the file has an error and was not applied, you see the line or the field.
 [*] [b]File-only settings[/b]: leaderboards (boards), community goal rotation (goal.rotation), newcomer title and days (newbie.title, newbie.days); see "Settings file config.json".
 [/list]
+=== ⚙️ Horde settings
+{{img:14-admin-hordes-en.jpg}}
+The "Admin > Hordes" tab runs from top to bottom in this order:
+[list]
+[*] [b]Now[/b]: the current horde's place, state, "wave W/N", how many are cleared and its times; while it waits for players, the time it waits until (nobody by then: it fails); during a rest "next wave in M:SS". "Cancel this horde" before it starts, "Stop this horde" after (it fails, the cleared waves still pay, its zombies on the field are removed); both ask first. Below: "Today N / M hordes, next roll HH:MM" and "Refresh".
+[*] [b]Start a horde[/b]: skips the roll and starts a horde at a random spot with the applied settings, even with automatic hordes off; it does not count toward the daily limit. Fill in the "Warning" minutes to the left of the button (the applied "Warning before start (min)" by default, 0 to 120; 0 starts it now). With a horde already planned or running, cancel or stop it first. Starting and stopping are listed in History but cannot be undone.
+[*] [b]Recent results[/b]: the last 5 hordes with the waves cleared and the points paid ("(capped)" when the cap was hit), the kills for cleared hordes and the reason for failures.
+[*] [b]Spots[/b]: stand where a horde should appear, fill in "Spot name" and press "Add my current position"; up to 32 spots, one picked at random for each horde. Each row has a "Map" button that opens the world map on the spot. Automatic hordes and "Start a horde" need at least one spot. The zombies walk in from 30-40 tiles around the spot, so keep spots more than 60 tiles from player bases.
+[*] [b]Time windows[/b]: "Automatic hordes" (off by default), then one row per window: the start and end time with "to" between them (HH:MM in the sandbox time zone; an end earlier than the start runs past midnight and belongs to the day it starts, equal means all day), "chance per hour" and the seven weekday buttons (pick at least one), and "Remove"; "Add a window" up to 8. Each window rolls once an hour during its time and, on a hit, schedules a horde within that hour; identical windows each roll on their own, and only one horde runs at a time. Below: "Hordes per day at most" (all windows together), "Warning before start (min)" and "Fail if nobody comes (min)" (how long each wave waits for someone within 30 tiles before the horde fails).
+[*] [b]Waves[/b]: one row per wave with "Base" and "Per extra player" (%), and the wave's size for 1 and 4 players; "Add a wave" up to 10 (it copies the last row), at least one stays. Below: "Rest between waves (s)", "Time limit per wave (min)" and "Most alive at once", with the server's sandbox delete threshold next to it: keep "Most alive at once" below it, or the game may delete far zombies, which do not count as kills.
+[*] [b]Kinds[/b]: one row per kind above 0 with "Weight", "Share" and "Points each", and "Remove". Weights are relative and need not add up to 100; only kinds above 0 appear, and the warning lists only those. Add others from the "Add a kind..." dropdown: they start at weight 10 and, without points of their own, at the regular zombies' points. A kind whose mod was removed shows "Not installed" and can be removed.
+[*] [b]Reward[/b]: "Most one horde pays (pts)" and "Estimate with these settings (every wave cleared)" for 1, 4 and 8 players, marked "(cap)" where the cap cuts it. The wave sizes, shares and estimate follow what you type.
+[*] [b]Like other settings[/b]: spots, windows, waves, kinds and fields go into pending changes and take effect with "Apply" at the bottom; they are kept in History and written to config.json (see "Settings file config.json"). A horde already scheduled keeps the settings it was planned with.
+[/list]
+[table]
+[tr][th]Setting[/th][th]Default[/th][/tr]
+[tr][td]Time windows[/td][td]Every day 19:00 to 23:00, 30% per hour, 1 horde per day at most[/td][/tr]
+[tr][td]Warning / wait for players[/td][td]15 min / 60 min per wave[/td][/tr]
+[tr][td]Waves[/td][td]1 wave of 30 zombies, +50% per extra player; 30 s rest between waves; 200 alive at once at most[/td][/tr]
+[tr][td]Kinds (weight / points each)[/td][td]Regular zombies 80 / 5, Sprinters 20 / 8[/td][/tr]
+[tr][td]Time limit / cap[/td][td]15 min per wave / 500 points per horde[/td][/tr]
+[/table]
 === ⚙️ Settings file config.json
 The admin panel settings (except timed events and the season length) are also kept in a file on the server, so you can change them without joining the game. Location: Lua/MinidoracatQuest/<server name>/ in the server's user folder (a dedicated server uses ~/Zomboid by default, %USERPROFILE%\Zomboid on Windows); in single player it is Zomboid/Lua/MinidoracatQuest/sp_<save name>/ on your own computer, one per save. The console prints this folder at start (settings files: …).
 [table]
@@ -455,7 +465,8 @@ The admin panel settings (except timed events and the season length) are also ke
 [*] [b]An error stops the whole file[/b]: with broken JSON, a value out of range or a misspelt name, the current settings stay; status.json, the server console and the panel's History tab show the line where the JSON stopped or the field with the error (for example daily.pool.d_kill.target).
 [*] [b]Panel changes rewrite the file[/b]: after an apply or undo in the panel the server writes the settings in effect back to config.json, so manual edits it has not read yet are overwritten. A deleted file is written again.
 [*] [b]Not in the panel[/b]: leaderboards (boards), community goal rotation (goal.rotation), newcomer title and days (newbie.title, newbie.days) change only in this file.
-[*] [b]Hordes (hordes)[/b]: every setting of the Hordes tab: enabled, from, to ("HH:MM"), chance, maxPerDay, leadMin, waitMin, count ([min, max]), kinds (kind id to weight; built in: vanilla, runner), limitMin, perZombie, split (share or each), spots (up to 32 {name, x, y, z}, always written whole). Ranges are in the GitHub README.
+[*] [b]Hordes (hordes)[/b]: every setting of the Hordes tab: enabled, windows (up to 8 {days, from, to, chance}: days such as "12345", 1 = Monday; from and to "HH:MM"; chance per hour; always written whole), maxPerDay, leadMin, waitMin, waves (up to 10 {base, perPlayer}, perPlayer = % of base per extra player; always written whole), restSec, maxAlive, kinds (kind id to weight; built in: vanilla, runner), points (kind id to points per kill; a kind left out pays like vanilla), limitMin, cap, spots (up to 32 {name, x, y, z}, always written whole). Ranges are in the GitHub README.
+[*] [b]Older horde settings[/b]: from, to, chance, count, perZombie and split are gone. A file that still has them is converted at start or on the next read and written back: from/to/chance become one window on every day, count becomes one wave of its middle value that does not grow with players, perZombie becomes every kind's points, and split is dropped. An old key is kept instead when its new key is already in the file or its value was not valid before either; then the file is not applied and status.json names that key, so fix it by hand.
 [*] [b]Restoring a world save[/b]: the server applies config.json at start, so the settings follow the file, not the older save.
 [*] [b]Settings from the 4-tier days still work[/b]: an achievement whose tiers list has 4 numbers keeps 4 tiers; a pts list of 4 numbers (points changed, tiers not) pays the default 80 for tier 5.
 [/list]
@@ -525,8 +536,8 @@ https://github.com/Minidoracat/MinidoracatQuestFor42#給其他-mod-的-api
 [*] [b]Limits[/b]: per mod 32 stats, 64 achievements and 32 quests; 50 pack.add calls per tick; n up to 1000.
 [*] [b]Translations[/b]: names use translation keys your mod ships, so clients need your mod too.
 [*] [b]Admins[/b]: can tune or disable your achievements and quests in the admin panel like any other.
-[*] [b]Horde kinds[/b]: registerHordeKind (from API_REVISION 2; check with type that it is a function) registers a kind of zombie; your mod only spawns them, this mod handles timing, counting and clearing. 8 kinds per mod, 32 in all; a new kind's weight starts at 0 until an admin adds it from the Hordes tab's dropdown.
-[*] [b]Spawned zombies[/b]: only appearance, health, walk type and speed and some state flags of a server-spawned zombie reach clients, so set them when you spawn it; strength, sight and hearing are worked out on each computer, and modData does not sync.
+[*] [b]Horde kinds[/b]: registerHordeKind (from API_REVISION 2; check with type that it is a function) registers a kind of zombie; your mod only spawns them, this mod handles timing, counting and clearing. 8 kinds per mod, 32 in all; a new kind's weight starts at 0 until an admin adds it from the Hordes tab's dropdown, and until it has points of its own a kill pays what a regular zombie pays.
+[*] [b]Spawned zombies[/b]: only appearance, health, walk type and speed and some state flags of a server-spawned zombie reach clients, so set them when you spawn it; strength, sight and hearing are worked out on each computer, and modData does not sync. The engine reuses zombie objects without clearing useless from their last life (such a zombie ignores sounds and players), so call setUseless(false) at spawn if your kind should be drawn in.
 [/list]
 === ⚠️ Known limitations
 [list]
@@ -539,7 +550,8 @@ https://github.com/Minidoracat/MinidoracatQuestFor42#給其他-mod-的-api
 [*] [b]Head titles approximate the vanilla rules[/b]: players in a vehicle get none. When the server shows names only on mouse-over (the vanilla default), the mod checks the floor square under the mouse and the squares around it, plus the player's body; vanilla uses the object under the mouse, so pointing at a wall or a tall object can differ by one square.
 [*] [b]Chat titles[/b]: only lines that arrive while the author wears a title get one; a title changed or taken off later does not always update lines already shown. A mod that rewrites the whole vanilla chat window may keep them from appearing.
 [*] [b]Horde zombies that wander off become normal[/b]: a zombie away from every player is stored by the game and the mod cannot recognise it when it comes back, so it stops counting for the horde and is not removed when time runs out.
-[*] [b]A server restart fails a running horde[/b]: zombies already out stay as normal zombies and nobody gets points; a horde whose zombies have not appeared yet carries on.
+[*] [b]A server restart fails the wave in progress[/b]: zombies already out stay as normal zombies and that wave pays nothing; the waves cleared before it still pay. A horde that is not in the middle of a wave (planned, announced, waiting for players or resting) carries on.
+[*] [b]Wild zombies near the spot come too[/b]: horde zombies follow a sound from the spot every 5 seconds, and wild zombies nearby hear it as well; they do not count for the horde. The sound reaches at most 49 tiles, so it does not stir zombies farther away that are not loaded.
 [*] [b]Removed zombies can linger for a few seconds[/b]: when time runs out or an admin stops a horde, the player in charge of those zombies (usually the closest one) may still see them for up to about 8 seconds.
 [*] [b]Mid-save import is partial[/b]: only kills, days survived and skill levels; crafting, distance, fishing and the rest count from when the mod is added.
 [*] [b]Player identity[/b]: on Steam servers a name is bound to its Steam account the first time it comes online; switching Steam accounts makes you a different player, and there is no way to unbind yet. No-Steam servers cannot stop someone respawning under another player's name; a modified client may take a name that has not come online to be bound yet.
@@ -583,7 +595,7 @@ https://github.com/Minidoracat/MinidoracatQuestFor42#給其他-mod-的-api
 [/list]
 [h3]The horde never appears?[/h3]
 [list]
-[*] After the start time, someone has to come within 50 tiles of the spot; from then on the tracker panel and the daily quests page show its coordinates.
+[*] The warning already shows the spot's coordinates and a "Map" button. After the start time, a wave only comes once someone is within 30 tiles of the spot, and the same goes for every later wave; the zombies then walk in from 30 to 40 tiles away (in very heavy rain they appear right at the spot).
 [*] Admins: automatic hordes are off by default and need at least one spot; "Admin > Hordes" shows today's count and the next roll.
 [/list]
 [h3]How do I become an admin?[/h3]

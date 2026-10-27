@@ -54,9 +54,26 @@ local function fillRoot(r, t)
     ensure(r, "events", {})
     ensure(r, "daily", {})
     ensure(r, "hordes", {})                  -- timed hordes (Hordes.lua): cur = the one horde, log = last 20 results
-    ensure(r.hordes, "seq", 0)
-    ensure(r.hordes, "roll", { slot = 0, n = 0 })
-    ensure(r.hordes, "log", {})
+    local h = r.hordes
+    ensure(h, "seq", 0)
+    -- one roll per window (roll[winKey]) and the day count apart (perDay) since 2026-10-27; the old single roll
+    -- { day, ws, slot, n } keeps its count
+    if type(h.roll) == "table" and (h.roll.day ~= nil or h.roll.slot ~= nil) then
+        h.perDay = h.roll.day ~= nil and { [h.roll.day] = h.roll.n or 0 } or {}
+        h.roll = {}
+    end
+    ensure(h, "roll", {})
+    ensure(h, "perDay", {})
+    ensure(h, "log", {})
+    -- results from before 2026-10-27 had one wave, a pool of perZombie x spawned whatever the result, pay only on a
+    -- win and "each" paying that pool to everyone: one wave, cleared on a win, pool = what was actually paid
+    for _, e in ipairs(h.log) do
+        if type(e) == "table" and e.waves == nil then
+            local paid = 0
+            for _, v in pairs(type(e.paid) == "table" and e.paid or {}) do paid = paid + (tonumber(v) or 0) end
+            e.waves, e.cleared, e.pool, e.split = 1, e.state == "success" and 1 or 0, paid, nil
+        end
+    end
 end
 
 function St.shardTag(user)

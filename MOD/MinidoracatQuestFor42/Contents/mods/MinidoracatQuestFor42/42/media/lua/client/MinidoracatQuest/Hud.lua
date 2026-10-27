@@ -1,6 +1,7 @@
 -- MinidoracatQuest/Hud.lua: the tracker panel (design round 7: a floating panel, only what the player pinned).
 --   Up to LIMIT.MAX_PINS pinned quests / achievements with their progress, top left beside the vanilla sidebar,
---   and above them one horde row while a horde is announced, waits for players or runs (not a pin, not counted).
+--   and above them one horde row while a horde is announced, waits for players, runs or rests between waves (not a
+--   pin, not counted); a Map button on its second line while the spot matters.
 --   Drag to move; the arrow collapses it to the title row (both go to layout.ini); hovering a pin row shows an x
 --   that unpins it. Hidden while there is nothing to show, the player is dead, the Esc menu is up or V hid the UI;
 --   it stays while the main window is open, so a Track press shows up at once (user 2026-10-24), and windows draw
@@ -27,27 +28,35 @@ H.PAD = 8
 H.show = H.show ~= false     -- MOD option "ShowHud" (Entry.lua)
 
 -- ===== model (harness tests these) =====
--- the horde row: { id = "horde", horde = true, tag, name, time, line, prog?, target? } or nil.
--- announced: time to the start and the 50-tile rule (design r12); waiting: time left for someone to come; active:
--- time left and cleared / spawned
+-- the horde row: { id = "horde", horde = true, tag, name, time, line, prog?, target?, mapX?, mapY? } or nil.
+-- Every countdown says what it counts to (design 1): announced "4:29 to the start", waiting / active "52:10 left",
+-- rest "0:24 to the next wave". When N > 1 the name is "Wave W/N - <spot>", the spot without its town (D.hordeName
+-- spotOnly; the design mock), so the prefix and the countdown leave room for the spot. Line 2 starts with
+-- the coordinates, so a long language cuts the rule, not the spot (design 5.2); active shows cleared / wave size.
+-- mapX / mapY: the Map button (announced / waiting / rest, while the vanilla map is allowed)
 function H.hordeRow(state, now)
     local hs = type(state) == "table" and type(state.hordes) == "table" and state.hordes or nil
     local h = hs and D.hordeLive(hs.cur)
     if h == nil then return nil end
     now = now or C.serverNow()
-    local r = { id = "horde", horde = true, tag = getText("IGUI_MQ_Horde_Tag"), name = D.hordePlace(h), state = h.state }
-    if h.state == "active" then
-        local n = tonumber(h.spawned) or 0
+    local st = h.state
+    local r = { id = "horde", horde = true, tag = getText("IGUI_MQ_Horde_Tag"), name = D.hordeName(h, true), state = st }
+    if st == "active" then
+        local n = tonumber(h.size) or 0
         r.prog, r.target = math.max(0, n - (tonumber(h.left) or 0)), n
-        r.time = D.countdown((tonumber(h.endsAt) or now) - now)
+        r.time = getText("IGUI_MQ_UI_Left", D.countdown((tonumber(h.endsAt) or now) - now))
         r.line = getText("IGUI_MQ_Horde_HudCleared", D.num(r.prog), D.num(n))
-    elseif h.state == "waiting" then
-        r.time = D.countdown((tonumber(h.expireAt) or now) - now)
+    elseif st == "waiting" then
+        r.time = getText("IGUI_MQ_UI_Left", D.countdown((tonumber(h.expireAt) or now) - now))
         r.line = getText("IGUI_MQ_Horde_HudWait", tostring(h.x), tostring(h.y))
+    elseif st == "rest" then
+        r.time = getText("IGUI_MQ_Horde_NextIn", D.countdown((tonumber(h.nextAt) or now) - now))
+        r.line = getText("IGUI_MQ_Horde_HudRest", tostring((tonumber(h.wave) or 1) + 1))
     else
-        r.time = D.countdown((tonumber(h.startMs) or now) - now)
+        r.time = getText("IGUI_MQ_Horde_StartsIn", D.countdown((tonumber(h.startMs) or now) - now))
         r.line = getText("IGUI_MQ_Horde_HudSoon", tostring(h.x), tostring(h.y))
     end
+    if D.HORDE_MAP[st] and D.mapAllowed() then r.mapX, r.mapY = tonumber(h.x), tonumber(h.y) end
     return r
 end
 
@@ -124,13 +133,30 @@ function H.persist()
 end
 
 -- ===== layout: background, title row (star, name, pin count, arrow), the horde row, one row per pin =====
--- the horde row has no x (not a pin) and draws in the horde red; p.hordeTime is what onTick compares
+-- the horde row has no x (not a pin) and draws in the horde red; p.hordeTime is what onTick compares.
+-- The Map button sits at the right of line 2; its hit box is p.mapHit, not in p.hits (those are unpin targets),
+-- and its hover text goes through the canvas tips. In the rest the countdown opens line 2 instead: "Next wave in
+-- 0:38" beside "Wave 2/3 cleared" left no room for the spot even in English (quest-hui-en-1027a; ES kept "Oleada 2...")
 local function hordeRowOps(b, r, y, w, pad, lh)
     local nameX = pad + b:chip(pad, y, r.tag, D.EXTRA.horde) + 6
-    local tw = b:textRight(w - pad, y + 3, r.time, D.EXTRA.horde)
-    b:fitText(nameX, y + 3, r.name, w - pad - tw - 8 - nameX, "text")
+    local rest = r.state == "rest"
+    local tw = rest and 0 or b:textRight(w - pad, y + 3, r.time, D.EXTRA.horde) + 8
+    b:fitText(nameX, y + 3, r.name, w - pad - tw - nameX, "text")
     local ly = y + D.chipH() + 2
-    if r.target == nil then return b:fitText(pad, ly, r.line, w - 2 * pad, "textMuted") end
+    local lx = rest and pad + b:text(pad, ly, r.time, D.EXTRA.horde) + 6 or pad
+    local lineW = w - pad - lx
+    if r.mapX ~= nil then
+        local label, tip = getText("IGUI_MQ_UI_Map"), getText("IGUI_MQ_UI_ShowOnMap")
+        local bw, bh = D.textW(label) + 12, lh + 2
+        local bx, by = w - pad - bw, ly - 1
+        b:border(bx, by, bw, bh, "textMuted")
+        b:text(bx + 6, ly, label, "text")
+        local tips = b.cv.tips
+        tips[#tips + 1] = { x = bx, y = by, w = bw, h = bh, text = tip, tw = D.textW(tip), th = lh }
+        b.cv.mapHit = { x0 = bx, y0 = by, x1 = bx + bw, y1 = by + bh, x = r.mapX, y = r.mapY }
+        lineW = lineW - bw - 6
+    end
+    if r.target == nil then return b:fitText(lx, ly, r.line, lineW, "textMuted") end
     local pw = b:textRight(w - pad, ly, r.line, "textMuted")
     b:bar(pad, ly + math.floor((lh - 4) / 2), w - 2 * pad - pw - 8, 4, r.target > 0 and r.prog / r.target or 0, D.EXTRA.horde)
 end
@@ -139,7 +165,7 @@ function H.layout(p)
     H.dirty = false
     local rows = H.rows(C.state, C.defs())
     local pins = rows[1] ~= nil and rows[1].horde and #rows - 1 or #rows
-    p.rows, p.hits, p.hordeTime = rows, {}, rows[1] ~= nil and rows[1].horde and rows[1].time or nil
+    p.rows, p.hits, p.mapHit, p.hordeTime = rows, {}, nil, rows[1] ~= nil and rows[1].horde and rows[1].time or nil
     local b = D.begin(p)
     local pad, w, lh = H.PAD, p.width, D.fontH()
     local th = H.titleH()
@@ -233,6 +259,11 @@ function H.onMouseDown(p, x, y)
         p.collapsed = not p.collapsed
         H.layout(p)
         H.persist()
+        return true
+    end
+    local m = p.mapHit
+    if m ~= nil and not p.collapsed and x >= m.x0 and x < m.x1 and y >= m.y0 and y < m.y1 then
+        D.showOnMap(0, m.x, m.y)
         return true
     end
     if not p.collapsed then

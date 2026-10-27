@@ -25,11 +25,10 @@ end
 
 function P.onRetry() Q.Client.requestRecords(true) end
 
--- ===== the current horde =====
-local function now(b, x, y, w, s)
-    local token, title, body, right = Q.PageDaily.hordeBanner(s, C.serverNow())
-    if token == nil then return b:para(x, y, getText("IGUI_MQ_UI_HordesNone"), w, "textMuted") + GAP end
-    return b:banner(x, y, w, token, title, body, right)
+-- ===== the current horde (the daily page banner and its Map button) =====
+local function now(page, b, x, y, w, s)
+    return Q.PageDaily.hordeBlock(page, b, x, y, w, s)
+        or b:para(x, y, getText("IGUI_MQ_UI_HordesNone"), w, "textMuted") + GAP
 end
 
 -- ===== my totals: one tile per stat, the all-time value =====
@@ -60,13 +59,18 @@ local function tiles(b, page, x, y, w)
     return y + h + GAP
 end
 
--- ===== recent results =====
+-- ===== recent results: waves cleared; a failed one of several waves names the wave it failed in =====
 local function result(e)
+    local waves, cleared = tonumber(e.waves) or 1, tonumber(e.cleared) or 0
     if e.state == "success" then
-        return getText("IGUI_MQ_UI_HordeRes_success", D.num(tonumber(e.killed) or 0), D.num(tonumber(e.spawned) or 0)), "success"
+        return getText("IGUI_MQ_UI_HordeRes_success", tostring(cleared), tostring(waves)), "success"
     end
     if e.state == "cancelled" then return getText("IGUI_MQ_UI_HordeRes_cancelled"), "textMuted" end
-    return getText("IGUI_MQ_UI_HordeRes_failed", getText("IGUI_MQ_Admin_HordeWhy_" .. tostring(e.why))), "errorText"
+    local why = getText("IGUI_MQ_Admin_HordeWhy_" .. tostring(e.why))
+    if waves > 1 then
+        return getText("IGUI_MQ_UI_HordeRes_failedWave", tostring(cleared + 1), why, tostring(cleared)), "errorText"
+    end
+    return getText("IGUI_MQ_UI_HordeRes_failed", why), "errorText"
 end
 
 -- a cancel came before any spawn, so nobody took part in it
@@ -122,10 +126,11 @@ local function recent(b, x, y, w)
         if i > 1 then b:listSep(L, y) end
         b:text(x + 8, y + 4, r[1], "textMuted")
         b:fitText(placeX, y + 4, r[2], placeW, "text")
-        b:fitText(resX, y + 4, r[3], resW, r[4])
         b:textRight(mineR, y + 4, r[5], r[6])
         b:textRight(ptsR, y + 4, r[7], r[8])
-        y = y + rh
+        -- the result wraps: ES "Falló en la oleada 2: se acabó el tiempo (1 despejadas)" lost the cleared waves
+        -- to the cut (quest-hui-es-1027b); one line keeps the row at rh
+        y = math.max(y + rh, b:para(resX, y + 4, r[3], resW, r[4]) + 2)
     end
     y = b:listEnd(L, y)
     return b:para(x, y + 6, getText("IGUI_MQ_UI_HordesNote"), w, "textMuted") + GAP
@@ -156,7 +161,7 @@ function P.layout(page)
         return
     end
     refresh(s)
-    y = now(b, x, y, w, s)
+    y = now(page, b, x, y, w, s)
     y = tiles(b, page, x, y, w)
     y = recent(b, x, y, w)
     D.finish(page, y)

@@ -158,10 +158,8 @@ function E.toastText(t)
     elseif k == "horde" then
         return E.hordeToast(t)
     elseif k == "hordePaid" then
-        local kills = D.num(t.kills or 0)
         return getText("IGUI_MQ_Horde_Paid", D.num(t.pts or 0)),
-            t.pct ~= nil and getText("IGUI_MQ_Horde_WinMine_share", kills, tostring(t.pct))
-                or getText("IGUI_MQ_Horde_WinMine_each", kills), D.EXTRA.success
+            D.hordeCapped(getText("IGUI_MQ_Horde_PaidBody", D.num(t.kills or 0)), t.capped), D.EXTRA.success
     end
     return nil
 end
@@ -173,26 +171,35 @@ local function minsTo(ms)
 end
 
 -- server-wide horde toasts (t.ev) and "remind", the personal one to players near the spot just before the start;
--- the warning names the kinds that may appear, never how many
+-- the warning names the kinds that may appear and the number of waves, never how many zombies. Every wave has its
+-- spawn toast ("Wave W/N - " in front when N > 1) and every cleared one but the last its rest toast; win and fail
+-- say what the horde paid (fail: the cleared waves) and when the cap scaled the shares down
 function E.hordeToast(t)
     local place, ev = D.hordePlace(t), t.ev
-    local each = t.split == "each"
+    local waves = tostring(t.waves or 1)
     if ev == "soon" then
         return getText("IGUI_MQ_Horde_Title_soon", place),
-            getText("IGUI_MQ_Horde_SoonBody", tostring(minsTo(t.startMs)), D.hordeKinds(t.kinds)), D.EXTRA.hordeSoon
+            getText("IGUI_MQ_Horde_SoonBody", tostring(minsTo(t.startMs)), D.hordeKinds(t.kinds), waves), D.EXTRA.hordeSoon
     elseif ev == "remind" then
         return getText("IGUI_MQ_Horde_Title_remind", tostring(minsTo(t.startMs)), place), getText("IGUI_MQ_Horde_Remind"),
             D.EXTRA.hordeSoon
     elseif ev == "open" then
-        return getText("IGUI_MQ_Horde_Title_wait", place), getText("IGUI_MQ_Horde_OpenBody", D.hordeKinds(t.kinds)), D.EXTRA.hordeSoon
+        return getText("IGUI_MQ_Horde_Title_wait", place), getText("IGUI_MQ_Horde_OpenBody", D.hordeKinds(t.kinds), waves),
+            D.EXTRA.hordeSoon
     elseif ev == "spawn" then
-        return getText("IGUI_MQ_Horde_Title_spawn", place), getText(each and "IGUI_MQ_Horde_SpawnBody_each" or "IGUI_MQ_Horde_SpawnBody_share",
-            tostring(t.limitMin or 0), D.num(t.pool or 0)), D.EXTRA.horde
+        return getText("IGUI_MQ_Horde_Title_spawn", D.hordeName(t)),
+            getText("IGUI_MQ_Horde_SpawnBody", tostring(t.limitMin or 0), D.num(t.size or 0)), D.EXTRA.horde
+    elseif ev == "rest" then
+        local w = tonumber(t.wave) or 1
+        return getText("IGUI_MQ_Horde_Title_rest", tostring(w), waves, place),
+            getText("IGUI_MQ_Horde_RestToast", tostring(w + 1), D.countdown((tonumber(t.nextAt) or 0) - C.serverNow())),
+            D.EXTRA.hordeSoon
     elseif ev == "win" then
-        return getText("IGUI_MQ_Horde_Title_win", place), getText(each and "IGUI_MQ_Horde_WinBody_each" or "IGUI_MQ_Horde_WinBody_share",
-            D.num(t.n or 0), D.num(t.pool or 0)), D.EXTRA.success
+        return getText("IGUI_MQ_Horde_Title_win", place), D.hordeCapped(getText("IGUI_MQ_Horde_WinBody", waves,
+            D.num(t.spawned or 0), D.num(t.n or 0), D.num(t.pool or 0)), t.capped), D.EXTRA.success
     elseif ev == "fail" then
-        return getText("IGUI_MQ_Horde_Title_fail", place), D.hordeWhy(t.why, t.left), nil
+        return getText("IGUI_MQ_Horde_Title_fail", place),
+            D.hordeFailText(t.why, t.wave, t.waves, t.cleared, t.pool, t.capped), nil
     elseif ev == "cancel" then
         return getText("IGUI_MQ_Horde_Title_cancel", place), getText("IGUI_MQ_Horde_CancelBody"), nil
     end

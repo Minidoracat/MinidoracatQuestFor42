@@ -146,6 +146,89 @@ return function(T)
         T.check(off == 0, "a preferred theme that runs dry hands its slot to the other preferred theme (" .. off .. " off)")
     end)
 
+    -- owner 2026-10-27: an xp.<Perk> daily only for a skill with an XP boost below level 10; offline = not eligible
+    section("xp dailies: boosted skills below level 10 only, in generation and swaps", function()
+        local Q = boot()
+        local Qq = Q.Quests
+        local M = Perks.Mechanics
+        local function pl(name, boost, level)
+            return T.player{ name = name, boosts = { [M] = boost }, perks = { [M] = level } }
+        end
+        T.check(Qq.xpEligible(pl("e1", 1, 9), "Mechanics") == true, "boost 1, level 9: eligible")
+        T.check(Qq.xpEligible(pl("e2", 0, 5), "Mechanics") == false, "no boost: not eligible")
+        T.check(Qq.xpEligible(pl("e3", 3, 10), "Mechanics") == false, "level 10: not eligible")
+        T.check(Qq.xpEligible(nil, "Mechanics") == false, "no player (offline): not eligible")
+        local function isXp(q) return q ~= nil and string.sub(q.stat, 1, 3) == "xp." end
+        -- n accounts preferring mech (two slots from it); mk(user) puts the player online, nil = offline
+        local function run(prefix, mk)
+            local gen, swapped = 0, 0
+            for n = 1, 60 do
+                local user = prefix .. n
+                if mk then mk(user) end
+                local a = Q.Store.account(user, true)
+                a.prefs, a.day = { "mech" }, nil
+                Qq.ensure(a, user, T.now)
+                for i = 1, 3 do if isXp(a.day.quests[i]) then gen = gen + 1 end end
+                if isXp(a.day.quests[1]) then a.day.quests[1].stat = "mech.none" end   -- so the swap may pick it again
+                Qq.swap(a, user, 1)
+                if isXp(a.day.quests[1]) then swapped = swapped + 1 end
+            end
+            return gen, swapped
+        end
+        local gen, swapped = run("off")
+        T.check(gen == 0 and swapped == 0, "offline: no xp daily, generated or swapped in (" .. gen .. ", " .. swapped .. ")")
+        gen, swapped = run("max", function(u) pl(u, 3, 10) end)
+        T.check(gen == 0 and swapped == 0, "level 10 with a boost: no xp daily (" .. gen .. ", " .. swapped .. ")")
+        gen, swapped = run("nob", function(u) pl(u, 0, 3) end)
+        T.check(gen == 0 and swapped == 0, "no boost: no xp daily (" .. gen .. ", " .. swapped .. ")")
+        gen, swapped = run("ok", function(u) pl(u, 2, 3) end)
+        T.check(gen > 0 and swapped > 0, "boosted below 10: xp dailies still come, generated and swapped in ("
+            .. gen .. ", " .. swapped .. ")")
+        -- a day drawn while the player was away (a goal or season payout feeds offline accounts) is drawn again once
+        -- the player is online, so xp dailies can come; a day with progress keeps its quests
+        local again, flagged, kept = 0, 0, 0
+        for n = 1, 60 do
+            local user = "late" .. n
+            local a = Q.Store.account(user, true)
+            a.prefs, a.day = { "mech" }, nil
+            Qq.ensure(a, user, T.now)
+            if a.day.offline then flagged = flagged + 1 end
+            pl(user, 2, 3)
+            Qq.ensure(a, user, T.now)
+            if a.day.offline then flagged = flagged + 100 end
+            for i = 1, 3 do if isXp(a.day.quests[i]) then again = again + 1 end end
+        end
+        T.check(flagged == 60 and again > 0, "a day drawn offline is drawn again at login; xp dailies come ("
+            .. flagged .. ", " .. again .. ")")
+        local given, og = 0, Q.Balance.given
+        Q.Balance.given = function(...) given = given + 1 return og(...) end
+        local a = Q.Store.account("busy", true)
+        a.day = nil
+        Qq.ensure(a, "busy", T.now)
+        local dayN, n0 = a.day.quests[4] and 4 or 3, given - #a.week.quests   -- the new week counts its quests too
+        local q1 = a.day.quests[1]
+        Qq.onStat(a, "busy", q1.stat, 0)   -- Stats.max reports delta 0 when the season value does not move
+        T.check(a.day.offline == true and given - #a.week.quests == 0, "a zero delta leaves a day drawn offline uncounted")
+        Q.Stats.add("busy", q1.stat, 1)
+        local n1 = given - #a.week.quests
+        T.check(n0 == 0 and q1.prog == 1 and not a.day.offline and n1 == dayN,
+            "a day drawn offline counts as given at its first progress (" .. n0 .. ", " .. n1 .. ")")
+        pl("busy", 2, 3)
+        Qq.ensure(a, "busy", T.now)
+        T.check(a.day.quests[1] == q1 and q1.prog == 1 and given - #a.week.quests == dayN,
+            "a day drawn offline that already has progress keeps its quests at login, counted once")
+        Q.Balance.given = og
+        -- a pack's xp.<Perk> daily (no shared flag) never becomes the shared quest, which everyone gets
+        T.check(Q.v1.registerPack({ modId = "XpPack", quests = { { id = "mechxp", stat = "xp.Mechanics", theme = "mech",
+            target = { 50, 100 }, points = 15, nameKey = "IGUI_XpPack_MechXp" } } }) ~= nil, "pack with an xp daily")
+        local cfg, xpShared = Q.Config.get(), 0
+        for k = 1, 200 do
+            Q.Store.root().shared = nil
+            if isXp(Qq.sharedToday("d" .. k, cfg)) then xpShared = xpShared + 1 end
+        end
+        T.check(xpShared == 0, "a pack's xp daily is never the shared quest (" .. xpShared .. " of 200 days)")
+    end)
+
     section("progress, streak, grace, weekly", function()
         local Q = boot()
         local p = T.player{ name = "alice" }
@@ -205,6 +288,7 @@ return function(T)
         completeDay(Q, acc, "alice", 3)
         T.check(acc.streak.days == 30 and acc.titles.streak_30 == true and acc.titleAt and acc.titleAt.streak_30 ~= nil
             and acc.titleAt.streak_30 <= T.now, "the 30-day milestone gives its title and records the time")
+        T.check(acc.titleSrc and acc.titleSrc.streak_30 == "streak:30", "the streak title records its source")
     end)
 
     section("shared quest, community goal, newbie, events", function()
@@ -237,6 +321,7 @@ return function(T)
         T.check(accD.newbie == nil and accD.titles.newbie == true and accD.points.total >= 100, "newbie completes with title")
         T.check(type(accD.titleAt) == "table" and accD.titleAt.newbie ~= nil and accD.titleAt.newbie <= T.now,
             "the newbie title records when it came (titleAt, plan r13)")
+        T.check(accD.titleSrc and accD.titleSrc.newbie == "newbie", "the newbie title records its source")
 
         local r = admin(b, "event.add", { name = "x", theme = "all", mult = 2, startMs = T.now - 1000, endMs = T.now + DAY })
         T.check(r and r.code == "FORBIDDEN", "non-admin event.add refused")
@@ -383,6 +468,73 @@ return function(T)
         cmd(b, "hello")
         T.check(accB.points.total == p1 and accB.achv.skill_cooking == 5, "the next login pays nothing twice")
         Q.Sync.broadcastToast = orig
+    end)
+
+    -- owner 2026-10-27: titles record their source (titleSrc) and revoke goes by it; a cleared tier title grants
+    -- nothing; a switched-off achievement can be revoked
+    section("title sources, cleared tier titles, revoking a switched-off achievement", function()
+        local Q = boot()
+        local a = T.player{ name = "alice", admin = true }
+        local b = T.player{ name = "bob" }
+        cmd(a, "hello")
+        cmd(b, "hello")
+        local acc = Q.Store.account("bob")
+        local zk = Q.Achievements.get("zombie_kills")
+        push(Q, "bob", "zombie.kills", zk.tiers[4])
+        T.check(acc.achv.zombie_kills == 4 and acc.titles.zombie_kills_4 == true and type(acc.titleSrc) == "table"
+            and acc.titleSrc.zombie_kills_4 == "a:zombie_kills:4", "the tier IV title records its source")
+        local st = Q.Sync.state("bob", acc)
+        T.check(type(st.titleSrc) == "table" and st.titleSrc.zombie_kills_4 == "a:zombie_kills:4", "state carries titleSrc")
+        Q = boot({ keepGmd = true, keepFiles = true })
+        acc = Q.Store.account("bob")
+        local shape = type(acc.titleSrc) == "table"
+        for k, v in pairs(acc.titleSrc or {}) do
+            if type(k) ~= "string" or type(v) ~= "string" then shape = false end
+        end
+        T.check(shape and acc.titleSrc.zombie_kills_4 == "a:zombie_kills:4", "titleSrc survives a restart: title id -> source")
+        a = T.player{ name = "alice", admin = true }
+        b = T.player{ name = "bob" }
+        cmd(a, "hello")
+        cmd(b, "hello")
+        local function setTitles(id, json)
+            local r = admin(a, "cfg.apply", { summary = "t",
+                changes = '[{"op":"set","path":"achievements.' .. id .. '.titles","value":' .. json .. '}]' })
+            return r and r.ok
+        end
+
+        -- renamed twice after the grant: the revoke still takes the title the tier gave
+        T.check(setTitles("zombie_kills", '{"4":"Slayer"}') and setTitles("zombie_kills", '{"4":"Reaper"}'), "renamed twice")
+        local r = admin(a, "achv.revoke", { user = "bob", achId = "zombie_kills", tier = 3, reason = "macro" })
+        T.check(r and r.ok and acc.titles.zombie_kills_4 == nil and acc.titleSrc.zombie_kills_4 == nil
+            and acc.titleAt.zombie_kills_4 == nil, "revoke drops the title the tier granted, renamed since")
+
+        -- no record (granted before titleSrc): the configured id and the built-in default go; a title another
+        -- source granted stays
+        local c = Q.Store.account("carol", true)
+        c.achv.zombie_kills, c.titles = 4, { zombie_kills_4 = true, Reaper = true }
+        r = admin(a, "achv.revoke", { user = "carol", achId = "zombie_kills", tier = 3, reason = "legacy" })
+        T.check(r and r.ok and c.titles.zombie_kills_4 == nil and c.titles.Reaper == nil,
+            "a legacy title without a record: the default id and the configured id both go")
+        local dv = Q.Store.account("dave", true)
+        dv.achv.zombie_kills, dv.titles, dv.titleSrc = 4, { Reaper = true }, { Reaper = "streak:30" }
+        r = admin(a, "achv.revoke", { user = "dave", achId = "zombie_kills", tier = 3, reason = "other" })
+        T.check(r and r.ok and dv.titles.Reaper == true, "the same text granted by another source stays")
+
+        -- cleared in the editor: the whole titles map replaces the default, so tier IV grants no title
+        T.check(setTitles("towns", "{}") and Q.Achievements.get("towns").titles[4] == nil, "a cleared tier title is gone")
+        local tw = Q.Achievements.get("towns")
+        local e = Q.Store.account("erin", true)
+        e.total[tw.stat] = tw.base[4]
+        Q.Achievements.evaluate(e, "erin", { noBroadcast = true })
+        T.check(e.achv.towns == 4 and not (e.titles or {}).towns_4, "tier IV unlocks without the cleared title")
+
+        -- switched off: still revocable (it answered NOT_FOUND)
+        acc.achv.zombie_kills, acc.titles.zombie_kills_4, acc.titleSrc.zombie_kills_4 = 4, true, "a:zombie_kills:4"
+        T.check(Q.Config.apply({ { op = "set", path = "achievements.zombie_kills.enabled", value = false } }, "off", "alice")
+            and Q.Achievements.get("zombie_kills") == nil, "zombie_kills switched off")
+        r = admin(a, "achv.revoke", { user = "bob", achId = "zombie_kills", tier = 0, reason = "off" })
+        T.check(r and r.ok and acc.achv.zombie_kills == nil and acc.titles.zombie_kills_4 == nil,
+            "a switched-off achievement can be revoked, with its title")
     end)
 
     -- ===================== Exchange =====================
@@ -546,6 +698,8 @@ return function(T)
         T.check(accC.titles.s1_first_kills == true, "category #1 title")
         T.check(accA.titleAt.s1_top1 ~= nil and accC.titleAt.s1_top3 ~= nil and accC.titleAt.s1_first_kills ~= nil,
             "season rank and board-first titles record the grant time")
+        T.check(accA.titleSrc.s1_top1 == "season:1:top1" and accC.titleSrc.s1_top3 == "season:1:top3"
+            and accC.titleSrc.s1_first_kills == "first:kills", "season rank and board-first titles record their source")
         T.check(Q.Store.root().seasons[1].no == 1 and Q.Store.root().seasons[1].top[1].user == "alice", "history kept")
         T.check(Q.Store.account("alice").points.season >= 50, "review-period points survive the payout")
         T.check(accA.points.total >= 700, "season rewards do not touch lifetime")

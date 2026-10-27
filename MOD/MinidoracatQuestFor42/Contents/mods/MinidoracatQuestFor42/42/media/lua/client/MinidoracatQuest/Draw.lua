@@ -211,6 +211,24 @@ local function seasonBoard(b)
     return false
 end
 
+-- what earns tier t of achievement a (an entry as C.defs builds it)
+function D.achTitleCond(a, t)
+    local desc = D.achDesc(a, t)
+    if #a.tiers == 1 then return getText("IGUI_MQ_UI_TitleCondOne", D.achName(a), desc) end
+    return getText("IGUI_MQ_UI_TitleCond", D.achName(a), D.tierName(t), desc)
+end
+
+-- the streak milestone condition (also for a recorded "streak:<days>" source)
+function D.streakTitleCond(days, cfg)
+    local sk = type(cfg.streak) == "table" and cfg.streak or {}
+    return getText("IGUI_MQ_UI_TitleCondStreak", tostring(days), tostring(sk.need or 3))
+end
+
+function D.newbieTitleCond(cfg)
+    local nb = type(cfg.newbie) == "table" and cfg.newbie or {}
+    return getText("IGUI_MQ_UI_TitleCondNewbie", tostring(nb.days or 7))
+end
+
 -- achs: achievement entries as C.defs builds them (the admin passes its draft view): id, kind, cat, hidden, tiers,
 -- titles, defTitles (the titles before admin edits), off; cfg: streak, newbie, rewards; no: the season number.
 -- Rows in catalog order: { id, name, group, cond, ach?, tier?, hidden?, hint?, off?, custom?, alt? }. ach / tier:
@@ -223,10 +241,8 @@ function D.titleSources(achs, cfg, no)
             local id = a.titles[t]
             if id ~= nil then
                 local def = a.defTitles and a.defTitles[t]
-                local desc = D.achDesc(a, t)
                 out[#out + 1] = { id = id, name = D.titleText(id), group = a.kind == "custom" and "custom" or a.cat,
-                    cond = #a.tiers == 1 and getText("IGUI_MQ_UI_TitleCondOne", D.achName(a), desc)
-                        or getText("IGUI_MQ_UI_TitleCond", D.achName(a), D.tierName(t), desc),
+                    cond = D.achTitleCond(a, t),
                     ach = a.id, tier = t, hidden = a.hidden or nil, hint = a.hidden and D.achHint(a) or nil, off = a.off,
                     custom = a.defTitles ~= nil and def ~= id or nil, alt = def ~= id and def or nil }
             end
@@ -236,13 +252,13 @@ function D.titleSources(achs, cfg, no)
     for _, m in ipairs(type(sk.milestones) == "table" and sk.milestones or {}) do
         if m.title ~= nil then
             out[#out + 1] = { id = m.title, name = D.titleText(m.title), group = "other",
-                cond = getText("IGUI_MQ_UI_TitleCondStreak", tostring(m.days), tostring(sk.need or 3)) }
+                cond = D.streakTitleCond(m.days, cfg) }
         end
     end
     local nb = type(cfg.newbie) == "table" and cfg.newbie or {}
     if nb.title ~= nil then
         out[#out + 1] = { id = nb.title, name = D.titleText(nb.title), group = "other",
-            cond = getText("IGUI_MQ_UI_TitleCondNewbie", tostring(nb.days or 7)), off = nb.enabled == false or nil }
+            cond = D.newbieTitleCond(cfg), off = nb.enabled == false or nil }
     end
     for _, k in ipairs(RANKS) do out[#out + 1] = D.seasonTitle("s" .. no .. "_" .. k, cfg) end
     for _, b in ipairs(C.defs().boards) do

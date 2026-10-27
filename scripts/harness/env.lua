@@ -229,6 +229,7 @@ function T.player(o)
         name = o.name or "alice", x = o.x or 10000, y = o.y or 10000, z = o.z or 0,
         sid = o.sid or 76561198000000000, admin = o.admin or false, role = o.role, dead = o.dead or false,
         num = o.num or 0, hours = o.hours or 100, kills = o.kills or 0, noRole = o.noRole, perks = o.perks or {},
+        boosts = o.boosts or {},   -- perk -> profession/trait XP boost level (descriptor XPBoostMap)
     }
     if o.oid ~= nil then p.oid = o.oid else p.oid = T.nextOnlineId; T.nextOnlineId = T.nextOnlineId + 4 end
     function p:getUsername() return self.name end
@@ -245,6 +246,11 @@ function T.player(o)
     function p:getVehicle() return self.veh end
     function p:getPrimaryHandItem() return self.hand end
     function p:getPerkLevel(perk) return self.perks[perk] or 0 end
+    -- IsoGameCharacter.XP.getPerkBoost (IsoGameCharacter.java:17364): 0 when the map has no entry
+    function p:getXp()
+        local boosts = self.boosts
+        return { getPerkBoost = function(_, perk) return boosts[perk] or 0 end }
+    end
     -- Role.getName (IsoPlayer.java:7562 getRole, Role.java:41); SP getRole() is nil (pitfalls.md:124)
     function p:getRole()
         if self.noRole or T.mode == "sp" then return nil end

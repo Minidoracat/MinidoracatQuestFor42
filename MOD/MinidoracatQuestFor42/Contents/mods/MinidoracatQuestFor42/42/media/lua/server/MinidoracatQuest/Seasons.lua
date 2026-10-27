@@ -166,7 +166,7 @@ local function pay(s, actor)
             if tid then top[#top + 1] = { user = r.user, pts = r.pts } end
             if not r.paid then
                 r.paid = true
-                if tid then MQ.Store.grantTitle(acc, "s" .. f.no .. "_" .. tid) end
+                if tid then MQ.Store.grantTitle(acc, "s" .. f.no .. "_" .. tid, "season:" .. f.no .. ":" .. tid) end
                 if pts > 0 then
                     MQ.Points.award(acc, r.user, pts, "season", "s" .. f.no)
                     if MQ.Stats.def(Se.JOIN_STAT) then MQ.Stats.add(r.user, Se.JOIN_STAT, 1) end
@@ -182,7 +182,7 @@ local function pay(s, actor)
         if not s.excluded[user] then
             firsts[boardId] = user
             local acc = cfg.firstTitles ~= false and MQ.Store.account(user, false) or nil
-            if acc then MQ.Store.grantTitle(acc, "s" .. f.no .. "_first_" .. boardId) end
+            if acc then MQ.Store.grantTitle(acc, "s" .. f.no .. "_first_" .. boardId, "first:" .. boardId) end
         end
     end
     table.insert(MQ.Store.root().seasons, 1, { no = f.no, startMs = f.startMs, endMs = f.endMs, top = top, firsts = firsts })

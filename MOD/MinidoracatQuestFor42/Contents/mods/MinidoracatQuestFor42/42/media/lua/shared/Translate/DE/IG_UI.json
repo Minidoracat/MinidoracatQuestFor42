@@ -1409,5 +1409,6 @@
   "IGUI_MQ_UI_TitleCondStreak": "Tagesquests %1 Tage in Folge (%2 von 4 pro Tag)",
   "IGUI_MQ_UI_TitleCondNewbie": "Alle Schritte der Neulingsquests innerhalb von %1 Tagen",
   "IGUI_MQ_UI_TitleCondRank": "Saison %1, Punkte: %2",
-  "IGUI_MQ_UI_TitleCondFirst": "Saison %1: Platz 1 in \"%2\""
+  "IGUI_MQ_UI_TitleCondFirst": "Saison %1: Platz 1 in \"%2\"",
+  "IGUI_MQ_WhatsNew": "\"Meine Werte\" zeigt Titel mit Datum. EP-Quests meiden Fertigkeiten auf Maximum oder ohne Bonus."
 }

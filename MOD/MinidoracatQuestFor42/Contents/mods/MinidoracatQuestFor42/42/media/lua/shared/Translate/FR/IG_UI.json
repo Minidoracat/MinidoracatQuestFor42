@@ -1409,5 +1409,6 @@
   "IGUI_MQ_UI_TitleCondStreak": "Quêtes du jour %1 jours d'affilée (%2 sur 4 par jour)",
   "IGUI_MQ_UI_TitleCondNewbie": "Finir chaque étape des quêtes de débutant en %1 jours",
   "IGUI_MQ_UI_TitleCondRank": "Saison %1, points : %2",
-  "IGUI_MQ_UI_TitleCondFirst": "Saison %1 : 1er du classement « %2 »"
+  "IGUI_MQ_UI_TitleCondFirst": "Saison %1 : 1er du classement « %2 »",
+  "IGUI_MQ_WhatsNew": "« Mes records » liste vos titres et leur date. Les quêtes d'XP évitent les compétences au max ou sans bonus."
 }

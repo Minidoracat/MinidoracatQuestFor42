@@ -112,14 +112,17 @@ local function newAccount(t, sno)
     return acc
 end
 
--- Every title grant goes through here: titleAt keeps the first grant time (titles granted before
--- titleAt existed have none and stay without one).
-function St.grantTitle(acc, id)
+-- Every title grant goes through here: titleAt keeps the first grant time, titleSrc what granted it ("a:<achId>:<tier>",
+-- "streak:<days>", "newbie", "season:<no>:<rank>", "first:<boardId>"); revoke goes by titleSrc (owner 2026-10-27).
+-- Titles granted before titleAt / titleSrc existed have neither and stay without them.
+function St.grantTitle(acc, id, src)
     acc.titles = acc.titles or {}
     if acc.titles[id] then return end
     acc.titles[id] = true
     acc.titleAt = acc.titleAt or {}
     acc.titleAt[id] = now()
+    acc.titleSrc = acc.titleSrc or {}
+    acc.titleSrc[id] = src
 end
 
 -- C30: season fields reset lazily when the account belongs to an older season

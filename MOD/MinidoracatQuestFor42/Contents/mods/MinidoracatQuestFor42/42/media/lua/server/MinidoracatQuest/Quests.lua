@@ -86,6 +86,34 @@ end
 function Q.dailyPool(cfg) return pool(MQ.Catalog.daily, cfg.daily.pool, packList("quests")) end
 function Q.weeklyPool(cfg) return pool(MQ.Catalog.weekly, cfg.weekly.pool) end
 
+-- Owner 2026-10-27: an xp.<Perk> daily goes only to a player whose skill has a profession or trait XP boost and is
+-- below level 10. At 10 the engine gives no XP and fires no AddXP (42.21.0 IsoGameCharacter.java:17455-17456);
+-- without a boost most skills get x0.25 (:17464-17479; the engine spares a few such as Fitness and Strength, the owner's
+-- rule does not). nil player (not online) = not eligible.
+function Q.xpEligible(player, perkName)
+    if player == nil then return false end
+    local perk = Perks.FromString(perkName)
+    if perk == nil or perk == Perks.None or perk == Perks.MAX then return false end
+    return player:getXp():getPerkBoost(perk) >= 1 and player:getPerkLevel(perk) < 10
+end
+
+-- "xp.<Perk>" -> perk name; nil for any other stat (xp.total is no perk)
+local function xpPerk(stat)
+    local perk = string.match(stat, "^xp%.(.+)$")
+    if perk == "total" then return nil end
+    return perk
+end
+
+-- the daily pool without the xp.<Perk> templates player may not get (pickT then falls back within the theme)
+local function playerPool(cfg, player)
+    local out = {}
+    for _, t in ipairs(Q.dailyPool(cfg)) do
+        local perk = xpPerk(t.stat)
+        if perk == nil or Q.xpEligible(player, perk) then out[#out + 1] = t end
+    end
+    return out
+end
+
 local function diffMult(cfg)
     local m = cfg.difficulty and cfg.difficulty.mult
     return type(m) == "number" and m > 0 and m or 1
@@ -164,8 +192,10 @@ function Q.sharedToday(day, cfg)
     if s and s.day == day then return s end
     s = { day = day, done = 0 }
     local list = {}
+    -- an xp.<Perk> template never: one quest for everyone, but only some may get it (Q.xpEligible); built-in ones say
+    -- shared = false, pack quests carry no such flag
     for _, t in ipairs(Q.dailyPool(cfg)) do
-        if t.shared ~= false then list[#list + 1] = t end
+        if t.shared ~= false and xpPerk(t.stat) == nil then list[#list + 1] = t end
     end
     if #list > 0 then
         local rng = MQ.Util.rng(MQ.Util.hash(day))
@@ -181,8 +211,26 @@ end
 
 -- ---------- generation ----------
 
+-- the day's quests count as given (Balance, report) once the player can see them
+local function countGiven(d, now)
+    local n = 0
+    for i = 1, 4 do
+        local q = d.quests[i]
+        if q then
+            MQ.Balance.given(q.tid, now)
+            n = n + 1
+        end
+    end
+    d.offline = nil
+    report("dGiven", nil, n)
+end
+
+-- player nil: drawn while the player is away (a goal or season payout feeds stats to offline accounts). Such a day
+-- has no xp daily and is not counted as given yet (day.offline): Q.ensure draws it again once the player is online,
+-- unless a quest made progress first (Q.onStat counts it then and keeps it).
 local function genDay(acc, user, day, now, cfg)
-    local list = Q.dailyPool(cfg)
+    local player = MQ.Net.playerOf(user)
+    local list = playerPool(cfg, player)
     local mult = diffMult(cfg)
     local rng = MQ.Util.rng(MQ.Util.hash(user .. "|" .. day))
     local used, quests = {}, {}
@@ -193,17 +241,14 @@ local function genDay(acc, user, day, now, cfg)
         if t then
             used[t.stat] = true
             quests[i] = newQuest(t, rollTarget(t, cfg.daily.pool and cfg.daily.pool[t.tid], rng, mult), dailyPts(cfg, t), now)
-            MQ.Balance.given(t.tid, now)
         end
     end
     if sh.stat then
-        local q = { tid = sh.tid, stat = sh.stat, theme = sh.theme, target = sh.target, prog = 0, pts = sh.pts,
+        quests[4] = { tid = sh.tid, stat = sh.stat, theme = sh.theme, target = sh.target, prog = 0, pts = sh.pts,
             state = "active", shared = true, startMs = now }
-        quests[4] = q
-        MQ.Balance.given(sh.tid, now)
     end
-    acc.day = { key = day, quests = quests, swaps = cfg.daily.swapsPerDay, done = 0 }
-    report("dGiven", nil, (quests[1] and 1 or 0) + (quests[2] and 1 or 0) + (quests[3] and 1 or 0) + (quests[4] and 1 or 0))
+    acc.day = { key = day, quests = quests, swaps = cfg.daily.swapsPerDay, done = 0, offline = true }
+    if player then countGiven(acc.day, now) end
 end
 
 local function genWeek(acc, user, week, now, cfg)
@@ -257,7 +302,7 @@ local function countDay(acc, user, s, day, now, cfg, what)
         if s.days >= m.days and not s.paid[m.days] then
             s.paid[m.days] = true
             MQ.Points.award(acc, user, m.pts, "streak", m.days)
-            if m.title then MQ.Store.grantTitle(acc, m.title) end
+            if m.title then MQ.Store.grantTitle(acc, m.title, "streak:" .. m.days) end
             acc.unseen = (acc.unseen or 0) + 1
             MQ.EventLog.write("streak", user, { days = m.days, pts = m.pts })
             MQ.Sync.toast(user, { kind = "streak", days = m.days, pts = m.pts })
@@ -308,6 +353,12 @@ function Q.ensure(acc, user, now)
         changed = true
         -- a new list (tid / target) is not in a delta, which only carries progress: an open window gets a full state
         MQ.Sync.dirty(user, "all")
+    elseif acc.day.offline and MQ.Net.playerOf(user) ~= nil then
+        -- drawn while away and still untouched (progress clears the flag): draw again now that xp dailies may come
+        genDay(acc, user, day, now, cfg)
+        MQ.Sync.unpin(acc, user, "d", true)
+        MQ.Sync.dirty(user, "all")
+        changed = true
     end
     if not acc.week or acc.week.key ~= week then
         Q.goalFor(week, now, cfg)
@@ -396,6 +447,7 @@ function Q.onStat(acc, user, stat, delta, opts)
     for i = 1, 4 do
         local q = qs[i]
         if q and q.state == "active" and q.stat == stat then
+            if acc.day.offline and delta > 0 then countGiven(acc.day, now) end   -- progress keeps a day drawn while away
             q.prog = q.prog + delta
             MQ.Sync.dirty(user, "day")
             if q.prog >= q.target then complete(acc, user, q, q.shared and "shared" or "quest", now, cfg) end
@@ -495,7 +547,7 @@ function Q.onNewbieStat(acc, user, stat, delta, opts)
     if not all then return end
     acc.newbie = nil
     MQ.Points.award(acc, user, cfg.newbie.pts, "newbie", "newbie")
-    if cfg.newbie.title then MQ.Store.grantTitle(acc, cfg.newbie.title) end
+    if cfg.newbie.title then MQ.Store.grantTitle(acc, cfg.newbie.title, "newbie") end
     acc.unseen = (acc.unseen or 0) + 1
     MQ.Sync.toast(user, { kind = "newbie", pts = cfg.newbie.pts })
 end
@@ -516,7 +568,7 @@ function Q.swap(acc, user, slot)
         if d.quests[i] then used[d.quests[i].stat] = true end
     end
     local rng = MQ.Util.rng(MQ.Util.hash(user .. "|" .. d.key .. "|swap|" .. tostring(d.swaps)))
-    local t = pickT(Q.dailyPool(cfg), q.theme, rng, used, slotAlts(acc.prefs, slot))
+    local t = pickT(playerPool(cfg, MQ.Net.playerOf(user)), q.theme, rng, used, slotAlts(acc.prefs, slot))
     if not t then return false, code("NOT_FOUND") end
     q.state = "swapped"
     d.quests[slot] = newQuest(t, rollTarget(t, cfg.daily.pool and cfg.daily.pool[t.tid], rng, diffMult(cfg)), dailyPts(cfg, t), now)

@@ -70,6 +70,24 @@ local function titleRow(b, page, x, y, w, s)
 end
 
 -- ===== my titles (plan r13; the owner chose owned titles only, 2026-10-27) =====
+-- the condition from the recorded source (state.titleSrc, server Store.grantTitle): it still names the source after
+-- the admin renamed the title (twice or more). Season ids carry their source, D.seasonTitle reads them.
+local function recordedCond(src, defs)
+    if type(src) ~= "string" then return nil end
+    local ach, tier = string.match(src, "^a:(.+):(%d+)$")
+    if ach ~= nil then
+        tier = tonumber(tier)
+        for _, a in ipairs(defs.allAch) do
+            if a.id == ach and tier <= #a.tiers then return D.achTitleCond(a, tier) end
+        end
+        return nil
+    end
+    local days = string.match(src, "^streak:(%d+)$")
+    if days ~= nil then return D.streakTitleCond(days, defs.cfg) end
+    if src == "newbie" then return D.newbieTitleCond(defs.cfg) end
+    return nil
+end
+
 -- newest first; titles from before titleAt existed have no time ("early") and follow in catalog order
 local function myTitles(b, page, x, y, w, s)
     local owned = type(s.titles) == "table" and s.titles or {}
@@ -94,16 +112,29 @@ local function myTitles(b, page, x, y, w, s)
                 end
             end
         end
+        -- after the reached rows: a default id whose tier title the admin cleared since (no row above), held from
+        -- before titleSrc; the tier the player reached still names the condition
+        if pass == 1 then
+            for _, a in ipairs(defs.allAch) do
+                for t, def in pairs(a.defTitles or {}) do
+                    t = tonumber(t)
+                    if t ~= nil and t <= #a.tiers and byId[def] == nil and (tonumber(achv[a.id]) or 0) >= t then
+                        byId[def] = { cond = D.achTitleCond(a, t) }
+                    end
+                end
+            end
+        end
     end
     local at = type(s.titleAt) == "table" and s.titleAt or {}
+    local srcOf = type(s.titleSrc) == "table" and s.titleSrc or {}
     local hName, hCond, hGot = getText("IGUI_MQ_UI_TitleLabel"), getText("IGUI_MQ_UI_ColCond"), getText("IGUI_MQ_UI_ColGot")
     local worn = getText("IGUI_MQ_UI_TitleWorn")
     local nameW, timeW = D.textW(hName), D.textW(hGot)
     local rows = {}
     for _, id in ipairs(owned) do
         local src = byId[id] or D.seasonTitle(id, defs.cfg)
-        local r = { name = D.titleText(id), cond = src and src.cond or getText("IGUI_MQ_UI_TitleNoSource"),
-            at = tonumber(at[id]), order = order[id] or #owned + 1e6, worn = id == s.title }
+        local r = { name = D.titleText(id), cond = recordedCond(srcOf[id], defs) or src and src.cond
+            or getText("IGUI_MQ_UI_TitleNoSource"), at = tonumber(at[id]), order = order[id] or #owned + 1e6, worn = id == s.title }
         r.time = r.at and D.ymd(r.at) or getText("IGUI_MQ_UI_TitleEarly")
         nameW, timeW = math.max(nameW, D.textW(r.name), r.worn and D.textW(worn) or 0), math.max(timeW, D.textW(r.time))
         rows[#rows + 1] = r

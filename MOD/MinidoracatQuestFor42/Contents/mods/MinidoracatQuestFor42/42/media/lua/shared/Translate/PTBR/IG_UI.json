@@ -1409,5 +1409,6 @@
   "IGUI_MQ_UI_TitleCondStreak": "Missões diárias %1 dias seguidos (%2 de 4 por dia)",
   "IGUI_MQ_UI_TitleCondNewbie": "Concluir cada etapa das missões de iniciante em %1 dias",
   "IGUI_MQ_UI_TitleCondRank": "Temporada %1, pontos: %2",
-  "IGUI_MQ_UI_TitleCondFirst": "Temporada %1: 1º em \"%2\""
+  "IGUI_MQ_UI_TitleCondFirst": "Temporada %1: 1º em \"%2\"",
+  "IGUI_MQ_WhatsNew": "\"Meus registros\" mostra títulos e datas. Missões de XP pulam habilidades no máx. ou sem bônus."
 }

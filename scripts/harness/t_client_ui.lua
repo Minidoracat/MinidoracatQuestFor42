@@ -500,6 +500,33 @@ return function(T)
     st.titles = {}
     MQ.PageRecords.layout(rp)
     check(drew(rp, "IGUI_MQ_UI_MyTitlesEmpty"), "no titles: the box says how to get one")
+    -- owner 2026-10-27: the recorded source (state.titleSrc) names the condition after the admin renamed the title
+    -- twice (the default-id fallback only covers one rename)
+    push("catalog", { rev = 6, overrides = { achievements = { skill_axe = { titles = { [4] = "Axe B" } } } }, packs = {} })
+    st.titles, st.titleAt, st.title = { "Axe A" }, {}, nil
+    st.titleSrc = { ["Axe A"] = "a:skill_axe:4" }
+    MQ.PageRecords.layout(rp)
+    check(drew(rp, "IGUI_MQ_UI_TitleCond") and not drew(rp, "IGUI_MQ_UI_TitleNoSource"),
+        "a title renamed twice since the grant: the recorded source gives its condition")
+    st.titles, st.titleSrc = { "Old streak" }, { ["Old streak"] = "streak:30" }
+    MQ.PageRecords.layout(rp)
+    check(drew(rp, "IGUI_MQ_UI_TitleCondStreak") and not drew(rp, "IGUI_MQ_UI_TitleNoSource"),
+        "a renamed streak title: the recorded source gives its condition")
+    st.titles, st.titleSrc = { "Old rookie" }, { ["Old rookie"] = "newbie" }
+    MQ.PageRecords.layout(rp)
+    check(drew(rp, "IGUI_MQ_UI_TitleCondNewbie") and not drew(rp, "IGUI_MQ_UI_TitleNoSource"),
+        "a renamed newbie title: the recorded source gives its condition")
+    st.titleSrc = nil
+    -- owner 2026-10-27: an override replaces the whole titles map, so a cleared tier grants (and lists) no title
+    push("catalog", { rev = 7, overrides = { achievements = { skill_axe = { titles = {} } } }, packs = {} })
+    check(C.defs().achById.skill_axe.titles[4] == nil
+        and rowOf(D.titleSources(C.defs().allAch, C.defs().cfg, 3), "skill_axe_4") == nil,
+        "a tier title cleared in the editor: no title on that tier")
+    st.titles, st.achv.skill_axe = { "skill_axe_4" }, 4
+    MQ.PageRecords.layout(rp)
+    check(drew(rp, "IGUI_MQ_UI_TitleCond") and not drew(rp, "IGUI_MQ_UI_TitleNoSource"),
+        "a default title held from before titleSrc, its tier since cleared: the reached tier still names it")
+    st.achv.skill_axe = nil
     st.titles, st.titleAt, st.title = st0.titles, st0.titleAt, st0.title
     push("catalog", { rev = 5, overrides = {}, packs = {} })
 

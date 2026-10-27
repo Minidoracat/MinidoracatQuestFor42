@@ -227,7 +227,10 @@ function C.defs()
     end
     local mult = type(cfg.difficulty) == "table" and tonumber(cfg.difficulty.mult) or 1
     if mult == nil or mult <= 0 then mult = 1 end
-    local cfgAch = type(cfg.achievements) == "table" and cfg.achievements or {}
+    -- the raw overrides, not cfg: C.merge would merge a titles map into the default one per key, but an override
+    -- replaces it whole (a cleared tier grants no title, server Config SCHEMA; owner 2026-10-27)
+    local ov = type(push.overrides) == "table" and push.overrides or {}
+    local cfgAch = type(ov.achievements) == "table" and ov.achievements or {}
     for _, a in ipairs(Cat.achievements or {}) do
         local o = cfgAch[a.id]
         addAch(achEntry(a, o, a.id, "builtin", mult), type(o) == "table" and o.enabled == false)

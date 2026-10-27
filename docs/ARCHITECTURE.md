@@ -151,7 +151,7 @@ Account = {
   total = {}, life = {}, season = {},           -- stat -> number；season 屬於第 sno 季
   sno = 1,
   points = { season = 0, total = 0, balance = 0 },
-  day = { key = "2026-11-10", quests = { Quest, Quest, Quest, Quest }, swaps = 1, done = 0 },
+  day = { key = "2026-11-10", quests = { Quest, Quest, Quest, Quest }, swaps = 1, done = 0, offline = nil },   -- offline：玩家不在線時產生（§4 經驗任務），上線時重抽
   week = { key = "2026-W46", quests = { Quest, Quest, Quest }, goalPart = 0 },
   streak = { days = 0, best = 0, last = nil, graceUsed = false, graceWeek = nil, paid = {} },  -- paid[3]=true …
   newbie = { startMs, steps = { false, false, false, false, false } },  -- nil：完成或跳過
@@ -159,6 +159,7 @@ Account = {
   achv = {},                                    -- achId -> 最高已解鎖等級
   titles = {}, title = nil,                     -- titleId -> true；目前使用的稱號
   titleAt = nil,                                -- titleId -> 第一次拿到的伺服器時間（ms）；所有發稱號的地方都走 Store.grantTitle，撤銷時一起刪；設計稿 r13 之前拿到的沒有時間，不回補
+  titleSrc = nil,                               -- titleId -> 發它的來源（第一次）："a:<achId>:<tier>"、"streak:<days>"、"newbie"、"season:<no>:<rank>"、"first:<boardId>"；撤銷依它刪（服主 2026-10-27）；0.2.0 之前拿到的沒有，不回補
   prefs = {},                                   -- 最多 3 個主題 id
   anon = false,                                 -- 玩家自己選匿名
   hidden = nil,                                 -- 管理員移出排行榜：{ reason, actor, at }
@@ -196,7 +197,7 @@ DEFAULTS = {
            limits = { [stat] = { min, max, minContrib } } },
   streak = { need = 3, gracePerWeek = 1, milestones = { { days = 3, pts = 15 }, { days = 7, pts = 40 }, { days = 14, pts = 80 }, { days = 30, pts = 150, title = "streak_30" } } },
   newbie = { enabled = true, pts = 100, title = "newbie", days = 7 },
-  achievements = { [achId] = { enabled = true, tiers = { … }, pts = { … }, titles = { [tier] = titleId } } },
+  achievements = { [achId] = { enabled = true, tiers = { … }, pts = { … }, titles = { [tier] = titleId } } },   -- titles 整份取代預設（SCHEMA 葉節點）：沒寫的級不給稱號（服主 2026-10-27）
   custom = { [customId] = { name = "純文字", cat, stat, tiers = { … }, pts = { … }, titles = { } } },
   difficulty = { preset = "normal", mult = 1 },          -- easy 0.6 | normal 1 | hard 1.6 | custom
   season = { lengthDays = 28 },                          -- 只能經賽季指令改，§5.9
@@ -278,6 +279,7 @@ newbie    = { { stat = "zombie.kills", target = 5 }, { stat = "craft.count", tar
 
 - 名稱鍵 `IGUI_MQ_Q_<tid>`（`%1`＝目標）。積分由設定決定（§3.4），不寫在樣板。
 - 同一天的個人任務不重複統計；全服任務只用日期當種子，從 `daily` 裡 `shared ~= false` 的樣板抽，目標取區間中位數。`xp.*` 樣板一律 `shared = false`：經驗是乘過職業加成的值（沒有加成 ×0.25、加成 3 級 ×1.66），同一個目標對非對口職業約難 6.6 倍。不是人人做得到的樣板（指定武器、開車撞、狩獵、夜釣）也是 `shared = false`。內建每日 47 個、每週 24 個。
+- 經驗任務（服主 2026-10-27）：統計是 `xp.<Perk>` 的每日樣板（含其他 MOD 的；`xp.total` 不算）只派給 `Quests.xpEligible(player, perk)` 為真的玩家：`getXp():getPerkBoost(perk) >= 1` 且 `getPerkLevel(perk) < 10`。10 級引擎不再給經驗也不觸發 `AddXP`（42.21.0 `IsoGameCharacter.java:17455-17456`），沒加成多數技能 ×0.25（`:17464-17479`）。`genDay` 與 `swap` 都先用 `playerPool` 濾掉不符合的，`pickT` 照常退到同主題的其他樣板；玩家用 `Net.playerOf` 找，不在線就當不符合。不在線時產生的一天（共同目標、賽季結算經 `Stats.add(使用者名稱)` 觸發 `ensure`）記 `day.offline`，先不算進報表與平衡的派發數；`onStat` 讓其中一格第一次有進度時才記派發並清旗標（`countGiven`），`ensure` 看到旗標還在且玩家在線就重抽。全服任務不抽 `xp.<Perk>`（其他 MOD 的任務沒有 `shared` 欄位）。
 - 選樣板時先找格子的主題；那個主題沒有不重複統計的樣板時，先從格子的備選主題找（偏好格：其他偏好主題；沒偏好的每日格與每週格：同一組），最後才是全部主題（`Quests.lua` 的 `pickT`、`slotAlts`）。
 - 每個主題至少 3 個每日樣板、至少 1 個每週樣板（harness `t_catalog` 檢查）。
 
@@ -357,7 +359,7 @@ boards[i] = { id = "kills", cat = "combat", stat = "zombie.kills", periods = { "
 - `Quests.ensure(acc, user, now)`：換日／換週時處理過期、連續天數結算、產生新任務、共同目標換週，回傳是否有變；換了任務清單就標 `all`（delta 只帶進度，不帶 `tid`／`target`，開著視窗的人改收完整 `state`）。`hello`、`Stats` 監聽、`Quests.tick` 都會呼叫。
 - `Quests.swap(acc, user, slot)` → ok, code。`Quests.setPrefs(acc, list)` → ok, code。
 - `Quests.tick(now)`：換日時處理全服任務、共同目標結算發獎（達成時貢獻 ≥ minContrib 的帳號各得 pts），並對開著視窗的玩家呼叫 `ensure`，視窗在重置那一刻就換成新任務。
-- `Achievements.list()`：合併內建、自訂、facade 的有效清單（含設定覆寫的門檻）。`Achievements.evaluate(acc, user, opts)`：判定所有統計相關的成就，`opts.quiet` 時不通知、不發本季積分（只發累計）。`Achievements.revoke(user, achId, toTier, reason, actor)`。
+- `Achievements.list()` → `list, byStat, all`：合併內建、自訂、facade 的有效清單（含設定覆寫的門檻）；`all` 是 id → 定義，含停用的（撤銷用）。每個定義帶 `defTitles`（定義本身的稱號，撤銷時給沒有 `titleSrc` 的舊稱號用）。`Achievements.evaluate(acc, user, opts)`：判定所有統計相關的成就，`opts.quiet` 時不通知、不發本季積分（只發累計）。`Achievements.revoke(user, achId, toTier, reason, actor)`：停用的成就也能撤（服主 2026-10-27）；刪 `titleSrc` 是 `a:<achId>:<被撤的級>` 的稱號，沒有紀錄的稱號另刪那一級現在設定的 id 與 `defTitles` 的 id（有別的來源紀錄的不刪）。
 - `Import.baseline(acc, user, player)`：每個帳號一次（`hello` 時）。目前角色的擊殺數、存活天數、35 個技能等級寫進 `total`，擊殺數也寫進 `life`（原版的擊殺數是這個角色的，不殺生天數靠它判斷）；符合的成就安靜解鎖。其他統計沒有舊值，從裝上那天開始算。
 - `Exchange.init()`：`OnServerStarted` 探測 `MinidoracatEconomy.v1` 並 `registerSource({ modId = "MinidoracatQuestFor42", nameKey = "IGUI_MQ_Name", displayName = { EN = "Quests & Achievements" }, currencies = { "survivor" }, reasonCodes = { "mq_exchange" } })`。經濟系統的管理台用 `IGUI_MinidoracatEconomy_Reason_<原因碼>` 顯示原因（`ECWidgets.lua` `U.reasonText`，找不到鍵才寫「其他模組的原因：<碼>」）；這個鍵放在本 MOD 的 16 種語言翻譯檔，原因碼加 `mq_` 前綴，避免和其他整合來源的碼共用同一個鍵。`Exchange.available()`。`Exchange.request(acc, user, amount)` → ok, code, { state, coins }。`Exchange.tick(now)`：排隊重試，有一筆結束就標記 `points` 與 `exchange` 要重送。
 - `Seasons.current()`、`Seasons.tick(now)`、`Seasons.previewLength(days)` → `{ endMs, nextStartMs }` 或 nil, code（新結算時刻至少在 24 小時後）、`Seasons.applyLength(days, actor)`、`Seasons.review()`、`Seasons.exclude(user, on, reason, actor)`、`Seasons.confirm(actor)`。
@@ -458,7 +460,7 @@ boards[i] = { id = "kills", cat = "combat", stat = "zombie.kills", periods = { "
   goal = { stat, target, progress, minContrib, pts, endsAt, reached } | nil,
   streak = { days, graceUsed, week = { 7 個 "done" | "grace" | "miss" | "" }, today = 1..7（週一＝1，`Clock.weekday`；客戶端金圈標示）, next = { days, pts } | nil },
   newbie = { steps = { … 5 個 bool }, pts } | nil,
-  achv = { [achId] = tier }, titles = { titleId… }, titleAt = { [titleId] = ms } | nil, title, prefs = { … }, anon,
+  achv = { [achId] = tier }, titles = { titleId… }, titleAt = { [titleId] = ms } | nil, titleSrc = { [titleId] = src } | nil, title, prefs = { … }, anon,
   season = { no, startMs, endsAt, state },
   exchange = { available, enabled, rate, perDay, used, min, queued, hist },   -- hist：排隊中的（新的在前，at＝申請時間）接著 ex.log，合計最多 10 筆；兌換頁的「兌換紀錄」
   events = { { name, theme, mult, endsAt } },
@@ -514,6 +516,7 @@ boards[i] = { id = "kills", cat = "combat", stat = "zombie.kills", periods = { "
 
 - 接 UI 框架：`require "MinidoracatUI/V1"`，`MIN_REV = 22`，逐項探 `CAPABILITIES`（`window`、`controls`、`navList`、`scrollPanel`、`table`、`virtualList`、`tileGrid`、`toast`、`dock`、`dialog`、`dropdown`、`textWrap`）。缺框架或版本不足時只用 `HaloTextHelper` 顯示通知、視窗不開，不 error。
 - Dock：`{ id = "quest", order = 70, icon = "media/ui/MinidoracatQuest/dock_trophy.png", iconKey = …, bind = "MinidoracatQuest_Toggle", getBadge = unseen }`。
+- 更新概要（UI 框架 rev 24 `WhatsNew`）：`Entry.lua` 檔案載入時探測 `API_MAJOR == 1`、`API_REVISION >= 24`、`CAPABILITIES.whatsNew` 後呼叫 `WhatsNew.register({ modId, since, name = "IGUI_MQ_Name", text = "IGUI_MQ_WhatsNew" })`，四欄字面值、一欄一行（`release_train.py ready` 用 regex 讀）；有新概要的版本才改 `since`。
 - 視窗：左側 NavList `Window.nav`（每日任務、每週任務、屍潮任務（只在 `state.hordes.on`）、成就、排行榜、我的紀錄、兌換（只在 `state.exchange` 可兌換或 `hist` 有資料時，spec 的 `shown`）；分隔後：設定）；管理（只有 `state.admin`）是另一個 NavList `Window.navAdmin`，貼在左欄底部（`Window.placeNav`：y＝max(`nav` 底＋`ADMIN_GAP` 12 px, 視窗高－自身高－6)，視窗版面或列出的頁面一變就重放；UI 框架的 NavList 沒有置底，所以分成兩個）。非管理員時隱藏。兩個清單只有一個有選取：`Window.select` 把頁面 id 設給擁有它的清單、另一個清掉（`setSelected(nil, true)`），兩個清單的 onSelect 都走 `Window.select`。右側內容；不透明視窗。列出的頁面一變（`Window.syncNav` 比對列出的頁面 id）就重建兩個 NavList，目前那頁不再列出時回到每日任務。預設大小＝內容寬（螢幕寬一半，夾在 640～1000 px）＋NavList 寬、高為螢幕高 82 %（460～1000 px），都不超過螢幕減 40 px（`Window.defaultSize`）；玩家拖過的大小由 ISLayoutManager 記住，大小和預設不同時標題列出現「重設大小」，按下回到預設大小並置中。
 - 導覽的鍵盤與手把：NavList 到邊時 `onFocusKey` 回 false，Focus 引擎對鍵盤就停在原地，所以 `Window.lua` 只在這兩個實例上包 `onFocusKey`：`nav` 最後一列按下 → `Focus.focusControl(navAdmin)` 並停在它的第一列，`navAdmin` 第一列按上 → 回到 `nav` 最後一列；手把方向也先問同一個 `onFocusKey`（`Focus.onJoypadDir`）。`navAdmin` 隱藏（非管理員）時照原本行為。
 - 頁面資料來源：每日／每週／成就／我的紀錄（積分卡）／兌換用 `state`；我的紀錄表格送 `records`；排行榜送 `board`（狀態機 loading → ready／empty／error，5 秒逾時）；設定頁送 `prefs`／`title`／`anon`。兌換頁的「兌換倖存幣...」開兌換視窗（`ExchangeDialog`），使用者 2026-10-24 要求兌換與兌換紀錄從我的紀錄分出來。屍潮任務頁（`PageHordes.lua`，設計稿 r12）：上方是每日頁同一個屍潮橫幅（沒有進行中的場次時一行說明），接著四格累計（`horde.joined`／`wins`／`kills`／`mvp`，讀 `records` 的統計），再來是 `records.hordes` 的清單框（時間、地點、結果、我的擊殺、得分）；打開時送 `records`，開著時 `state.hordes.last` 換成比清單新的場次就再送一次。成就頁的「屍潮」類跟這一頁同一個條件（`PageHordes.shown()`，即 `state.hordes.on`）：沒開過屍潮的伺服器拿不到，卡片、分類按鈕與「已解鎖／總數」都不算它（`PageAchievements.visible`；使用者 2026-10-26 照建議）；catalog 不動，通知與管理頁照樣找得到。
@@ -521,7 +524,7 @@ boards[i] = { id = "kills", cat = "combat", stat = "zombie.kills", periods = { "
 - 開視窗送 `watch {on=true}`，關視窗送 `{on=false}`；打開每日頁或成就頁時送 `seen`。
 - 追蹤面板（`Hud.lua`）：`ISPanel` 衍生、放在最底層（`backMost`：每次 UI 更新引擎都把它移到最底，`UIManager.java:562-568`），所以每個視窗都蓋在它上面，包括比它早建立的物品欄與上次沒關的角色視窗，拖曳時 `ISPanel` 的 `bringToTop` 也一樣；用頁面同一套 canvas 指令繪製（`Draw.renderOps`），資料一變才重排，`render` 只走指令列。預設在原版左側欄右邊（`getPlayerData(0).equipped` 的右緣＋12），會碰到原版物品欄的標題列時（物品欄看得到、左右重疊、物品欄的 y 在面板標題列底線之上）改放在物品欄標題列下面 6 px；拖過的位置與收合狀態用 `ISLayoutManager` 記在 `layout.ini`（拖完或收合就寫）。顯示條件：MOD 選項開、有追蹤項目、角色活著、沒按 V（`ISUIHandler.allUIVisible`）、Esc 選單沒開；任務視窗開著也照樣顯示（使用者 2026-10-24：按「追蹤」要馬上看到），視窗蓋在它上面。每 500 ms 與資料變動時檢查，介面被藏起來時不自己出現。`hello` 時面板開著就送 `track {on=true}`，選項切換時送 on／off。卡片上的「追蹤」chip 送 `pin`；滿 5 個時其他 chip 停用並以 tooltip 說明。
 - 稱號（`Titles.lua`）：`titles` 推送存成 `byUser`。聊天：檔案載入時包住 `ISChat.addLineInChat`（原版在 `OnGameStart` 才把它掛到 `OnAddMessage`，`ISChat.lua:1176`），作者戴著稱號時把訊息換成代理，`getTextWithPrefix()` 在 `[作者]` 後面插入 ` <SPACE> <PUSHRGB:…> 「稱號」 <POPRGB> `（稱號裡的 `<`、`>` 先轉成 `&lt;`、`&gt;`），其他方法轉給原訊息。頭上：每 500 ms 從 `getOnlinePlayers()` 挑 40 格內、有稱號、活著、不在車上的玩家；`OnPreUIDraw` 每幀照原版規則（`IsoGameCharacter.renderlast`／`updateUserName`）檢查後在名字上方一行畫字（黑色陰影＋金色）。兩者都只在多人、伺服器開關 `titles.head`／`titles.chat` 與玩家 MOD 選項都開時生效。
-- 稱號清單（設計稿 r13，2026-10-27）：`Draw.titleSources(achs, cfg, no)` 列出每個稱號與條件（成就各級、連續里程碑、新手、本季名次與各榜第一；各榜第一照 `Seasons` 結算，排除 `@points` 榜與沒有賽季期的榜），每列 `{ id, name, group, cond, ach?, tier?, hidden?, hint?, off?, custom?, alt? }`：`custom` 是管理員換掉預設文字、`alt` 是被換掉的預設 id（之前拿到舊名稱的玩家照樣查得到條件；只記預設 id，改名兩次時中間那個名稱查不到）。`Draw.seasonTitle(id, cfg)` 解析 `s<季數>_<kind>`，榜單已不存在（拿掉的 MOD）時回 nil。管理「稱號」分頁（`AdminTitles.lua`，排在「成就」後面，只能看）傳管理員的草稿視圖（`AdminModel.achievements`，含停用、自訂與還沒套用的修改，門檻乘上草稿的 `difficulty.mult`；其他 MOD 的成就來自 `Client.defs()`，乘的是已套用的倍率），依分類分組，停用的變灰加「（停用）」，隱藏成就多一行玩家看到的提示，已結算的前幾季只寫一行（審核期間 `season.reviewNo` 那季還沒發，不算）。玩家「我的紀錄」在稱號選單下面列「我的稱號」：只列已取得的（服主 2026-10-27 選），來源用 `Client.defs().allAch`（含停用的成就）；同一個 id 有幾個來源時（管理員可以填重複的文字）先用玩家已達成的（`state.achv[ach] >= tier`），其次是其他非隱藏的來源，沒解鎖的隱藏成就不提供條件；都找不到時寫「來源已移除」。`state.titleAt` 新的在前，沒有時間的寫「早期取得」排最後（目錄順序）。
+- 稱號清單（設計稿 r13，2026-10-27）：`Draw.titleSources(achs, cfg, no)` 列出每個稱號與條件（成就各級、連續里程碑、新手、本季名次與各榜第一；各榜第一照 `Seasons` 結算，排除 `@points` 榜與沒有賽季期的榜），每列 `{ id, name, group, cond, ach?, tier?, hidden?, hint?, off?, custom?, alt? }`：`custom` 是管理員換掉預設文字、`alt` 是被換掉的預設 id（沒有 `titleSrc` 的舊稱號靠它查條件）。條件文字由 `Draw.achTitleCond(a, tier)`、`streakTitleCond(days, cfg)`、`newbieTitleCond(cfg)` 組。`Draw.seasonTitle(id, cfg)` 解析 `s<季數>_<kind>`，榜單已不存在（拿掉的 MOD）時回 nil。成就的稱號照原始覆寫整份取代預設（`Client.defs` 讀 `catalog.overrides.achievements`，不經 `C.merge` 逐鍵合併；和伺服器 `Config.SCHEMA` 一致）。管理「稱號」分頁（`AdminTitles.lua`，排在「成就」後面，只能看）傳管理員的草稿視圖（`AdminModel.achievements`，含停用、自訂與還沒套用的修改，門檻乘上草稿的 `difficulty.mult`；其他 MOD 的成就來自 `Client.defs()`，乘的是已套用的倍率），依分類分組，停用的變灰加「（停用）」，隱藏成就多一行玩家看到的提示，已結算的前幾季只寫一行（審核期間 `season.reviewNo` 那季還沒發，不算）。玩家「我的紀錄」在稱號選單下面列「我的稱號」：只列已取得的（服主 2026-10-27 選），條件先看 `state.titleSrc`（`a:<achId>:<tier>` 找 `Client.defs().allAch` 的那一級、`streak:<days>`、`newbie`；管理員改名幾次都查得到，服主 2026-10-27），沒有紀錄時用 `titleSources`：同一個 id 有幾個來源時（管理員可以填重複的文字）先用玩家已達成的（`state.achv[ach] >= tier`），其次是其他非隱藏的來源，沒解鎖的隱藏成就不提供條件；都找不到時寫「來源已移除」。`state.titleAt` 新的在前，沒有時間的寫「早期取得」排最後（目錄順序）。
 - 屍潮（伺服器見 §5.10）：管理「屍潮」分頁（`AdminHordes.lua`，排在「城鎮」後面）的狀態來自 `horde.status`，切進分頁、每次操作後與按「重新整理」時讀；設定全走變更草稿與底部「套用」。種類是清單框：比例大於 0 的種類一列（名稱、比例欄、移除；移除內建種類寫 0，其他種類刪鍵、送 `del`，只在草稿裡的（剛加入、還沒套用）從草稿拿掉，不送空變更），其餘已登記的種類在框下的下拉選單（選了草稿寫 10），套用的設定裡有、`horde.status` 沒列出的鍵標「未安裝」、可移除（`del`）；比例寫在 `hordes.kinds.<id>`，維持預設值的欄位不寫成變更；`horde.now`／`horde.stop` 先確認、按下就生效（像限時活動）。手動開始那一列是「預告 [欄位] 分鐘」加開始鈕：欄位預設是套用中的 `hordes.leadMin`，管理員改過就保留；不是 0～120 的整數時標紅、顯示範圍、不送出；套用中的設定沒有地點、地點只在草稿裡時，底列說先按「套用」、不確認也不送（伺服器只看套用的設定，會回 `NO_SPOTS`「請先新增地點」，清單卻看得到剛加的地點；2026-10-26 試玩按了三次）；0 時確認文字改成現在開始。追蹤面板最上面一列是屍潮（預告、等人到場、進行中），不算 5 個追蹤名額、沒有 ×，沒有追蹤項目時有屍潮也顯示，倒數只在文字變了才重排；預告中那列寫倒數與「開始時 x, y 周圍 50 格內有人就出現」。每日頁在限時活動下面放屍潮橫幅（預告、等人到場、進行中，結束後 10 分鐘內的成功／失敗／取消），這頁 30 秒才重畫，所以剩餘時間以分鐘計；預告中的橫幅寫可能出現的種類、座標與 50 格規則，右邊「剩 N」。`delta.hordes` 走通用的整份取代。`HordeMap.lua`：裝了小地圖才作用，地點前後左右各 10 格一塊區域加一個標記，資料變了才重建、其餘時候回同一張表；檔案載入時與 `OnGameStart` 各試一次註冊。
 - 清單框（設計稿 r11，使用者 2026-10-26 選「原版管理員清單」樣式，之後補要「有點顏色交錯」與排行榜、兌換紀錄的表頭）：管理頁與玩家頁的清單都畫成原版管理員清單（`ISSafehousesList.lua:23-31`、`:67-82`）的樣子：直角的 `surface` 底、`border` 外框、表頭帶（`border` 透明度 × 0.3，下緣一條線）、條目之間一條線（× 0.9），每隔一筆整筆上 `hover` 底色（第 2、4、6…筆；一筆可以是好幾列，換行的說明、按鈕列都在同一條色帶裡）。管理頁用 `Flow:list`／`listHead`／`item`／`listEnd`（`AdminPanel.lua`）：框內 `F.ox`／`F.width` 換成框的，各頁的欄位算式不變，自己放位置的按鈕要加 `F.ox`；`F:item()` 記下每筆的上緣，框由頁面 ScrollPanel 的 prerender 在所有子元件底下畫（`A.paintLists`，內容座標，不配置），不是元件，不擋按鈕，ui-mp 的版面檢查也看不到；沒關的框不畫。玩家頁用 Builder 的 `b:list`／`listHead`／`listSep`／`listEnd`（`Draw.lua`）：底色與每筆的色帶先記成指令，下一個 `listSep` 或 `listEnd` 才補高度。
 

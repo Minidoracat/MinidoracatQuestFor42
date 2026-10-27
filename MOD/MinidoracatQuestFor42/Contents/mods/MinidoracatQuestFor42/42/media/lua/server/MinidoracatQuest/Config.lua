@@ -2,7 +2,7 @@
 -- (docs/ARCHITECTURE.md section 3.4). A change is { op = "set" | "del", path = "a.b.c", value }.
 -- "set" stores value as the override at path (replacing that override subtree); "del" removes the override so the
 -- default shows again. Paths use dots, so families keyed by stat id (stat ids contain dots: goal.limits, ceilings)
--- and list values (milestones, rotation, tiers, towns.custom) are whole-set only: SCHEMA marks them as leaves and
+-- and list values (milestones, rotation, tiers, achievement titles, towns.custom) are whole-set only: SCHEMA marks them as leaves and
 -- the merge replaces leaves instead of merging into the default.
 -- Every apply records { path, before, after } of the overrides in root.history (last 20); undo writes "before"
 -- back and is itself a history entry.
@@ -200,7 +200,8 @@ Cf.SCHEMA = {
     goal = { enabled = bool, pts = ptsV, growth = num(0.1, 10), rotation = statList, limits = limitsMap },
     streak = { need = int(1, 4), gracePerWeek = int(0, 7), milestones = milestones },
     newbie = { enabled = bool, pts = ptsV, title = titleId, days = int(1, 60) },
-    achievements = { ["*"] = { enabled = bool, tiers = tiers, pts = ptsList, titles = { ["#"] = titleId } } },
+    -- titles is whole-map like the editor and Client.defs: a tier left out grants no title (owner 2026-10-27)
+    achievements = { ["*"] = { enabled = bool, tiers = tiers, pts = ptsList, titles = titlesMap } },
     custom = { ["*lower"] = customDef },
     difficulty = { preset = oneOf({ "easy", "normal", "hard", "custom" }), mult = num(0.1, 10) },
     rewards = { top1 = ptsV, top3 = ptsV, top10 = ptsV, participation = ptsV, participationMin = ptsV, firstTitles = bool },

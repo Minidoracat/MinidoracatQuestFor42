@@ -56,6 +56,7 @@ Daily and weekly quests, achievements, season leaderboards and titles; pair it w
 [h3]Swaps and preferences[/h3]
 [list]
 [*] [b]Swap quest[/b]: swap 1 personal quest per day; a quest with progress asks first (the progress cannot be restored); the server-wide quest cannot be swapped.
+[*] [b]XP quests[/b]: "Earn N XP" quests only go to a skill with a profession or trait XP bonus that is below level 10 (the game gives no XP at 10, and a quarter without a bonus); otherwise another quest of the same theme comes, also when you swap.
 [*] [b]Preferred themes[/b]: pick up to 3 themes under Settings; each day 2 quests come from your themes and 1 from all themes. When a preferred theme has no quest left for the day, that slot draws from your other preferred themes.
 [*] [b]No preferences[/b]: the three slots draw one each from Combat, Production (Building, Crafting, Cooking, Tailoring, Mechanics & Electrical) and Outdoors (Farming, Animal Care, Fishing & Trapping, Foraging, Exploration).
 [*] [b]When it applies[/b]: change preferences as often as you like; if today's quests already exist, the change applies from the next reset.
@@ -209,6 +210,7 @@ Once the server has automatic hordes on or has had a horde, a "Hordes" page appe
 [*] [b]Use one[/b]: pick one on the My records page (one at a time, or none). A server-wide notice names the title that unlock earned.
 [*] [b]My titles[/b]: My records lists every title you have, how you got it and when, newest first; the one you use says "In use". Times are recorded from the version that added this list; titles you got before show "Early".
 [*] [b]All titles for admins[/b]: the admin panel's read-only Titles tab lists every title and what earns it; titles of switched-off achievements show "(off)", changed text "(custom)", and hidden achievements add the hint players see. To change a title's text, press Edit on the Achievements tab.
+[*] [b]Revoked or cleared[/b]: when an admin revokes achievement tiers, the titles those tiers gave go too (also after the text was changed, or the achievement switched off); a tier whose title is left empty in the achievement editor gives no title.
 [*] [b]Where it shows[/b]: next to your name on leaderboards, one line above your name over your head, and after your name in chat (gold, multiplayer only).
 [*] [b]When the head title is hidden[/b]: it follows the vanilla name rules: hidden when the server does not show names, when the player is invisible or disguised, or out of sight; when the server shows names only on mouse-over, the title also shows only when you point at that player. It steps aside while the player speaks or sits in a vehicle. Your own title follows the vanilla option Options > Multiplayer > Show your username.
 [*] [b]Turn them off[/b]: Options > MODS > Quests & Achievements has separate ticks for head and chat titles; the host can also turn each off for everyone in the admin panel.
@@ -449,7 +451,7 @@ The admin panel settings (except timed events and the season length) are also ke
 [/table]
 [list]
 [*] [b]Applies within about a minute[/b]: the server reads the file every 60 seconds; when the text changed it checks and applies it and records a change "Applied from config.json", which you can undo in the panel. Edits made while the server is down apply at the next start.
-[*] [b]Write only what you change[/b]: anything not written uses the default; removing a whole group (for example "exchange") puts that group back to the defaults. Lists such as tiers or the goal rotation are always written whole.
+[*] [b]Write only what you change[/b]: anything not written uses the default; removing a whole group (for example "exchange") puts that group back to the defaults. Lists such as tiers or the goal rotation are always written whole; so are achievement titles: a tier left out has no title.
 [*] [b]An error stops the whole file[/b]: with broken JSON, a value out of range or a misspelt name, the current settings stay; status.json, the server console and the panel's History tab show the line where the JSON stopped or the field with the error (for example daily.pool.d_kill.target).
 [*] [b]Panel changes rewrite the file[/b]: after an apply or undo in the panel the server writes the settings in effect back to config.json, so manual edits it has not read yet are overwritten. A deleted file is written again.
 [*] [b]Not in the panel[/b]: leaderboards (boards), community goal rotation (goal.rotation), newcomer title and days (newbie.title, newbie.days) change only in this file.

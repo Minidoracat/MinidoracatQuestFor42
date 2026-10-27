@@ -1409,5 +1409,6 @@
   "IGUI_MQ_UI_TitleCondStreak": "デイリークエストを%1日連続（1日4つ中%2つ）",
   "IGUI_MQ_UI_TitleCondNewbie": "%1日以内に新人クエストの全ステップを完了",
   "IGUI_MQ_UI_TitleCondRank": "シーズン%1のポイント%2",
-  "IGUI_MQ_UI_TitleCondFirst": "シーズン%1「%2」ランキング1位"
+  "IGUI_MQ_UI_TitleCondFirst": "シーズン%1「%2」ランキング1位",
+  "IGUI_MQ_WhatsNew": "「マイ記録」に「自分の称号」を追加：獲得した称号と日時を表示。経験値クエストはボーナスがありレベル10未満のスキルだけに出ます。"
 }

@@ -49,14 +49,15 @@ function A.scale(tiers, mult, stat)
     return out
 end
 
--- tiers = effective thresholds (difficulty applied); base = thresholds before difficulty
+-- tiers = effective thresholds (difficulty applied); base = thresholds before difficulty. titles: the override replaces
+-- the whole map (a cleared tier grants no title, owner 2026-10-27); defTitles: the definition's own, for revoke.
 local function merge(base, o, mult)
     o = o or {}
     local tiers = o.tiers or base.tiers
     return { id = base.id, cat = base.cat, stat = base.stat, icon = base.icon, hidden = base.hidden,
         scope = base.scope, name = base.name, nameKey = base.nameKey, custom = base.custom, base = tiers,
         tiers = A.scale(tiers, mult, base.stat), pts = MQ.Catalog.fillPts(o.pts or base.pts or {}, base.pts, #tiers),
-        titles = o.titles or base.titles or {} }
+        titles = o.titles or base.titles or {}, defTitles = base.titles or {} }
 end
 
 -- ---------- effective list (cached per effective config table and pack count) ----------
@@ -69,26 +70,31 @@ local function packCount()
     return n
 end
 
+-- list: the enabled ones in order; byStat: stat -> list; all: id -> definition, the switched-off ones too (revoke)
 function A.list()
     local cfg, packs = MQ.Config.get(), packCount()
     local c = A.cache
-    if c.list and c.cfg == cfg and c.packs == packs then return c.list, c.byStat end
+    if c.list and c.cfg == cfg and c.packs == packs then return c.list, c.byStat, c.all end
     local mult = cfg.difficulty and cfg.difficulty.mult
     if type(mult) ~= "number" or mult <= 0 then mult = 1 end
     local ov = cfg.achievements or {}
-    local list = {}
+    local list, all = {}, {}
+    local function add(d, on)
+        all[d.id] = d
+        if on then list[#list + 1] = d end
+    end
     for _, d in ipairs(MQ.Catalog.achievements) do
         local o = ov[d.id]
-        if not (o and o.enabled == false) then list[#list + 1] = merge(d, o, mult) end
+        add(merge(d, o, mult), not (o and o.enabled == false))
     end
     local keys = {}
     for k in pairs(cfg.custom or {}) do keys[#keys + 1] = k end
     MQ.Util.sort(keys, function(a, b) return a < b end)
     for _, k in ipairs(keys) do
         local d = cfg.custom[k]
-        if type(d) == "table" and d.enabled ~= false and type(d.tiers) == "table" and #d.tiers > 0 then
-            list[#list + 1] = merge({ id = "c:" .. k, cat = d.cat, stat = d.stat, name = d.name, custom = true,
-                tiers = d.tiers, pts = d.pts, titles = d.titles }, nil, mult)
+        if type(d) == "table" and type(d.tiers) == "table" and #d.tiers > 0 then
+            add(merge({ id = "c:" .. k, cat = d.cat, stat = d.stat, name = d.name, custom = true,
+                tiers = d.tiers, pts = d.pts, titles = d.titles }, nil, mult), d.enabled ~= false)
         end
     end
     local mods = {}
@@ -97,7 +103,7 @@ function A.list()
     for _, m in ipairs(mods) do
         for _, d in ipairs(MQ.Packs[m].achievements or {}) do
             local o = ov[d.id]
-            if not (o and o.enabled == false) then list[#list + 1] = merge(d, o, mult) end
+            add(merge(d, o, mult), not (o and o.enabled == false))
         end
     end
     local byStat = {}
@@ -106,8 +112,8 @@ function A.list()
         local b = byStat[d.stat]
         b[#b + 1] = d
     end
-    A.cache = { list = list, byStat = byStat, cfg = cfg, packs = packs }
-    return list, byStat
+    A.cache = { list = list, byStat = byStat, all = all, cfg = cfg, packs = packs }
+    return list, byStat, all
 end
 
 function A.get(id)
@@ -131,7 +137,7 @@ local function unlock(acc, user, d, from, to, quiet, cfg, now, noBroadcast)
         local pts = d.pts[t] or 0
         if pts > 0 then MQ.Points.award(acc, user, pts, quiet and "import" or "achv", d.id .. ":" .. t) end
         local title = d.titles[t]
-        if title then MQ.Store.grantTitle(acc, title) end
+        if title then MQ.Store.grantTitle(acc, title, "a:" .. d.id .. ":" .. t) end
         if not quiet then
             acc.unseen = (acc.unseen or 0) + 1
             MQ.EventLog.write("achv", user, { id = d.id, tier = t, pts = pts })
@@ -186,26 +192,38 @@ function A.onStat(acc, user, stat, delta, opts)
     A.evaluate(acc, user, { stat = stat, quiet = opts and opts.quiet })
 end
 
--- Revoke down to toTier (0 = all). Titles of the removed tiers and their points (season and lifetime;
--- the balance may be spent already) go away; progress restarts from the toTier threshold so the
--- same stat value does not unlock it again.
+-- Revoke down to toTier (0 = all); a switched-off achievement too (owner 2026-10-27). Titles of the removed tiers and
+-- their points (season and lifetime; the balance may be spent already) go away; progress restarts from the toTier
+-- threshold so the same stat value does not unlock it again. Titles go by titleSrc, so a title the admin renamed
+-- after the grant goes as well; a title without a record (granted before titleSrc) goes by the configured id and
+-- the definition's default id of the tier.
 function A.revoke(user, achId, toTier, reason, actor)
     local acc = MQ.Store.account(user, false)
     if not acc then return false, code("NOT_FOUND") end
-    local d = A.get(achId)
+    local _, _, all = A.list()
+    local d = all[achId]
     local cur = acc.achv[achId] or 0
     if not d or cur == 0 then return false, code("NOT_FOUND") end
     if type(toTier) ~= "number" or toTier < 0 or toTier >= cur then return false, code("BAD_ARGS") end
     local lost = 0
     local worn = acc.title
+    local src = acc.titleSrc or {}
+    local gone, drop = {}, {}
     for t = toTier + 1, cur do
         lost = lost + (d.pts[t] or 0)
-        local title = d.titles[t]
-        if title and acc.titles then
-            acc.titles[title] = nil
-            if acc.titleAt then acc.titleAt[title] = nil end
-            if acc.title == title then acc.title = nil end
-        end
+        gone["a:" .. achId .. ":" .. t] = true
+        local set, def = d.titles[t], d.defTitles[t]
+        if set ~= nil and src[set] == nil then drop[#drop + 1] = set end
+        if def ~= nil and def ~= set and src[def] == nil then drop[#drop + 1] = def end
+    end
+    for id, s in pairs(src) do
+        if gone[s] then drop[#drop + 1] = id end
+    end
+    for _, id in ipairs(drop) do
+        if acc.titles then acc.titles[id] = nil end
+        if acc.titleAt then acc.titleAt[id] = nil end
+        src[id] = nil
+        if acc.title == id then acc.title = nil end
     end
     if acc.title ~= worn then MQ.Sync.titleChanged(user, acc) end
     local p = acc.points

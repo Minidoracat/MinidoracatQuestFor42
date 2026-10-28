@@ -1,7 +1,7 @@
 -- MinidoracatQuest/AdminHordes.lua: admin tab "hordes" (design plan-hordes-1027 claims 1.1, 3, 4, 5.3; lists r11,
 -- warning r12; ARCHITECTURE.md 6.2, 7).
 -- Live status from horde.status (fetched each time the tab opens, after every action and by Refresh): the current
--- horde (wave W / N, rest countdown) with Cancel / Stop, today's count and next roll, Start a horde (with its warning
+-- horde (wave W / N, next wave time) with Cancel / Stop, today's count and next roll, Start a horde (with its warning
 -- minutes), the last 5 results (a list box). Below it the settings, in the design's order: spots (a list box with a
 -- Map button; add = towns.here, the admin's own position), windows (days, clock, chance per window), waves (base and
 -- % per extra player, previews for 1 and 4 players), kinds (weight, computed share, points per kill), reward (the cap
@@ -79,6 +79,11 @@ local function feeds(el)
     return el
 end
 
+-- a number field as wide as its largest value with the error mark shown (interface review M3): at least minW (60)
+local function numW(range, minW)
+    return math.max(minW or 60, A.textW(AM.num(AM.RANGE[range][2])) + A.FIELD_CHROME)
+end
+
 -- ===== status =====
 
 local function soon(c) return c.state == "planned" or c.state == "announced" end
@@ -101,9 +106,8 @@ local function curText(P, c)
         return getText("IGUI_MQ_Admin_HordeCurActive", st, place(c), w, n, A.num(tonumber(c.killed) or 0),
             A.num(tonumber(c.size) or 0), A.time(c.endsAt))
     elseif c.state == "rest" then
-        -- wave = the one just cleared; the countdown is as of this layout (Refresh updates it), on the server clock
-        return getText("IGUI_MQ_Admin_HordeCurRest", st, place(c), w, n,
-            MQ.Draw.countdown((tonumber(c.nextAt) or 0) - MQ.Client.serverNow()))
+        -- wave = the one just cleared; a clock time, not a countdown: the line is laid out once and stays on screen
+        return getText("IGUI_MQ_Admin_HordeCurRest", st, place(c), w, n, A.time(c.nextAt))
     elseif c.state == "waiting" then
         return getText("IGUI_MQ_Admin_HordeCurWaiting", st, place(c), w, n, A.time(c.expireAt))
     end
@@ -138,16 +142,13 @@ end
 local function onStop(P, b)
     local c = b.cur
     local label = getText(soon(c) and "IGUI_MQ_Admin_HordeCancel" or "IGUI_MQ_Admin_HordeStop")
-    A.ask(P, { title = label, confirm = label, danger = true,
+    -- before it starts the action is "Cancel this horde": the way out must not be called Cancel too
+    A.ask(P, { title = label, confirm = label, danger = true, cancel = soon(c) and getText("IGUI_MQ_Admin_HordeKeep") or nil,
         text = getText(soon(c) and "IGUI_MQ_Admin_HordeCancelAsk" or "IGUI_MQ_Admin_HordeStopAsk", place(c)),
         onOk = function()
             A.send(P, "horde.stop", { id = c.id }, function(res) afterOp(P, res, "IGUI_MQ_Admin_HordeStopped") end)
         end })
 end
-
--- the server plans it from the applied settings: what waits in the draft is not used, and the dialog says so.
--- lead (design r12): minutes of warning before it starts, 0 = now
-local LEAD_MAX = MQ.Contract.LIMIT.MAX_LEAD
 
 -- spots added in the draft are not saved yet: the server would refuse with "add a spot first" while the list shows
 -- them (2026-10-26 playtest: three presses before Apply), so say to apply first and send nothing
@@ -155,14 +156,17 @@ local function spotsOnlyInDraft(P)
     return #(applied(P, "hordes.spots") or {}) == 0 and #(AM.get(P.S, "hordes.spots") or {}) > 0
 end
 
+-- the server plans it from the applied settings: what waits in the draft is not used, and the dialog says so.
+-- lead (design r12): minutes of warning before it starts, 0 = now
 local function onNow(P)
     local el = P.pages.hordes.flow.pool["now:lead"]
-    local lead = tonumber(el and el:getText() or "")
-    local bad = lead == nil or lead ~= math.floor(lead) or lead < 0 or lead > LEAD_MAX
-    local msg = bad and getText("IGUI_MQ_Admin_ErrRange", "0", tostring(LEAD_MAX)) or nil
+    -- the same range and messages as hordes.leadMin (Config: int(0, LIMIT.MAX_LEAD))
+    local lead, key, lo, hi = AM.check(el:getText(), "hordeLead")
+    local msg = lead == nil and getText(key, AM.num(lo), AM.num(hi)) or nil
     A.markError(P, el, msg)
-    if bad then return A.say(P, msg, "errorText") end
+    if msg then return A.say(P, msg, "errorText") end
     if spotsOnlyInDraft(P) then return A.say(P, getText("IGUI_MQ_Admin_HordeSpotsUnapplied"), "errorText") end
+    A.say(P, nil)
     local label = getText("IGUI_MQ_Admin_HordeNow")
     local text = lead == 0 and getText("IGUI_MQ_Admin_HordeNowAskNow") or getText("IGUI_MQ_Admin_HordeNowAsk", tostring(lead))
     A.ask(P, { title = label, confirm = label, text = text, onOk = function()
@@ -172,7 +176,7 @@ end
 
 -- the warning field: the applied hordes.leadMin until the admin types another value
 local function leadField(P, pg, F)
-    local tf = F:field("now:lead", 44, nil, 3)
+    local tf = F:field("now:lead", numW("hordeLead", 44), nil, 3)
     local lead = tostring(applied(P, "hordes.leadMin") or 0)
     if pg.leadSeed == nil or tf:getText() == pg.leadSeed then tf:setText(lead) end
     pg.leadSeed = lead
@@ -213,7 +217,7 @@ local function layoutStatus(P, pg, F)
         local e = log[i]
         F:item()
         F:cells("l" .. i, { { text = A.time(e.endedAt or e.startMs), x = A.PAD, token = "textMuted" },
-            { text = places[i], x = A.PAD + timeW, w = placeW - A.GAP },
+            { text = places[i], x = A.PAD + timeW, w = placeW - A.GAP, wrap = true },
             { text = resultText(e), x = resX, w = F.width - A.PAD - resX, wrap = true,
                 token = e.state == "success" and "success" or (e.state == "cancelled" and "textMuted" or "errorText") } })
     end
@@ -306,6 +310,8 @@ local function editList(P, path, fn)
     local list = AM.copy(AM.get(P.S, path)) or {}
     fn(list)
     if AM.same(list, applied(P, path)) then AM.draftUnset(P.S.draft, path) else AM.draftSet(P.S.draft, path, list) end
+    -- the bar no longer says a field is wrong (interface review M1)
+    if AM.draftCount(P.S.draft) == 0 then A.say(P, nil) else A.say(P, getText("IGUI_MQ_Admin_InDraft"), "textMuted") end
     local pg = P.pages.hordes
     pg.version = pg.version + 1
     A.layout(P)
@@ -380,12 +386,14 @@ local function layoutWindows(P, pg, F, lw)
             F:label("w:t" .. i, getText("IGUI_MQ_Admin_HordeTo"), "textMuted"),
             A.clockField(P, pg, key .. ".to", "hordes.windows", { i, "to" }),
             F:label("w:c" .. i, getText("IGUI_MQ_Admin_HordeChance"), "textMuted"),
-            A.numField(P, pg, key .. ".chance", "hordes.windows", { i, "chance" }, "hordeChance"),
+            A.numField(P, pg, key .. ".chance", "hordes.windows", { i, "chance" }, "hordeChance", numW("hordeChance")),
             F:label("w:p" .. i, "%", "textMuted") })
         local chips = {}
         for d = 1, 7 do
             local b = F:button("w:d" .. i .. ":" .. d, getText("IGUI_MQ_UI_Weekday_" .. d), onDay, "chip")
             b.win, b.day = i, d
+            -- one Tab stop per window, arrows inside (framework Focus _focusGroup, rev 10): 8 windows were 56 stops
+            b._focusGroup = "w:d" .. i
             b:setActive(dayOn(w, d))
             chips[d] = b
         end
@@ -400,7 +408,8 @@ local function layoutWindows(P, pg, F, lw)
     local add = F:button("w:add", getText("IGUI_MQ_Admin_HordeWindowAdd"), onWindowAdd)
     add:setEnabled(#list < AM.MAX_WINDOWS)
     F:row({ add, F:label("w:max", getText("IGUI_MQ_Admin_HordeWindowsMax", AM.MAX_WINDOWS), "textMuted") })
-    A.form(P, pg, F, { { "hordes.maxPerDay", "hordePerDay" }, { "hordes.leadMin", "hordeLead" }, { "hordes.waitMin", "hordeWait" } }, lw)
+    A.form(P, pg, F, { { "hordes.maxPerDay", "hordePerDay", numW("hordePerDay") }, { "hordes.leadMin", "hordeLead", numW("hordeLead") },
+        { "hordes.waitMin", "hordeWait", numW("hordeWait") } }, lw)
 end
 
 -- ===== waves (claims 1.1, 1.3, 1.4) =====
@@ -430,7 +439,8 @@ local function layoutWaves(P, pg, F, lw)
         getText("IGUI_MQ_Admin_HordeColPerPlayer")
     local h1, h4 = A.count("IGUI_MQ_Admin_HordeColPlayers", 1), A.count("IGUI_MQ_Admin_HordeColPlayers", 4)
     local wIdx = math.max(A.textW(hIdx), A.textW("10"))
-    local wBase, wPer = math.max(60, A.textW(hBase)), 60
+    -- the per-player header spans its field and the "%" column (wPct)
+    local wBase, wPer = numW("hordeBase", math.max(60, A.textW(hBase))), numW("hordePerPlayer")
     -- one more gap after "%": the 1-player preview read as "%15" (CH) and its header touched "Per extra player"
     -- (EN, quest-hui-*-1027b)
     local wPct = math.max(A.textW("%"), A.textW(hPer) - wPer - A.GAP) + A.GAP
@@ -463,7 +473,8 @@ local function layoutWaves(P, pg, F, lw)
     local add = F:button("v:add", getText("IGUI_MQ_Admin_HordeWaveAdd"), onWaveAdd)
     add:setEnabled(#list < AM.MAX_WAVES)
     F:row({ add, F:label("v:max", getText("IGUI_MQ_Admin_HordeWavesMax", AM.MAX_WAVES), "textMuted") })
-    A.form(P, pg, F, { { "hordes.restSec", "hordeRest" }, { "hordes.limitMin", "hordeLimit" }, { "hordes.maxAlive", "hordeAlive" } }, lw)
+    A.form(P, pg, F, { { "hordes.restSec", "hordeRest", numW("hordeRest") }, { "hordes.limitMin", "hordeLimit", numW("hordeLimit") },
+        { "hordes.maxAlive", "hordeAlive", numW("hordeAlive") } }, lw)
     -- the sandbox ZombiesCountBeforeDelete the server read (nil: it could not)
     local cull = pg.data and tonumber(pg.data.cull)
     if cull then F:text("cull", getText("IGUI_MQ_Admin_HordeCull", A.num(cull)), "textMuted") end
@@ -585,9 +596,10 @@ local function layoutKinds(P, pg, F, kinds, lw)
     local rows, weights, total = weighted(P, pg, kinds)
     local hW, hS, hP = getText("IGUI_MQ_Admin_ColWeight"), getText("IGUI_MQ_Admin_HordeColShare"), getText("IGUI_MQ_Admin_HordeColPoints")
     local cw = lw - A.PAD
-    local wW = 60
+    -- as wide as the header too: DE "Gewichtung" ran into "Anteil" (quest-ui-de-1028a)
+    local wW = numW("hordeWeight", math.max(60, A.textW(hW)))
     local wS = math.max(A.textW(hS), A.textW(getText("IGUI_MQ_Admin_HordePct", 100)))
-    local wP = math.max(60, A.textW(hP))
+    local wP = numW("hordePoints", math.max(60, A.textW(hP)))
     local vanillaPts = tonumber(AM.get(P.S, "hordes.points.vanilla")) or 0
     local L = F:list("ks")
     local xW = A.PAD + cw + A.GAP
@@ -651,7 +663,8 @@ end
 
 local function layoutReward(P, pg, F, kinds, lw)
     F:head("hr", getText("IGUI_MQ_Admin_HordeRewardHead"))
-    formRow(F, "hordes.cap", A.fLabel("hordes.cap"), lw, { feeds(A.numField(P, pg, "hordes.cap", "hordes.cap", nil, "hordeCap")) })
+    formRow(F, "hordes.cap", A.fLabel("hordes.cap"), lw,
+        { feeds(A.numField(P, pg, "hordes.cap", "hordes.cap", nil, "hordeCap", numW("hordeCap"))) })
     F:text("rn", getText("IGUI_MQ_Admin_HordeRewardNote"), "textMuted")
     local cap = tonumber(live(pg, "hordes.cap", AM.get(P.S, "hordes.cap"))) or 0
     local parts = {}

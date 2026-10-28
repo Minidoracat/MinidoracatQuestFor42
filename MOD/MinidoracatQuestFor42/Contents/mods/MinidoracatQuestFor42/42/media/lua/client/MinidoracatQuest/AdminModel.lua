@@ -28,13 +28,15 @@ AM.DEL = {}   -- draft marker: path removed (falls back to defaults)
 
 -- ===== numbers =====
 
--- text -> value | nil, errKey, lo, hi
+-- text -> value | nil, errKey, lo, hi (an integer range says "a whole number from lo to hi")
 function AM.check(text, rangeKey)
     local r = AM.RANGE[rangeKey]
     local t = string.gsub(tostring(text or ""), "[,%s]", "")
     local v = tonumber(t)
     if v == nil or v ~= v then return nil, "IGUI_MQ_Admin_ErrNumber", r[1], r[2] end
-    if (r[3] and v ~= math.floor(v)) or v < r[1] or v > r[2] then return nil, "IGUI_MQ_Admin_ErrRange", r[1], r[2] end
+    if (r[3] and v ~= math.floor(v)) or v < r[1] or v > r[2] then
+        return nil, r[3] and "IGUI_MQ_Admin_ErrWhole" or "IGUI_MQ_Admin_ErrRange", r[1], r[2]
+    end
     return v
 end
 

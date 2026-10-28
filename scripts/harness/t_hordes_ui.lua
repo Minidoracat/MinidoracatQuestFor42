@@ -19,7 +19,7 @@ return function(T)
     function Base:getHeight() return self.height end
     function Base:setVisible(v) self.visible = v end
     function Base:isVisible() return self.visible ~= false end
-    function Base:addChild(c) self.children = self.children or {}; self.children[#self.children + 1] = c end
+    function Base:addChild(c) self.children = self.children or {}; self.children[#self.children + 1] = c; c.parent = self end
     function Base:setYScroll(y) self.yscroll = y end
     function Base:setTooltip(s) self.tooltip = s end
     function Base:setEnabled(b) self.enabled = b end
@@ -61,7 +61,9 @@ return function(T)
             setSelected = function(self, id) self.selected = id end, getSelected = function(self) return self.selected end }),
             close = function() end },
         Tabs = { new = widget({ getWidth = function() return 400 end, setSelected = function() end }) },
-        ScrollPanel = { new = widget({ contentWidth = function(self) return self.width - 12 end }) },
+        -- the framework ScrollPanel: Draw.reveal finds it by _scrollPanel up the parents
+        ScrollPanel = { new = widget({ contentWidth = function(self) return self.width - 12 end, _scrollPanel = true,
+            scrollTo = function(self, el) self.scrolledTo = el end }) },
         Dialog = { show = function(opts) dialogs[#dialogs + 1] = opts end },
     }
     local colors = setmetatable({}, { __index = function(_, k) return { r = 1, g = 1, b = 1, a = 1, token = k } end })
@@ -206,13 +208,9 @@ return function(T)
         "horde.stop with the id, then the status again")
     status.cur.state = "rest"
     press("refresh")
-    T.check(has(pool()["cur"].lines[1], "IGUI_MQ_Admin_HordeCurRest|IGUI_MQ_Admin_HordeState_rest|") and has(pool()["cur"].lines[1], "|2|3|0:2")
-        and pool()["stop"].opts.title == "IGUI_MQ_Admin_HordeStop", "rest: wave 2 / 3 cleared, the countdown to the next; Stop")
-    local CL, skew0 = MinidoracatQuest.Client, MinidoracatQuest.Client.skew
-    CL.skew = -30000   -- this computer's clock 30 s ahead of the server's
-    press("refresh")
-    T.check(has(pool()["cur"].lines[1], "|2|3|0:5"), "the rest countdown runs on the server clock (30 s more here)")
-    CL.skew = skew0
+    T.check(has(pool()["cur"].lines[1], "IGUI_MQ_Admin_HordeCurRest|IGUI_MQ_Admin_HordeState_rest|")
+        and has(pool()["cur"].lines[1], "|2|3|" .. A.time(status.cur.nextAt))
+        and pool()["stop"].opts.title == "IGUI_MQ_Admin_HordeStop", "rest: wave 2 / 3 cleared, the clock time of the next; Stop")
     status.cur.state, status.cur.wave = "waiting", 3
     press("refresh")
     T.check(has(pool()["cur"].lines[1], "IGUI_MQ_Admin_HordeCurWaiting|IGUI_MQ_Admin_HordeState_waiting|") and has(pool()["cur"].lines[1], "|3|3|"),
@@ -222,6 +220,10 @@ return function(T)
     T.check(pool()["stop"].opts.title == "IGUI_MQ_Admin_HordeCancel" and has(pool()["cur"].lines[1], "IGUI_MQ_Admin_HordeCurPlan|")
         and has(pool()["cur"].lines[1], "|3|IGUI_MQ_Horde_Kind_vanillaIGUI_MQ_UI_ListSepBrute_Name"),
         "before it starts the button says Cancel; the admin sees the waves and the kinds with a weight")
+    press("stop")
+    T.check(dialogs[#dialogs].confirmText == "IGUI_MQ_Admin_HordeCancel" and dialogs[#dialogs].cancelText == "IGUI_MQ_Admin_HordeKeep"
+        and d.cancelText == "UI_Cancel", "Cancel this horde: the way out says Keep, not Cancel too (Stop keeps Cancel)")
+    answer(false)
     status.cur = nil
     status.roll.enabled = false
     press("refresh")
@@ -244,15 +246,17 @@ return function(T)
     answer(true)
     T.check(last("horde.now").lead == 0 and pool()["now:lead"]:getText() == "0", "lead 0 sent; the admin's value survives the relayout")
     local asked = #dialogs
-    for _, bad in ipairs({ "", "x", "-1", "121", "2.5" }) do
-        lead:setText(bad)
+    for _, bad in ipairs({ { "", "IGUI_MQ_Admin_ErrNumber|0|120" }, { "x", "IGUI_MQ_Admin_ErrNumber|0|120" },
+        { "-1", "IGUI_MQ_Admin_ErrWhole|0|120" }, { "121", "IGUI_MQ_Admin_ErrWhole|0|120" }, { "2.5", "IGUI_MQ_Admin_ErrWhole|0|120" } }) do
+        lead:setText(bad[1])
         press("now")
-        T.check(#dialogs == asked and P.msg == "IGUI_MQ_Admin_ErrRange|0|120" and lead.invalid ~= nil,
-            "warning '" .. bad .. "': marked, nothing asked")
+        T.check(#dialogs == asked and P.msg == bad[2] and lead.invalid ~= nil,
+            "warning '" .. bad[1] .. "': marked with the field messages, nothing asked")
     end
     lead:setText("5")
     nowReply = { ok = false, code = "NO_SPOTS" }
     press("now")
+    T.check(P.msg == nil, "a good value: the old error leaves the bar when the dialog opens")
     answer(true)
     T.check(P.msg == "IGUI_MQ_Code_NO_SPOTS" and lead.invalid == nil, "a refusal shows the server code; a good value clears the mark")
 
@@ -292,6 +296,28 @@ return function(T)
     end
     T.check(AM.clock(" 19:30 ") == "19:30" and AM.clock("9:05") == "9:05" and AM.clock("24:00") == nil and AM.clock("1:2") == nil,
         "AM.clock keeps the typed text, rejects what the server rejects")
+
+    T.section("horde admin: a bad field is named in the bar and scrolled to; a good edit clears it (review H2, M1)")
+    local sp = pg.sp
+    sp.scrolledTo = nil
+    field("hordes.cap"):setText("0")
+    field("hordes.waves.1.base"):setText("1.5")
+    A.onPreview(P)
+    T.check(P.msgToken == "errorText" and has(P.msg, "IGUI_MQ_Admin_FixErrorsWhy|IGUI_MQ_Admin_ErrWhole|1|")
+        and sp.scrolledTo == field("hordes.waves.1.base"),
+        "Apply with two bad fields: the bar gives the topmost one's message (waves above the cap) and scrolls to it")
+    sp.scrolledTo = nil
+    press("w:add")
+    T.check(#AM.get(P.S, "hordes.windows") == 1 and has(P.msg, "IGUI_MQ_Admin_FixErrorsWhy|IGUI_MQ_Admin_ErrWhole|1|")
+        and sp.scrolledTo == field("hordes.waves.1.base"), "Add a window with a bad field: nothing added, the bar and the scroll go to it")
+    field("hordes.waves.1.base"):setText("30")
+    field("hordes.cap"):setText("500")
+    press("w:add")
+    T.check(#AM.get(P.S, "hordes.windows") == 2 and P.msg == "IGUI_MQ_Admin_InDraft" and P.msgToken == "textMuted",
+        "fixed, then Add: the bar says it is in the draft, the error is gone")
+    press("w:r2")
+    T.check(AM.draftCount(P.S.draft) == 0 and P.msg == nil, "removed again, nothing pending: the bar is empty")
+    A.discard(P)
     field("hordes.windows.1.from"):setText("20:00")
     field("hordes.windows.1.chance"):setText("60")
     field("hordes.maxPerDay"):setText("3")

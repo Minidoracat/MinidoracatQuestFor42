@@ -220,13 +220,6 @@ end
 -- (1, 2, 3, 4 ... 50, then my row). Up/Left and Down/Right move one stop; at either end they return false so
 -- the Focus engine moves to the previous / next target. focusRect frames the current stop, focusLabel gives
 -- "#rank full name [title] value" (composed at layout). Mouse events pass through to the canvas and buttons.
-local function reveal(el)
-    local p = el.parent
-    while p ~= nil do
-        if p._scrollPanel and p.scrollTo then p:scrollTo(el) end
-        p = p.parent
-    end
-end
 
 function P.rankKey(el, key)
     local K = Keyboard
@@ -249,7 +242,7 @@ function P.rankKey(el, key)
     end
     if j < 1 or j > n then return false end
     el.cursor = j
-    reveal(el)
+    D.reveal(el)
     return true
 end
 

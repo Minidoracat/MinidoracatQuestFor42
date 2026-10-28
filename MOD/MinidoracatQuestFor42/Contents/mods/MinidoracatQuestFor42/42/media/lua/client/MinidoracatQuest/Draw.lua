@@ -695,6 +695,16 @@ function D.scrollPage(page)
     return sp
 end
 
+-- scroll el into view in every framework ScrollPanel above it (ScrollPanel:scrollTo only reveals; leaderboard focus,
+-- the admin field a check stopped on)
+function D.reveal(el)
+    local p = el.parent
+    while p ~= nil do
+        if p._scrollPanel and p.scrollTo then p:scrollTo(el) end
+        p = p.parent
+    end
+end
+
 function D.resizePage(page)
     if page.sp ~= nil then
         page.sp:setWidth(page.width)

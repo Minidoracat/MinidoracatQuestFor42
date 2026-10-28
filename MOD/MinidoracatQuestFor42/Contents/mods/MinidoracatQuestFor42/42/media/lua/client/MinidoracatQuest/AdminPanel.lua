@@ -637,6 +637,11 @@ local function valueAt(P, f)
     return v
 end
 
+-- what a framework TextField keeps around its text with the error mark shown: padding 2 x 6, the 16 px mark and its
+-- 4 px gap, the entry inset 2 x 2 (MinidoracatUI Widgets/Controls.lua FIELD_PAD, ICON_SIZE, INVALID_GAP,
+-- TEXTBOX_INSET). A field narrower than its text + this cuts the text when marked (interface review M3)
+A.FIELD_CHROME = 36
+
 -- number field bound to a config path (part = key list inside the value); range = AM.RANGE key;
 -- default = what an unset key means (shown, and dropped again by AM.formToDraft)
 function A.numField(P, pg, key, path, part, range, width, default)
@@ -670,7 +675,7 @@ end
 function A.clockField(P, pg, key, path, part)
     local f = field(pg, key)
     f.path, f.part, f.kind = path, part, "clock"
-    f.el = pg.flow:field("f:" .. key, textW("00:00") + 30, "HH:MM", 5)
+    f.el = pg.flow:field("f:" .. key, textW("00:00") + A.FIELD_CHROME, "HH:MM", 5)
     if f.at ~= pg.version then
         f.at = pg.version
         local v = valueAt(P, f)
@@ -712,7 +717,7 @@ function A.labelWidth(paths)
     return math.min(w + A.GAP, 260)
 end
 
--- simple form: { { path, range | "bool" } }; lw = the tab's label width (A.labelWidth), else this form's own
+-- simple form: { { path, range | "bool", width? } }; lw = the tab's label width (A.labelWidth), else this form's own
 function A.form(P, pg, F, rows, lw)
     if lw == nil then
         local paths = {}
@@ -724,15 +729,22 @@ function A.form(P, pg, F, rows, lw)
         if r[2] == "bool" then
             ctrl = A.boolField(P, pg, r[1], "", r[1])
         else
-            ctrl = A.numField(P, pg, r[1], r[1], nil, r[2])
+            ctrl = A.numField(P, pg, r[1], r[1], nil, r[2], r[3])
         end
         A.formRow(F, r[1], A.fLabel(r[1]), lw, { ctrl })
     end
 end
 
--- read this page's bound fields; nil when any is invalid (marked on the field)
+-- read this page's bound fields; when any is invalid (each marked on its field): nil, the topmost one and its message
 function A.collect(P, pg)
-    local values, bad, pairsOf = {}, false, {}
+    local values, pairsOf = {}, {}
+    local top, why
+    local function mark(el, msg)
+        markError(P, el, msg)
+        if msg and (top == nil or el:getY() < top:getY() or (el:getY() == top:getY() and el:getX() < top:getX())) then
+            top, why = el, msg
+        end
+    end
     for _, f in pairs(pg.fields) do
         if f.gen == pg.flow.gen and f.path then
             if f.kind == "bool" then
@@ -741,14 +753,12 @@ function A.collect(P, pg)
                 values[#values + 1] = { field = f, value = f.el:getSelected() }
             elseif f.kind == "clock" then
                 local v = AM.clock(f.el:getText())
-                markError(P, f.el, v == nil and getText("IGUI_MQ_Admin_HordeErrClock") or nil)
-                if v == nil then bad = true else values[#values + 1] = { field = f, value = v } end
+                mark(f.el, v == nil and getText("IGUI_MQ_Admin_HordeErrClock") or nil)
+                if v ~= nil then values[#values + 1] = { field = f, value = v } end
             else
                 local v, key, lo, hi = AM.check(f.el:getText(), f.range)
-                markError(P, f.el, v == nil and getText(key, AM.num(lo), AM.num(hi)) or nil)
-                if v == nil then
-                    bad = true
-                else
+                mark(f.el, v == nil and getText(key, AM.num(lo), AM.num(hi)) or nil)
+                if v ~= nil then
                     values[#values + 1] = { field = f, value = v }
                     -- target {min, max}: min <= max
                     if f.part and (f.part[1] == 1 or f.part[1] == 2) and string.match(f.path, "%.target$") then
@@ -762,23 +772,29 @@ function A.collect(P, pg)
     end
     for _, t in pairs(pairsOf) do
         if t[1] and t[2] and t[1][1] > t[2][1] then
-            markError(P, t[1][2].el, getText("IGUI_MQ_Admin_ErrMinMax"))
-            markError(P, t[2][2].el, getText("IGUI_MQ_Admin_ErrMinMax"))
-            bad = true
+            mark(t[1][2].el, getText("IGUI_MQ_Admin_ErrMinMax"))
+            mark(t[2][2].el, getText("IGUI_MQ_Admin_ErrMinMax"))
         end
     end
+    if top then return nil, top, why end
     -- stable order: by field key
     MQ.Util.sort(values, function(a, b) return a.field.key < b.field.key end)
-    if bad then return nil end
     return values
+end
+
+-- the bar says what is wrong with the topmost marked field (the range was only in its hover text) and the page
+-- scrolls to it (interface review H2, 2026-10-28)
+local function fixFirst(P, el, why)
+    A.say(P, getText("IGUI_MQ_Admin_FixErrorsWhy", why), "errorText")
+    MQ.Draw.reveal(el)
 end
 
 -- typed values reach the draft only through Preview or this: leaving a tab, or a button that edits the draft itself
 -- (theme batch, difficulty). false = a field is invalid (marked, and the bar says so)
 function A.fold(P)
-    local values = A.collect(P, P.pages[P.current])
+    local values, el, why = A.collect(P, P.pages[P.current])
     if values == nil then
-        A.say(P, getText("IGUI_MQ_Admin_FixErrors"), "errorText")
+        fixFirst(P, el, why)
         return false
     end
     AM.formToDraft(P.S, values)
@@ -789,8 +805,8 @@ end
 -- confirm view it opens is where the change is applied (renamed from "Preview changes" after the 2026-10-25 playtest)
 function A.onPreview(P)
     local pg = P.pages[P.current]
-    local values = A.collect(P, pg)
-    if values == nil then return A.say(P, getText("IGUI_MQ_Admin_FixErrors"), "errorText") end
+    local values, el, why = A.collect(P, pg)
+    if values == nil then return fixFirst(P, el, why) end
     local check = A.pages[P.current].check
     if check then
         local err = check(P, pg, values)
@@ -919,15 +935,16 @@ end
 
 -- ===== dialogs =====
 
--- opts = { title, text, confirm, danger, input = { placeholder }?, required, onOk = fn(text) }
--- confirm names the action ("Exclude from rewards", "Undo"); a required reason is said in the text, because the
+-- opts = { title, text, confirm, cancel?, danger, input = { placeholder }?, required, onOk = fn(text) }
+-- confirm names the action ("Exclude from rewards", "Undo"); cancel names the way out when "Cancel" would read as
+-- the action ("Cancel this horde"); a required reason is said in the text, because the
 -- input has the focus when the dialog opens and a placeholder does not draw then (framework TextField)
 function A.ask(P, opts)
     local UI = P.UI
     local text = opts.text
     if opts.required then text = text .. "\n\n" .. getText("IGUI_MQ_Admin_Reason") end
     UI.Dialog.show({ title = opts.title, text = text, confirmText = opts.confirm or getText("UI_Ok"),
-        cancelText = getText("UI_Cancel"), danger = opts.danger, theme = P.theme, opaque = true,
+        cancelText = opts.cancel or getText("UI_Cancel"), danger = opts.danger, theme = P.theme, opaque = true,
         input = opts.input,
         onResult = function(ok, typed)
             if not ok then return end

@@ -187,6 +187,12 @@ return function(T)
     local hf = P.pages.hordes.flow
     T.check(wrapW["IGUI_MQ_Admin_HordeNote"] == 30 * 14 and wrapW[estEl.lines[1] .. "\n" .. estEl.lines[2]] == hf.width - 2 * A.PAD - 16,
         "a plain note wraps at 30 font heights at most; a boxed text keeps the full width")
+    -- headings (Medium) and the bottom bar's message keep the full width (review r1 C3)
+    local longMsg = "a long bar message " .. string.rep("x", 90)
+    A.say(P, longMsg, "errorText")
+    T.check(wrapW["IGUI_MQ_Admin_HordePresetsHead"] == hf.width - 2 * A.PAD and wrapW[longMsg] == P.barFlow.width - 2 * A.PAD
+        and wrapW[longMsg] > 30 * 14, "a heading and the bottom bar's message are not held to the note width")
+    A.say(P, nil)
     T.check(shown("cur") and has(pool()["cur"].lines[1], "IGUI_MQ_Admin_HordeNone") and pool()["now"]:isEnabled(),
         "no horde: says so, Start one now enabled")
     T.check(shown("p:0") and shown("sp:add") and pool()["sp:add"]:isEnabled() and pool()["sp:add"].style == "normal",
@@ -348,6 +354,10 @@ return function(T)
     end
     T.check(AM.clock(" 19:30 ") == "19:30" and AM.clock("9:05") == "9:05" and AM.clock("24:00") == nil and AM.clock("1:2") == nil,
         "AM.clock keeps the typed text, rejects what the server rejects")
+    -- a decimal field below 1000 reads "," as the decimal point; elsewhere it stays a thousands separator (review r1 C4)
+    T.check(AM.check("0,5", "hordeHp") == 0.5 and AM.check("1,25", "eventMult") == 1.25 and AM.check("1,000", "hordeCap") == 1000
+        and AM.check("1,000", "rate") == 1000 and AM.check("1.5", "hordeHp") == 1.5,
+        "0,5 is half a toughness; 1,000 is a thousand points")
 
     T.section("horde admin: a bad field is named in the bar and scrolled to; a good edit clears it (review H2, M1)")
     local sp = pg.sp
@@ -671,7 +681,8 @@ return function(T)
         "a name that reads like another preset (the default one's shown name) stops Apply")
     field("hordes.presets.p3.name"):setText("Night")
     A.onPreview(P)
-    T.check(count("cfg.preview") == previews + 1 and AM.get(P.S, "hordes.presets.p3.name") == "Night", "a free name: the preview goes out")
+    T.check(count("cfg.preview") == previews + 1 and AM.get(P.S, "hordes.presets.p3.name") == "Night"
+        and field("hordes.presets.p3.name").invalid == nil, "a free name: the preview goes out, the name loses its mark")
     A.onConfirmCancel(P)
     -- 8 presets: copy off, the limit in the warning colour
     for _ = 1, 8 do press("pre:copy") end
@@ -681,6 +692,28 @@ return function(T)
         and pool()["pre:max"].lines[1] == "IGUI_MQ_Admin_HordePresetsMax|8", "8 presets: Copy is off, the limit in the warning colour")
     A.discard(P)
     T.check(pg.preset == "default" and pool()["pre:pick"].selected == "default", "discarded: a draft-only preset gone, the page is back on the default one")
+    P.S.overrides.hordes = nil
+    A.resync(P)
+    -- an applied, complete preset other than the default (the server fills and checks it): removing a built-in kind
+    -- writes 0 like on the default one, never a del that would leave the preset without the key (review r1 C1)
+    P.S.overrides.hordes = { presets = { p2 = { name = "Night2", waves = { { base = 10, perPlayer = 0 } },
+        kinds = { vanilla = 60, runner = 40 }, points = { vanilla = 5, runner = 8 }, hp = {}, limitMin = 15, restSec = 30,
+        maxAlive = 200, cap = 500 } } }
+    A.resync(P)
+    pick("pre:pick", "p2")
+    press("ks:r:vanilla")
+    press("ks:r:runner")
+    T.check(P.S.draft.by["hordes.presets.p2.kinds.vanilla"] == 0 and P.S.draft.by["hordes.presets.p2.kinds.runner"] == 0
+        and P.S.draft.by["hordes.presets.p2.points.vanilla"] == nil and P.S.draft.by["hordes.presets.p2.points.runner"] == nil,
+        "an applied p2 losing its regular and runner zombies: weights 0 in the draft, points kept, no del")
+    A.discard(P)
+    -- deleted in the draft, an applied preset is still named by its applied name (the preview's before side, r1 C5)
+    pick("pre:pick", "p2")
+    press("pre:del")
+    answer(true)
+    T.check(P.S.draft.by["hordes.presets.p2"] == AM.DEL and A.hordePresetName(P, "p2") == "Night2",
+        "a preset deleted in the draft keeps its applied name for the preview")
+    A.discard(P)
     P.S.overrides.hordes = nil
     A.resync(P)
     -- the server's refusals name the window or say the limit

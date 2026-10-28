@@ -163,9 +163,10 @@ function Flow:text(key, text, token, font, box, title)
     local l = self:get(key, newLabel)
     local pad = box and 8 or 0
     local maxW = self.width - 2 * A.PAD - 2 * pad
-    -- a plain note (no box) wraps at 30 font heights at most (about 600 px in UIFont.Small): a 1920 px wide panel
-    -- made Latin lines of about 120 characters (horde presets design, review 2026-10-28)
-    if not box then maxW = math.min(maxW, 30 * fontH(font)) end
+    -- a plain note of a page (no box, UIFont.Small) wraps at 30 font heights at most (about 600 px): a 1920 px wide
+    -- panel made Latin lines of about 120 characters (horde presets design, review 2026-10-28). Headings (Medium)
+    -- and the bottom bar's message keep the full width
+    if not box and font == UIFont.Small and self ~= P.barFlow then maxW = math.min(maxW, 30 * fontH(font)) end
     local lines = {}
     if title then lines[1] = title end
     for _, line in ipairs(wrapLines(P.UI, text, maxW, font)) do lines[#lines + 1] = line end
@@ -698,7 +699,8 @@ function A.boolField(P, pg, key, label, path, part)
 end
 
 -- free text bound to a config path (a horde preset's name): control characters dropped, spaces trimmed, cut to max
--- bytes; the page's own check says what a name may not be
+-- characters (Kahlua strings count UTF-16 units: 32 Chinese characters too); the page's own check says what a name
+-- may not be, and a refill clears its mark
 function A.textField(P, pg, key, path, width, max)
     local f = field(pg, key)
     f.path, f.kind, f.max = path, "text", max
@@ -707,6 +709,7 @@ function A.textField(P, pg, key, path, width, max)
         f.at = pg.version
         local v = AM.get(P.S, path)
         f.el:setText(type(v) == "string" and v or "")
+        markError(P, f.el, nil)
     end
     return f.el
 end
@@ -801,6 +804,8 @@ function A.collect(P, pg)
             elseif f.kind == "pick" then
                 values[#values + 1] = { field = f, value = f.el:getSelected() }
             elseif f.kind == "text" then
+                -- the page check marks a bad name again; a fixed one loses its mark here
+                mark(f.el, nil)
                 values[#values + 1] = { field = f, value = A.cleanText(f.el:getText(), f.max) }
             elseif f.kind == "clock" then
                 local v = AM.clock(f.el:getText())

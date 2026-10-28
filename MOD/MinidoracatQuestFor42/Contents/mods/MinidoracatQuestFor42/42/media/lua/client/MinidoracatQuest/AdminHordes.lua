@@ -49,7 +49,8 @@ local MAPS = { kinds = true, points = true, hp = true }
 
 local function maxPresets() return MQ.Contract.LIMIT.MAX_PRESETS end
 
--- the built-in default preset (Catalog): what a preset config.json leaves a field out of plays (Hordes.lua presetOf)
+-- the built-in default preset (Catalog): what an unset field of the default preset means, and what a new or copied
+-- preset starts from; another preset is complete (Config.migrate fills what config.json leaves out)
 local function base() return MQ.Catalog.DEFAULTS.hordes.presets.default end
 
 -- the presets S shows ("default" first, then by id); a preset deleted in the draft is gone
@@ -80,9 +81,12 @@ local function presetIds(S)
     return out
 end
 
--- "" (and no name at all) reads as the translated "Default" for the default preset, else as its id
+-- "" (and no name at all) reads as the translated "Default" for the default preset, else as its id. A preset deleted
+-- in the draft keeps its applied name, so the "before" side of a preview names it
 local function nameOf(S, id)
-    local n = AM.get(S, "hordes.presets." .. id .. ".name")
+    local path = "hordes.presets." .. id .. ".name"
+    local n = AM.get(S, path)
+    if n == nil and S.draft then n = AM.get({ overrides = S.overrides, defaults = S.defaults }, path) end
     if type(n) == "string" and n ~= "" then return n end
     return id == "default" and getText("IGUI_MQ_Admin_HordePresetDefault") or id
 end
@@ -102,10 +106,10 @@ end
 local function pre(P) return "hordes.presets." .. current(P) end
 
 -- what an unset key of the edited preset's map means: the default preset reads the Catalog defaults key by key
--- (Config merges it); another preset that has no such map at all plays the default one's (Hordes.lua presetOf)
+-- (Config merges it); every other preset is complete (the server fills and checks it, presetPart), so an unset key
+-- there is just unset (hp: 1x)
 local function defaultsOf(P, group)
-    local id = current(P)
-    if id == "default" or AM.get(P.S, pre(P) .. "." .. group) == nil then return base()[group] or {} end
+    if current(P) == "default" then return base()[group] or {} end
     return {}
 end
 
@@ -867,12 +871,12 @@ local function onKindAdd(P, id)
     A.layout(P)
 end
 
--- Remove writes 0 on a kind the preset has a default weight for (built-in kinds of the default preset; its points
--- stay); on the others it drops the weight, points and toughness keys (a "del" change when applied), which also
+-- Remove writes 0 on a built-in kind (Catalog: Contract.HORDE_KINDS have default weights) in any preset, and keeps
+-- its points; on the others it drops the weight, points and toughness keys (a "del" change when applied), which also
 -- clears what a removed mod left in config.json. A kind only the draft has (picked, then removed) just leaves the
 -- draft again.
 local function onKindRemove(P, b)
-    if defaultsOf(P, "kinds")[b.kind] ~= nil then
+    if base().kinds[b.kind] ~= nil then
         AM.draftSet(P.S.draft, pre(P) .. ".kinds." .. b.kind, 0)
     else
         for _, g in ipairs({ "kinds", "points", "hp" }) do dropKey(P, g, b.kind) end

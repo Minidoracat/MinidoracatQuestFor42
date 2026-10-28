@@ -180,15 +180,20 @@ local function onlyKeys(t, names)
 end
 local WINDOW_KEYS = { days = true, from = true, to = true, chance = true, preset = true, leadMin = true, waitMin = true }
 local chanceV, leadV, waitV = int(0, 100), int(0, C.LIMIT.MAX_LEAD), int(1, 240)
--- a hordes.presets id: the "*" key rule of child() below
+-- a hordes.presets id (the "*id" key rule of child() below): a letter, then letters, digits, "_" or "-", <= 64. A
+-- digit first would not survive: JSON decodes an all-digit key to a number and parsePath turns one into an index.
 local function presetId(v)
-    return type(v) == "string" and #v >= 1 and #v <= 64 and string.find(v, "^[%w_:%-]+$") ~= nil
+    return type(v) == "string" and #v <= 64 and string.find(v, "^%a[%w_%-]*$") ~= nil
 end
--- a preset name: "" (the default preset's, shown as the translated "Default") .. 32 bytes, no control characters
+-- a preset name: "" (the default preset's, shown as the translated "Default") .. 32 characters (UTF-16 units: that is
+-- what # counts on Kahlua, family pitfalls.md), no control characters. validateAll refuses a blank or repeated name.
 local function presetName(v)
     if type(v) ~= "string" or #v > 32 or string.find(v, "%c") then return false, "type" end
     return true
 end
+-- the knobs every preset has (besides name; hp may be left out = x 1): Config.migrate fills them from the default
+-- preset of Catalog.DEFAULTS, validateAll refuses a preset without one
+local PRESET_KEYS = { "waves", "kinds", "points", "cap", "limitMin", "restSec", "maxAlive" }
 -- weekdays "1".."7" (1 = Monday), each at most once
 local function weekdays(v)
     if type(v) ~= "string" or #v < 1 or #v > 7 or not string.find(v, "^[1-7]+$") then return false end
@@ -229,7 +234,8 @@ local function hordeSpots(v)
     return true
 end
 
--- Branch tables: named children, "*" = any id key ([%w_:-], <= 64), "#" = tier key 1..10. Functions are leaves.
+-- Branch tables: named children, "*" = any id key ([%w_:-], <= 64), "*lower" = lowerId, "*id" = presetId, "#" = tier
+-- key 1..10. Functions are leaves.
 local POOL = { ["*"] = { enabled = bool, target = target, pts = ptsV } }
 Cf.SCHEMA = {
     daily = { swapsPerDay = int(0, 10), pts = ptsV, rarePts = ptsV, sharedPts = ptsV, pool = POOL },
@@ -250,10 +256,11 @@ Cf.SCHEMA = {
     towns = { custom = townsCustom, disabled = townsDisabled },
     -- timed hordes (Hordes.lua); presets: id -> one set of horde knobs a window (or horde.now) plays, kinds: kindId
     -- ("vanilla", "runner", "<modId>:<id>") -> weight, points: kindId -> points per kill, hp: kindId -> health
-    -- multiplier; windows, waves and spots are whole-set only. Every window's preset exists and there are at most
-    -- C.LIMIT.MAX_PRESETS presets: validateAll checks the result.
+    -- multiplier; windows, waves and spots are whole-set only. validateAll checks the result: at most
+    -- C.LIMIT.MAX_PRESETS presets, each but "default" whole (hp may be left out) with a name of its own, and every
+    -- window's preset exists.
     hordes = { enabled = bool, windows = hordeWindows, maxPerDay = int(1, 24),
-        presets = { ["*"] = { name = presetName, waves = hordeWaves, kinds = { ["*"] = int(0, 100) },
+        presets = { ["*id"] = { name = presetName, waves = hordeWaves, kinds = { ["*"] = int(0, 100) },
             points = { ["*"] = int(0, 1000) }, hp = { ["*"] = num(0.1, 10) }, limitMin = int(1, 120),
             restSec = int(0, 600), maxAlive = int(10, 2000), cap = int(1, 1000000) } },
         spots = hordeSpots },
@@ -266,6 +273,7 @@ local function child(node, key)
     if node[key] ~= nil then return node[key] end
     if node["*"] ~= nil and type(key) == "string" and #key <= 64 and string.find(key, "^[%w_:%-]+$") then return node["*"] end
     if node["*lower"] ~= nil and lowerId(key) then return node["*lower"] end
+    if node["*id"] ~= nil and presetId(key) then return node["*id"] end
     if node["#"] ~= nil and C.isInt(key) and key >= 1 and key <= 10 then return node["#"] end
     return nil
 end
@@ -415,12 +423,27 @@ local function validateAll(changes)
     local n = 0
     for _ in pairs(after.custom or {}) do n = n + 1 end
     if n > Cf.MAX_CUSTOM then return false, { why = "custom count" } end
-    -- hordes: at most MAX_PRESETS presets, and every window plays one that exists ("default" always does: it is in the
-    -- defaults, a del of its override only brings them back)
+    -- hordes: at most MAX_PRESETS presets; every one but "default" (Catalog.DEFAULTS fills that one, a del of its
+    -- override only brings them back) has every knob and a name; no two names alike; every window plays one that exists
     local hz = effective(after).hordes
-    n = 0
-    for _ in pairs(hz.presets) do n = n + 1 end
-    if n > C.LIMIT.MAX_PRESETS then return false, { why = "presets" } end
+    local ids = {}
+    for id in pairs(hz.presets) do ids[#ids + 1] = id end
+    if #ids > C.LIMIT.MAX_PRESETS then return false, { why = "presets" } end
+    U.sort(ids, function(a, b) return a < b end)
+    local named = {}
+    for _, id in ipairs(ids) do
+        local p, at = hz.presets[id], "hordes.presets." .. id .. "."
+        if id ~= "default" then
+            for _, k in ipairs(PRESET_KEYS) do
+                if p[k] == nil then return false, { why = "presetPart", path = at .. k } end
+            end
+            if p.name == nil or not string.find(p.name, "%S") then return false, { why = "presetName", path = at .. "name" } end
+        end
+        if p.name ~= nil and p.name ~= "" then
+            if named[p.name] then return false, { why = "presetSame", path = at .. "name" } end
+            named[p.name] = true
+        end
+    end
     for i, w in ipairs(hz.windows) do
         if hz.presets[w.preset] == nil then return false, { why = "preset", path = "hordes.windows." .. i .. ".preset" } end
     end
@@ -586,10 +609,13 @@ end
 --    count { a, b } -> one wave of their average with no per-player growth, perZombie -> the points of vanilla, runner
 --    and every kind with a weight; split goes (only the kill-value share is left).
 -- 2. Before the presets (2026-10-28, design plan-presets-1028): waves, kinds, points, cap, limitMin, restSec and
---    maxAlive move to presets.default; leadMin / waitMin go into every window (a tree without windows gets the default
---    ones first), and every window without them plays "default" with OLD_LEAD / OLD_WAIT, the old defaults.
+--    maxAlive move to presets.default. A top-level leadMin / waitMin the old validation took goes into every window
+--    (a tree without windows gets the default ones first) unless a window has its own already (the old key next to
+--    the new one stays); every window still without them gets OLD_LEAD / OLD_WAIT, the old defaults, and plays
+--    "default".
+-- 3. Every preset but "default" is whole (review r1, 2026-10-28): the knobs it leaves out (not name, not hp) come from
+--    the default preset of Catalog.DEFAULTS, so config.json is written back whole.
 local oldChance, oldCount, oldPer = int(0, 100), int(1, 100), int(0, 1000)
-local PRESET_KEYS = { "waves", "kinds", "points", "cap", "limitMin", "restSec", "maxAlive" }
 local OLD_LEAD, OLD_WAIT = 15, 60
 function Cf.migrate(tree)
     local h = type(tree) == "table" and tree.hordes or nil
@@ -633,20 +659,40 @@ function Cf.migrate(tree)
             if type(d) == "table" and d[k] == nil then d[k], h[k], changed = h[k], nil, true end
         end
     end
-    local lead, wait, built = h.leadMin, h.waitMin, false
-    if (lead ~= nil or wait ~= nil) and h.windows == nil then
-        h.windows, built, changed = U.copy(Cf.defaults().hordes.windows), true, true
+    -- moves only a value the old validation took, and only when no window has its own
+    local function movable(key, v, ok)
+        if v == nil or not ok(v) or (h.windows ~= nil and type(h.windows) ~= "table") then return false end
+        for _, w in ipairs(h.windows or {}) do
+            if type(w) == "table" and w[key] ~= nil then return false end
+        end
+        return true
+    end
+    local lead, wait = h.leadMin, h.waitMin
+    local moveLead, moveWait = movable("leadMin", lead, leadV), movable("waitMin", wait, waitV)
+    if (moveLead or moveWait) and h.windows == nil then
+        h.windows, changed = U.copy(Cf.defaults().hordes.windows), true
     end
     if type(h.windows) == "table" then
         for _, w in ipairs(h.windows) do
             if type(w) == "table" then
                 if w.preset == nil then w.preset, changed = "default", true end
-                -- windows built just now carry the new defaults: the old top-level value replaces them
-                if w.leadMin == nil or (built and lead ~= nil) then w.leadMin, changed = lead or OLD_LEAD, true end
-                if w.waitMin == nil or (built and wait ~= nil) then w.waitMin, changed = wait or OLD_WAIT, true end
+                if moveLead then w.leadMin, changed = lead, true elseif w.leadMin == nil then w.leadMin, changed = OLD_LEAD, true end
+                if moveWait then w.waitMin, changed = wait, true elseif w.waitMin == nil then w.waitMin, changed = OLD_WAIT, true end
             end
         end
-        if lead ~= nil or wait ~= nil then h.leadMin, h.waitMin, changed = nil, nil, true end
+    end
+    if moveLead then h.leadMin, changed = nil, true end
+    if moveWait then h.waitMin, changed = nil, true end
+    -- 3. whole presets
+    if type(h.presets) == "table" then
+        local def = Cf.defaults().hordes.presets.default
+        for id, p in pairs(h.presets) do
+            if id ~= "default" and type(p) == "table" then
+                for _, k in ipairs(PRESET_KEYS) do
+                    if p[k] == nil then p[k], changed = U.copy(def[k]), true end
+                end
+            end
+        end
     end
     return changed
 end

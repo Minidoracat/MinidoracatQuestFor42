@@ -24,16 +24,23 @@ AM.RANGE = {
 AM.MAX_SPOTS = 32
 AM.MAX_WINDOWS = 8   -- hordes.windows items (Config.SCHEMA.hordes)
 AM.MAX_WAVES = 10    -- a preset's waves items
-AM.MAX_NAME = 32     -- a preset's name (bytes)
+AM.MAX_NAME = 32     -- a preset's name (characters: Kahlua's # and string.sub count UTF-16 units, so 32 Chinese too)
 AM.MAX_TIERS = 10
 AM.DEL = {}   -- draft marker: path removed (falls back to defaults)
 
 -- ===== numbers =====
 
--- text -> value | nil, errKey, lo, hi (an integer range says "a whole number from lo to hi")
+-- text -> value | nil, errKey, lo, hi (an integer range says "a whole number from lo to hi"). A decimal range below
+-- 1000 (toughness, growth, multipliers) reads "," as the decimal point ("0,5" = 0.5, as many languages write it);
+-- elsewhere "," is a thousands separator and dropped
 function AM.check(text, rangeKey)
     local r = AM.RANGE[rangeKey]
-    local t = string.gsub(tostring(text or ""), "[,%s]", "")
+    local t = tostring(text or "")
+    if not r[3] and r[2] < 1000 then
+        t = string.gsub(string.gsub(t, "%s", ""), ",", ".")
+    else
+        t = string.gsub(t, "[,%s]", "")
+    end
     local v = tonumber(t)
     if v == nil or v ~= v then return nil, "IGUI_MQ_Admin_ErrNumber", r[1], r[2] end
     if (r[3] and v ~= math.floor(v)) or v < r[1] or v > r[2] then

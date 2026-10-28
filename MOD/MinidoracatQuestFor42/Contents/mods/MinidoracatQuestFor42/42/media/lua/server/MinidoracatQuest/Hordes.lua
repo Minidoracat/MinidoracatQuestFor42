@@ -326,15 +326,11 @@ end
 
 -- ---------- one horde ----------
 
--- a preset of cfg (Config hordes), "default" when id names none: every knob, the ones it lacks (only a hand-edited
--- config.json leaves some out) from Catalog.DEFAULTS. The tables are cfg's: copy before keeping them.
+-- a preset of cfg (Config hordes), "default" when id names none. Every preset is whole: the default one merges
+-- Catalog.DEFAULTS, the others are filled when config.json is read (Config.migrate) and refused without a knob
+-- (Config validateAll); only hp may be left out (= x 1). The tables are cfg's: copy before keeping them.
 function H.presetOf(cfg, id)
-    local def = MQ.Catalog.DEFAULTS.hordes.presets.default
-    local p, out = cfg.presets[id] or cfg.presets.default, {}
-    for k, v in pairs(def) do
-        if p[k] ~= nil then out[k] = p[k] else out[k] = v end
-    end
-    return out
+    return cfg.presets[id] or cfg.presets.default
 end
 
 -- win = { preset, leadMin, waitMin }: the window that rolled it, or horde.now's; actor nil = an automatic roll. The
@@ -346,7 +342,7 @@ function H.plan(cfg, startMs, actor, win)
     h.cur = { id = h.seq, auto = actor == nil, actor = actor or "auto", name = spot.name, x = spot.x, y = spot.y,
         z = spot.z, town = MQ.Towns.at(spot.x, spot.y), state = "planned", preset = p.name,
         announceAt = startMs - win.leadMin * MIN, startMs = startMs, expireAt = startMs + win.waitMin * MIN,
-        waves = U.copy(p.waves), wave = 1, weights = U.copy(p.kinds), points = U.copy(p.points), hp = U.copy(p.hp),
+        waves = U.copy(p.waves), wave = 1, weights = U.copy(p.kinds), points = U.copy(p.points), hp = U.copy(p.hp or {}),
         cap = p.cap, limitMin = p.limitMin, waitMin = win.waitMin, restSec = p.restSec, maxAlive = p.maxAlive,
         size = 0, queued = 0, spawned = 0, left = 0, killed = 0, mix = {}, queue = {}, angle = 0, tries = 0,
         totalSpawned = 0, totalKilled = 0, cleared = 0, kills = {}, waveGot = {}, got = {}, waveKills = {}, gotKills = {} }

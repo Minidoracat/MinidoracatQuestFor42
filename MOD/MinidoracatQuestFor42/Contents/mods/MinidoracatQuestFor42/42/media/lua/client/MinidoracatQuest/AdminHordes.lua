@@ -1042,7 +1042,8 @@ end
 local PATHS = { "hordes.maxPerDay", "hordes.name", "hordes.restSec", "hordes.limitMin", "hordes.maxAlive", "hordes.cap" }
 
 local function layout(P, pg, F)
-    -- no page heading: the tab already says Hordes (review)
+    -- no page heading: the tab already says Hordes (review). Its notes wrap narrower (Flow:text)
+    F.narrowNotes = true
     F:text("n", getText("IGUI_MQ_Admin_HordeNote"), "textMuted")
     local ids = presetIds(P.S)
     current(P, ids)

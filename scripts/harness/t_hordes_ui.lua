@@ -193,6 +193,13 @@ return function(T)
     T.check(wrapW["IGUI_MQ_Admin_HordePresetsHead"] == hf.width - 2 * A.PAD and wrapW[longMsg] == P.barFlow.width - 2 * A.PAD
         and wrapW[longMsg] > 30 * 14, "a heading and the bottom bar's message are not held to the note width")
     A.say(P, nil)
+    -- only the hordes tab asks for the narrow notes: Basic keeps its one-line notes on one screen (DE, FR and ES needed
+    -- a scroll at 1080p when every page had the cap, quest-ui-*-1028d)
+    local bf = P.pages.basic.flow
+    bf:begin(hf.width)
+    bf:text("n", "IGUI_MQ_Admin_BasicNote", "textMuted")
+    T.check(wrapW["IGUI_MQ_Admin_BasicNote"] == hf.width - 2 * A.PAD and hf.width - 2 * A.PAD > 30 * 14,
+        "another tab's note keeps the full width")
     T.check(shown("cur") and has(pool()["cur"].lines[1], "IGUI_MQ_Admin_HordeNone") and pool()["now"]:isEnabled(),
         "no horde: says so, Start one now enabled")
     T.check(shown("p:0") and shown("sp:add") and pool()["sp:add"]:isEnabled() and pool()["sp:add"].style == "normal",

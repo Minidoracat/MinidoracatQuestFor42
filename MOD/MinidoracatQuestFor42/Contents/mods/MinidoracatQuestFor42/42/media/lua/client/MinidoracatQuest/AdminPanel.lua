@@ -163,10 +163,11 @@ function Flow:text(key, text, token, font, box, title)
     local l = self:get(key, newLabel)
     local pad = box and 8 or 0
     local maxW = self.width - 2 * A.PAD - 2 * pad
-    -- a plain note of a page (no box, UIFont.Small) wraps at 30 font heights at most (about 600 px): a 1920 px wide
-    -- panel made Latin lines of about 120 characters (horde presets design, review 2026-10-28). Headings (Medium)
-    -- and the bottom bar's message keep the full width
-    if not box and font == UIFont.Small and self ~= P.barFlow then maxW = math.min(maxW, 30 * fontH(font)) end
+    -- a plain note (no box, UIFont.Small) of a page that asks for it (F.narrowNotes: the hordes tab) wraps at 30 font
+    -- heights (about 600 px): a 1920 px wide panel made Latin lines of about 120 characters (horde presets design,
+    -- review 2026-10-28). Not every page: with it the Basic tab's one-line notes needed a scroll at 1080p in DE, FR and
+    -- ES (quest-ui-*-1028d). Headings (Medium) and the bottom bar's message keep the full width
+    if not box and font == UIFont.Small and self.narrowNotes then maxW = math.min(maxW, 30 * fontH(font)) end
     local lines = {}
     if title then lines[1] = title end
     for _, line in ipairs(wrapLines(P.UI, text, maxW, font)) do lines[#lines + 1] = line end

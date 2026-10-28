@@ -722,6 +722,16 @@ return function(T)
     T.check(P.S.draft.by["hordes.presets.p2"] == AM.DEL and A.hordePresetName(P, "p2") == "Night2",
         "a preset deleted in the draft keeps its applied name for the preview")
     A.discard(P)
+    -- a name blanked (the check stops Apply, the blank stays in the draft) and typed back: nothing is left to apply
+    -- (quest-ui-*-1028e: the bar said Apply (1) and the confirm view opened)
+    pick("pre:pick", "p2")
+    field("hordes.presets.p2.name"):setText("")
+    A.onPreview(P)
+    local blocked = P.msg == "IGUI_MQ_Admin_HordeErrPresetName" and AM.draftCount(P.S.draft) == 1
+    field("hordes.presets.p2.name"):setText("Night2")
+    A.onPreview(P)
+    T.check(blocked and AM.draftCount(P.S.draft) == 0 and P.msg == "IGUI_MQ_Admin_NoChanges" and P.confirm == nil,
+        "a name blanked and typed back: nothing left to apply")
     P.S.overrides.hordes = nil
     A.resync(P)
     -- the server's refusals name the window or say the limit

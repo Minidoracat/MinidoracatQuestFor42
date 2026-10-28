@@ -440,10 +440,16 @@ function AM.formToDraft(S, values)
         if f.default ~= nil and v == f.default and (f.part or AM.get(S, f.path) == nil) then v = nil end
         if f.part then setPart(byPath[f.path], f.part, v) else byPath[f.path] = v end
     end
-    local n = 0
+    local n, applied = 0, { overrides = S.overrides, defaults = S.defaults }
     for _, path in ipairs(order) do
         if not AM.same(byPath[path], AM.get(S, path)) then
-            AM.draftSet(S.draft, path, byPath[path])
+            -- typed back to what is applied: the pending entry goes, or Apply sends a change that changes nothing (a
+            -- preset name blanked by the hordes check, then typed again: quest-ui-*-1028e)
+            if AM.same(byPath[path], AM.get(applied, path)) then
+                AM.draftUnset(S.draft, path)
+            else
+                AM.draftSet(S.draft, path, byPath[path])
+            end
             n = n + 1
         end
     end

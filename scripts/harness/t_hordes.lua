@@ -1050,6 +1050,12 @@ return function(T)
         revive(dave)
         die(dave, 0)
         T.check(#cur.deaths == 3 and cur.deaths[3].u == "dave", "a death in the rest counts")
+        Q.Store.readOnly = true   -- a save newer than the code: H.tick stops, a queued toast would never go out
+        die(admin, 0)
+        Q.Store.readOnly = false
+        T.check(#cur.deaths == 3 and #H.deathQ.users == 1 and H.deathQ.users[1] == "dave",
+            "read-only store: a death is neither listed nor queued")
+        revive(admin)
         for i = #cur.deaths + 1, H.DEATHS_MAX do cur.deaths[i] = { u = "x" .. i, wave = 1, at = T.now } end
         die(admin, 0)
         T.check(#cur.deaths == H.DEATHS_MAX, "at most DEATHS_MAX listed")

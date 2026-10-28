@@ -901,7 +901,9 @@ end
 -- DEATHS_MAX, and announced: deaths within DEATH_MS of the first go out as one toast (H.step). Animals are IsoPlayers
 -- too (Trackers.onCharacterDeath).
 function H.onDeath(c)
-    if c == nil or not instanceof(c, "IsoPlayer") or c:isAnimal() or not MQ.Store.ready() then return end
+    if c == nil or not instanceof(c, "IsoPlayer") or c:isAnimal() or not MQ.Store.ready() or MQ.Store.readOnly then
+        return   -- read only: H.tick does not run, so a queued toast would never go out
+    end
     local cur = hordes().cur
     if cur == nil or cur.firstSpawnAt == nil
         or not (cur.state == "active" or cur.state == "rest" or cur.state == "waiting") then return end
@@ -926,6 +928,16 @@ end
 
 -- ---------- state part, admin ops ----------
 
+-- players with 1+ kill: a horde (cur.kills) or a result (older logs have no joined)
+local function joinedOf(e)
+    if e.joined ~= nil then return e.joined end
+    local n = 0
+    for _, k in pairs(e.kills or {}) do
+        if k >= 1 then n = n + 1 end
+    end
+    return n
+end
+
 -- Sync provider "hordes": { on, cur, last }; a planned horde is secret, the last result shows for LAST_MS. on: the
 -- player Hordes page is in the nav (automatic hordes on, or there are results to list)
 function H.stateHordes(acc, user, now)
@@ -936,7 +948,7 @@ function H.stateHordes(acc, user, now)
             kinds = kindsOf(cur), announceAt = cur.announceAt, startMs = cur.startMs, expireAt = cur.expireAt,
             endsAt = cur.endsAt, nextAt = cur.nextAt, wave = cur.wave, waves = #cur.waves, size = cur.size,
             left = cur.left, killed = cur.killed, limitMin = cur.limitMin, mine = cur.kills[user] or 0,
-            got = cur.got[user] or 0, joined = #participants(cur) }
+            got = cur.got[user] or 0, joined = joinedOf(cur) }
     end
     local e = h.log[#h.log]
     if e ~= nil and e.announced ~= false and now - e.endedAt < H.LAST_MS then
@@ -946,16 +958,6 @@ function H.stateHordes(acc, user, now)
     end
     out.on = settings().enabled == true or #h.log > 0 or out.cur ~= nil
     return out
-end
-
--- players with 1+ kill in a result; older logs have no joined
-local function joinedOf(e)
-    if e.joined ~= nil then return e.joined end
-    local n = 0
-    for _, k in pairs(e.kills or {}) do
-        if k >= 1 then n = n + 1 end
-    end
-    return n
 end
 
 -- the last n announced results, newest first, with this player's kills and points (the records reply, design r12)

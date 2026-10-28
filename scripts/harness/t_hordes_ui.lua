@@ -1128,8 +1128,9 @@ return function(T)
         and barOp.x + barOp.w + 8 <= cntOp.x - cntOp.w, "active line 2: the count left of the Map button, the bar takes what is left")
     hp.width = 150
     Hd.layout(hp)
-    T.check(barOnLine2() == nil and drewOp("IGUI_MQ_Horde_HudActive|12|17|30") ~= nil and hp.mapHit ~= nil,
-        "a narrow panel keeps the count and the Map button and drops a bar under 24 px")
+    local cut = drewOp("IGUI_MQ_Horde_HudActive|12|17|30")
+    T.check(barOnLine2() == nil and cut ~= nil and cut.k == 3 and cut.x == Hd.PAD and hp.mapHit ~= nil,
+        "a narrow panel: the count cut from the left edge (not right-aligned past it), no bar, the Map button (C5)")
     hp.width = narrow
     Cl.state.hordes = { cur = cur("waiting") }
     Hd.layout(hp)
@@ -1467,6 +1468,51 @@ return function(T)
     tick(1)
     T.check(R.pending == nil and not opened(), "the player died: dropped")
     alice.dead = false
+    do
+    -- C1: an automatic open takes the keys and the gamepad (Window onShown): it waits for a free screen, a gamepad
+    -- player gets a toast
+    local joy = getJoypadData
+    near.dead = true
+    getJoypadData = function() return {} end
+    t0 = T.now
+    local nt = #shownToasts
+    Cl.receive("hordeResult", result({ push = true }))
+    tick(1); tick(2); tick(3)
+    T.check(not opened() and R.pending == nil and #shownToasts == nt + 1 and shownToasts[nt + 1].title == "IGUI_MQ_Horde_ResultTitle"
+        and shownToasts[nt + 1].msg == "IGUI_MQ_Horde_ResultHead_success|" .. place,
+        "a gamepad player, safe 3 s: one toast instead of the window, the results dropped (review C1)")
+    getJoypadData = joy
+    local other = { shown = true }
+    function other:isReallyVisible() return self.shown end
+    winUI.Focus = { activeRoot = other }
+    t0 = T.now
+    Cl.receive("hordeResult", result({ push = true }))
+    for s = 1, 5 do tick(s) end
+    T.check(not opened() and R.pending ~= nil, "another framework window holds the keys: safe 5 s, still waiting")
+    Hd.layout(hp)
+    T.check(hp.resultHit ~= nil, "meanwhile the panel's Results button is there")
+    other.shown = false
+    tick(6)
+    T.check(opened() and R.pending == nil, "that window closed: the next check opens it")
+    R.close()
+    winUI.Focus.activeRoot = R.win
+    local qwin = Q.Window.visible
+    Q.Window.visible = function() return true end
+    t0 = T.now
+    Cl.receive("hordeResult", result({ push = true }))
+    for s = 1, 4 do tick(s) end
+    T.check(not opened() and R.pending ~= nil, "the Quest window open (the results window itself the last root): waiting")
+    tick(R.KEEP_MS / 1000)
+    T.check(not opened() and R.pending == nil, "still busy after 10 minutes: dropped")
+    Q.Window.visible = qwin
+    t0 = T.now
+    Cl.receive("hordeResult", result({ push = true }))
+    tick(1); tick(2); tick(3)
+    T.check(opened(), "a free screen, no gamepad: opens")
+    R.close()
+    winUI.Focus = nil
+    near.dead = false
+    end
     -- the Results button on the panel opens it at once
     t0 = T.now
     Cl.receive("hordeResult", result({ push = true }))
@@ -1535,9 +1581,60 @@ return function(T)
     getTextManager = tm
     Cl.receive("hordeResult", result())
     T.check(R.win.width == 400, "the font back at 14 px: 400 again on the next open")
-    T.check(R.win.added and R.win.onEscape ~= nil, "one window, Esc closes it")
-    R.win.onEscape()
-    T.check(not opened(), "Esc closed it")
+    do
+    -- C2: Esc is taken on its press and closes on its release, so the release does not reach the pause menu
+    local kb = Keyboard
+    Keyboard = { KEY_ESCAPE = 1 }
+    T.check(R.win.added and R.win.onEscape(R.win) == true and opened(), "Esc pressed: taken (true), the window stays open")
+    R.win:onKeyRelease(28)
+    T.check(opened(), "another key released: still open")
+    R.win:onKeyRelease(1)
+    T.check(not opened() and not R.escHeld, "Esc released: closed (review C2)")
+    Keyboard = kb
+    -- C4: 50 deaths: 10 names and "+40"; the window stays on a 768 / 400 px high screen
+    local core = getCore
+    local function screen(w, h)
+        getCore = function() return { getScreenWidth = function() return w end, getScreenHeight = function() return h end } end
+    end
+    local dead50, many15 = {}, {}
+    for i = 1, 50 do dead50[i] = { n = "d" .. i, wave = 2 } end
+    for i = 1, 15 do many15[i] = { r = i, n = "p" .. i, k = 30 - i, p = 1 } end
+    local named, plus = 0, nil
+    screen(1366, 768)
+    Cl.receive("hordeResult", result({ deaths = dead50, rows = many15 }))
+    for i = 1, R.canvas.n do
+        local s = R.canvas.ops[i].s
+        if type(s) == "string" then
+            for _ in string.gmatch(s, "IGUI_MQ_Horde_DiedWave|") do named = named + 1 end
+            if has(s, "+40") then plus = s end
+        end
+    end
+    T.check(named == 10 and plus ~= nil and R.win.y + R.win.height <= 768 and R.sp.height == R.ROWS * (D.fontH() + 8),
+        "50 deaths on a 768 px screen: 10 names then +40, the window inside it, 10 rows")
+    screen(1366, 400)
+    R.layout()
+    local rh = D.fontH() + 8
+    T.check(R.win.y + R.win.height <= 400 and R.win.y >= 0 and R.sp.height < R.ROWS * rh and R.sp.height >= R.MIN_ROWS * rh
+        and sumText("IGUI_MQ_Horde_ResultMore|" .. math.floor(15 - R.sp.height / rh)) ~= nil,
+        "a 400 px screen: fewer rows (3 at least), the rest 'more below', the window and Close inside it")
+    -- C3: the tracker is never narrower than 0.3.1's min(360, 20 x font)
+    local tmgr = getTextManager
+    local function font(h)
+        getTextManager = function()
+            return { MeasureStringX = function(_, _, s) return #tostring(s) * 7 end, getFontHeight = function() return h end }
+        end
+    end
+    font(16); screen(1024, 768)
+    local w1024 = Hd.width()
+    font(20); screen(1366, 768)
+    local w1366 = Hd.width()
+    font(20); screen(1920, 1080)
+    local w1920 = Hd.width()
+    T.check(w1024 == 320 and w1366 == 360 and w1920 == 480,
+        "tracker width: 1024 at 16 px 320 (0.3.1), 1366 at 20 px 360 (0.3.1), 1920 at 20 px 480 (wider; review C3)")
+    getTextManager, getCore = tmgr, core
+    R.close()
+    end
     Cl.receive("result", { ok = false, command = "hordeResult", code = "NOT_FOUND" })
     T.check(shownToasts[#shownToasts].title == "IGUI_MQ_Horde_ResultGone", "asked for one no longer kept: 'only the last 20'")
     MinidoracatUI = nil

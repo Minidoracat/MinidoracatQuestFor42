@@ -117,8 +117,12 @@ function H.rows(state, defs, now)
 end
 
 -- ===== geometry =====
--- wider with the font and the screen (the spot name and line 2's count and Map button need the room)
-function H.width() return math.max(260, math.min(24 * D.fontH(), math.floor(getCore():getScreenWidth() / 4))) end
+-- wider with the font and the screen (the spot name and line 2's count and Map button need the room), never
+-- narrower than 0.3.1's min(360, 20 x font) (1024 wide at 16 px: 320, not 260; review 1029 r1, C3)
+function H.width()
+    local fh = D.fontH()
+    return math.max(260, math.min(360, 20 * fh), math.min(24 * fh, math.floor(getCore():getScreenWidth() / 4)))
+end
 function H.titleH() return D.fontH() + 10 end
 -- an open row: tag + name, then bar + progress (long DE / FR / RU names keep the full width); a done row: one line.
 -- The horde row is 4 px taller: its Map hit box spans line 2 (24 px and more) without reaching the next row's unpin
@@ -207,6 +211,8 @@ local function hordeRowOps(b, r, y, w, pad, lh)
         right = bx - 6
     end
     if r.target == nil then return b:fitText(lx, ly, r.line, right - lx, "textMuted") end
+    -- the count does not fit: cut it (it would draw past the panel's left edge right-aligned), no bar (C5)
+    if D.textW(r.line) > right - lx then return b:fitText(lx, ly, r.line, right - lx, "textMuted") end
     local pw = b:textRight(right, ly, r.line, "textMuted")
     local barW = right - lx - pw - 8
     if barW >= 24 then

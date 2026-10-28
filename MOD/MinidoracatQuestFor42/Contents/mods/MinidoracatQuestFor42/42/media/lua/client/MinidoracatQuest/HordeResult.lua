@@ -2,12 +2,19 @@
 --   receive(s): the server pushes the results at the end to the players at the spot (s.push); they wait (pending)
 --   until the player is safe: no live zombie within SAFE_R tiles at SAFE_S checks in a row, one a second. A player
 --   who dies or waits KEEP_MS drops them (the Hordes page still has them). Meanwhile the tracker panel says so and has
---   a Results button (Hud.resultRow). The Hordes page's View results asks for one (no push): it opens at once.
+--   a Results button (Hud.resultRow; it opens at once). The Hordes page's View results asks for one (no push): it
+--   opens at once.
+--   Shown, a framework Window takes the focus (Focus.onFocus) and a gamepad (Focus.takeJoypad): a pushed one that is
+--   safe therefore waits while the Quest window or another framework window holds the keys (review 1029 r1, C1), and
+--   a gamepad player gets one toast instead (the character would stop answering the stick). One opened by the player
+--   (Results, View results) is the framework's: it takes the gamepad, B closes it.
 --   The window is a framework Window like ExchangeDialog (not a Dialog: that one blocks the whole screen), one at a
---   time, and takes no keyboard focus: Esc (with the focus ring on it) and Close close it. Result and place, end time
---   / waves / minutes, joined / kills / points paid, the cap note, the MVP (a tag, not only a color), the deaths, then
---   every player by kills in a scrolling list (rank, player, kills, points; my row framed and named "(you)", the dead
---   marked in words). Without the framework (or its window, controls, scroll panel): one toast.
+--   time. Esc (once the window has the keys) and Close close it; Esc closes on its release, so the release does not
+--   reach the game's pause menu (C2). Result and place, end time / waves / minutes, joined / kills / points paid, the
+--   cap note, the MVP (a tag, not only a color), the deaths (DEATHS names, then +N), then every player by kills in a
+--   scrolling list (rank, player, kills, points; my row framed and named "(you)", the dead marked in words). The
+--   window stays on screen: on a short screen the list shows fewer rows (MIN_ROWS at least). Without the framework
+--   (or its window, controls, scroll panel): one toast.
 
 if isServer() then return end
 
@@ -21,7 +28,8 @@ local R = Q.HordeResult or {}
 Q.HordeResult = R
 
 R.SAFE_R, R.SAFE_S, R.KEEP_MS = 20, 3, 600000
-R.ROWS = 10   -- the list shows ROWS rows, then scrolls
+R.ROWS, R.MIN_ROWS = 10, 3   -- the list shows ROWS rows, then scrolls (fewer on a short screen, MIN_ROWS at least)
+R.DEATHS = 10                -- death names listed; the rest is "+N"
 R.calm = R.calm or 0
 local PAD = 14
 
@@ -58,7 +66,7 @@ function R.tick(now)
     local p = getSpecificPlayer(0)
     if p == nil or p:isDead() or now - R.at >= R.KEEP_MS then return R.drop() end
     R.calm = R.safe(p) and R.calm + 1 or 0
-    if R.calm >= R.SAFE_S then R.open(R.pending) end
+    if R.calm >= R.SAFE_S then R.autoOpen(R.pending) end
 end
 
 -- a row or death entry: the account, or "anonymous" (admins also get the account, as on the boards)
@@ -72,6 +80,25 @@ function R.head(s)
     local ok = s.state == "success"
     return getText(ok and "IGUI_MQ_Horde_ResultHead_success" or "IGUI_MQ_Horde_ResultHead_failed", D.hordePlace(s)),
         ok and D.EXTRA.success or "errorText"
+end
+
+-- the Quest window or another framework window holds the keys (it is the focus root and on screen): opening now would
+-- take them (Window onShown -> Focus.onFocus)
+function R.busy(UI)
+    if Q.Window ~= nil and Q.Window.visible() then return true end
+    local F = UI ~= nil and UI.Focus or nil
+    local r = F ~= nil and F.activeRoot or nil
+    return r ~= nil and r ~= R.win and r.isReallyVisible ~= nil and r:isReallyVisible() == true
+end
+
+-- a pushed result once the player is safe: a gamepad player gets the toast (dropped), a busy screen waits
+function R.autoOpen(s)
+    if getJoypadData ~= nil and getJoypadData(0) ~= nil then
+        D.toast(getText("IGUI_MQ_Horde_ResultTitle"), (R.head(s)), nil)
+        return R.drop()
+    end
+    if R.busy(D.ui({ "window", "controls", "scrollPanel" })) then return end
+    R.open(s)
 end
 
 function R.visible() return R.win ~= nil and R.win:isVisible() end
@@ -88,7 +115,20 @@ function R.build(UI)
     local win = UI.Window.new({ x = math.floor((core:getScreenWidth() - w) / 2), y = math.floor(core:getScreenHeight() / 4),
         width = w, height = 300, title = getText("IGUI_MQ_Horde_ResultTitle"), icon = "skull", theme = theme,
         opaque = D.has(UI, "opaqueWindow") or nil })
-    win.onEscape = function() win:close() end
+    -- Esc: taken on its press (Focus eats it), the window closes on the release; closing on the press let the
+    -- release through to the game, which opened the pause menu (Focus.lua:898-913, GameKeyboard.java:37)
+    win.onEscape = function()
+        R.escHeld = true
+        return true
+    end
+    local base = win.onKeyRelease
+    win.onKeyRelease = function(self, key)
+        if base ~= nil then base(self, key) end
+        if R.escHeld and Keyboard ~= nil and key == Keyboard.KEY_ESCAPE then
+            R.escHeld = false
+            self:close()
+        end
+    end
     R.win, R.UI, R.theme = win, UI, theme
     R.canvas = D.newCanvas(UI, theme)
     R.canvas:setY(win:contentTop())
@@ -101,13 +141,13 @@ function R.build(UI)
     win:addToUIManager()
 end
 
--- no focus call: the keys stay with the game (a push opens it in the middle of play)
+-- a pushed one comes through autoOpen; the Results and View results buttons call this directly
 function R.open(s)
     if R.pending ~= nil and R.pending.id == s.id then R.drop() end
     local UI = D.ui({ "window", "controls", "scrollPanel" })
     if UI == nil then return D.toast(getText("IGUI_MQ_Horde_ResultTitle"), (R.head(s)), nil) end
     if R.win == nil or R.UI ~= UI then R.build(UI) end
-    R.s = s
+    R.s, R.escHeld = s, false
     R.win:setVisible(true)
     R.win:bringToTop()
     R.sp:setYScroll(0)
@@ -147,13 +187,9 @@ local function listRows(s, rows, lw, lh)
     return rankR, nameX, killR, ptsR, rh
 end
 
--- every open and every resolution / font change lays it out again at R.width()
-function R.layout()
+-- everything but the list rows, with `shown` list rows visible; returns the window height
+local function place(shown)
     local s, win, UI, theme = R.s, R.win, R.UI, R.theme
-    if win.width ~= R.width() then
-        win:setWidth(R.width())
-        R.sp:setWidth(win.width - 2 * PAD)
-    end
     R.pool:begin()
     local b = D.begin(R.canvas)
     local w = win.width - 2 * PAD
@@ -196,10 +232,11 @@ function R.layout()
         b:fitText(x + cw + 6, y + 3, table.concat(mvps, sep), w - cw - kw - 14, "text")
         y = y + D.chipH() + 4
     end
-    local deaths = {}
-    for _, d in ipairs(type(s.deaths) == "table" and s.deaths or {}) do
-        deaths[#deaths + 1] = getText("IGUI_MQ_Horde_DiedWave", who(d), tostring(d.wave or 1))
+    local deaths, dead = {}, type(s.deaths) == "table" and s.deaths or {}
+    for i = 1, math.min(#dead, R.DEATHS) do
+        deaths[i] = getText("IGUI_MQ_Horde_DiedWave", who(dead[i]), tostring(dead[i].wave or 1))
     end
+    if #dead > R.DEATHS then deaths[#deaths + 1] = "+" .. D.num(#dead - R.DEATHS) end
     if #deaths > 0 then
         local dw = b:text(x, y, getText("IGUI_MQ_Horde_Died"), "textMuted") + 8
         y = b:para(x + dw, y, table.concat(deaths, sep), w - dw, "text")
@@ -215,12 +252,12 @@ function R.layout()
     b:textRight(x + killR, y + 4, getText("IGUI_MQ_Horde_ResultKills"), "text")
     b:textRight(x + ptsR, y + 4, getText("IGUI_MQ_UI_ColPoints"), "text")
     y = b:listEnd(L, y + rh)
-    local listH = math.min(#rows, R.ROWS) * rh
+    local listH = shown * rh
     R.sp:setVisible(listH > 0)
     R.sp:setY(top + y)
     R.sp:setHeight(math.max(1, listH))
     y = y + listH + 4
-    if #rows > R.ROWS then y = b:para(x, y, getText("IGUI_MQ_Horde_ResultMore", tostring(#rows - R.ROWS)), w, "textMuted") end
+    if #rows > shown then y = b:para(x, y, getText("IGUI_MQ_Horde_ResultMore", tostring(#rows - shown)), w, "textMuted") end
     if s.me == nil then y = b:para(x, y, getText("IGUI_MQ_Horde_NoKillsYou"), w, "textMuted") end
     y = y + 4
     local close = R.pool:button("close", UI, theme, getText("IGUI_MQ_UI_Close"), R, R.close, "primary")
@@ -231,6 +268,28 @@ function R.layout()
     R.canvas:setHeight(y)
     R.pool:finish()
     if win.height ~= top + y then win:setHeight(top + y) end
+    return top + y
+end
+
+-- every open and every resolution / font change lays it out again at R.width(), inside the screen: on a short screen
+-- (768 high, 50 deaths) the list shows fewer rows so the ranking and Close stay on it
+function R.layout()
+    local win = R.win
+    if win.width ~= R.width() then
+        win:setWidth(R.width())
+        R.sp:setWidth(win.width - 2 * PAD)
+    end
+    local rows = type(R.s.rows) == "table" and #R.s.rows or 0
+    local shown = math.min(rows, R.ROWS)
+    local h = place(shown)
+    local sh = getCore():getScreenHeight()
+    local maxH = sh - 40
+    if h > maxH and shown > R.MIN_ROWS then
+        shown = math.max(R.MIN_ROWS, shown - math.ceil((h - maxH) / (D.fontH() + 8)))
+        h = place(shown)
+    end
+    local y = math.max(0, math.min(win:getY(), sh - h - 20))
+    if y ~= win:getY() then win:setY(y) end
 end
 
 if first then

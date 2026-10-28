@@ -289,8 +289,10 @@ return function(T)
     T.check(last("diff.preview").preset == "hard" and P.confirm and P.confirm.estimate ~= nil, "diff.preview -> confirm with estimate")
     T.check(AM.get(P.S, "rewards.top1") == 700, "a value typed on Basic went into the draft before the difficulty preview")
     T.check(pool("basic")["cf:eh"].y < pool("basic")["cf:r1"].y, "the estimate table comes before the diff rows")
+    local shownRev = P.rev
     barPress("apply")
-    T.check(Q.Util.decode(last("cfg.apply").changes)[1].path == "difficulty.preset", "difficulty applied through cfg.apply")
+    T.check(Q.Util.decode(last("cfg.apply").changes)[1].path == "difficulty.preset" and shownRev ~= nil
+        and last("cfg.apply").rev == shownRev, "difficulty applied through cfg.apply, on the settings shown (review r1: unchecked)")
     T.check(AM.get(P.S, "rewards.top1") == 700 and pool("basic")["f:rewards.top1"]:getText() == "700",
         "applying the difficulty keeps the typed reward (still in the draft)")
     A.discard(P)
@@ -584,7 +586,7 @@ return function(T)
     A.select(P, "history")
     press("history", "u1")
     answer(true, "")
-    T.check(last("cfg.undo").historyId == 3, "cfg.undo with the history id")
+    T.check(last("cfg.undo").historyId == 3 and last("cfg.undo").rev == 3, "cfg.undo with the history id, on the rev its list was loaded on")
     T.check(pool("history")["ios"] ~= nil and pool("history")["export"] == nil, "history tab shows the config.json state, no export/import")
     T.check(P.dir == "MinidoracatQuest/servertest/" and pool("history")["ioo"]:isVisible(),
         "the History tab gets the server's folder from cfg.get and lists what only the file can change")
@@ -609,6 +611,18 @@ return function(T)
         and string.find(badPreset, "IGUI_MQ_Admin_BadConfig|hordes.windows.2.preset|IGUI_MQ_Admin_Why_preset", 1, true),
         "a rejected config.json names the line, or the key path as written in the file and why (translated when it says how to fix it)")
     getText = gt
+    -- the tier editor keeps its own copy: a push changing the achievement while it is open, then Save, would put the old
+    -- tiers back on the new settings, and no Apply would refuse them (review r2)
+    A.select(P, "achv")
+    A.AchvPage.onEdit(P, { achId = "zombie_kills" })
+    local doubled = {}
+    for i, t in ipairs(AM.get(P.S, "achievements.zombie_kills.tiers")) do doubled[i] = t * 2 end
+    Q.Client.emit("catalog", { rev = P.rev + 1, overrides = { achievements = { zombie_kills = { tiers = doubled } } } })
+    pool("achv")["e:p1"]:setText("99")
+    press("achv", "e:save")
+    T.check(P.pages.achv.edit == "zombie_kills" and string.find(P.msg or "", "CONFIG_CHANGED", 1, true) ~= nil
+        and AM.draftCount(P.S.draft) == 0 and pool("achv")["e:t1"]:getText() == tostring(doubled[1]),
+        "the achievement changed while its editor was open: Save refused, nothing drafted, the editor opens on the new tiers")
     T.check(not T.printed("admin layout"), "no layout error during the flows")
     Flow.finish = finish
     T.check(#unclosed == 0, "every list box opened in a layout was closed: " .. table.concat(unclosed, ", "))

@@ -457,19 +457,35 @@ S.defineAdmin("cfg.get", { kind = "query", run = function()
         file = Q.Config.file.status, dir = Q.Store.path("") }
 end })
 
-S.defineAdmin("cfg.preview", { kind = "query", fields = { changes = "json" }, run = function(ctx)
+-- rev (the panel sends it): the settings revision the changes were built on. Another write since (an admin,
+-- config.json, an undo) refuses them with the rev in effect, or a whole-set list built on the old settings (the horde
+-- spots) would put old entries back. An undo carries the rev its history list was loaded on: a newer write to the same
+-- paths would be set back to older values. Without rev nothing is checked (scripts, the harness).
+local function changedSince(ctx)
+    local rev = Q.Store.root().config.rev
+    if ctx.args.rev ~= nil and ctx.args.rev ~= rev then return rev end
+    return nil
+end
+
+S.defineAdmin("cfg.preview", { kind = "query", fields = { changes = "json", rev = "int?" }, run = function(ctx)
+    local cur = changedSince(ctx)
+    if cur ~= nil then return false, CODE.CONFIG_CHANGED, { rev = cur } end
     local ok, rows, detail = Q.Config.preview(ctx.args.changes)
     if not ok then return false, rows, { detail = detail } end
     return true, { rows = rows }
 end })
 
-S.defineAdmin("cfg.apply", { kind = "mutation", fields = { changes = "json", summary = "text" }, run = function(ctx)
+S.defineAdmin("cfg.apply", { kind = "mutation", fields = { changes = "json", summary = "text", rev = "int?" }, run = function(ctx)
+    local cur = changedSince(ctx)
+    if cur ~= nil then return false, CODE.CONFIG_CHANGED, { rev = cur } end
     local ok, id, rev = Q.Config.apply(ctx.args.changes, ctx.args.summary, ctx.user)
     if not ok then return false, id, { detail = rev } end
     return true, { historyId = id, rev = rev }
 end })
 
-S.defineAdmin("cfg.undo", { kind = "mutation", fields = { historyId = "int" }, run = function(ctx)
+S.defineAdmin("cfg.undo", { kind = "mutation", fields = { historyId = "int", rev = "int?" }, run = function(ctx)
+    local cur = changedSince(ctx)
+    if cur ~= nil then return false, CODE.CONFIG_CHANGED, { rev = cur } end
     local ok, id, rev = Q.Config.undo(ctx.args.historyId, ctx.user)
     if not ok then return false, id end
     return true, { historyId = id, rev = rev }

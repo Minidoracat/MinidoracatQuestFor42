@@ -602,6 +602,12 @@ end
 
 function A.fail(P, res) A.say(P, A.codeText(P, res), "errorText") end
 
+-- the rev a draft is built on (P.baseRev, sent with its Apply): the settings shown while the draft is still empty,
+-- so its first edit pins it. A whole-set list in a draft (spots, windows, waves) copies the settings shown then
+local function syncBase(P)
+    if AM.draftCount(P.S.draft) == 0 then P.baseRev = P.rev end
+end
+
 -- one row of buttons and one line of message; taller when the message wraps (long translations, narrow windows:
 -- quest-ui-de-1026w), the pages above give up the room
 local function barHeight(P) return math.max(2 * fontH() + 26, P.barFlow and P.barFlow.y or 0) end
@@ -609,6 +615,7 @@ local function barHeight(P) return math.max(2 * fontH() + 26, P.barFlow and P.ba
 function A.layoutBar(P)
     local F = P.barFlow
     if F == nil then return end
+    syncBase(P)
     F:begin(P.bar.width)
     F.y = 4
     local ctrls = {}
@@ -672,6 +679,13 @@ end
 -- TEXTBOX_INSET). A field narrower than its text + this cuts the text when marked (interface review M3)
 A.FIELD_CHROME = 36
 
+-- a decimal as a field shows it: up to 4 places, so a value set in config.json reads back as itself (AM.num, 2
+-- places, showed 1.125 as "1.13", and 1.13 typed there read as untouched: review r2)
+local function fieldNum(v)
+    local s = string.gsub(string.format("%.4f", v), "0+$", "")
+    return (string.gsub(s, "%.$", ""))
+end
+
 -- number field bound to a config path (part = key list inside the value); range = AM.RANGE key;
 -- default = what an unset key means (shown, and dropped again by AM.formToDraft). Without a width it is as wide as
 -- its largest value with the error mark shown (at least 60)
@@ -684,7 +698,9 @@ function A.numField(P, pg, key, path, part, range, width, default)
         f.at = pg.version
         local v = valueAt(P, f)
         if v == nil then v = default end
-        f.el:setText(type(v) == "number" and (v == math.floor(v) and tostring(math.floor(v)) or AM.num(v)) or "")
+        -- kept: collect reads a field still showing it as the value itself (one past 4 places shows rounded)
+        f.shown = type(v) == "number" and (v == math.floor(v) and tostring(math.floor(v)) or fieldNum(v)) or ""
+        f.el:setText(f.shown)
         markError(P, f.el, nil)
     end
     f.el:setTooltip(getText("IGUI_MQ_Admin_RangeTip", AM.num(r[1]), AM.num(r[2])))
@@ -816,7 +832,12 @@ function A.collect(P, pg)
                 mark(f.el, v == nil and getText("IGUI_MQ_Admin_HordeErrClock") or nil)
                 if v ~= nil then values[#values + 1] = { field = f, value = v } end
             else
-                local v, key, lo, hi = AM.check(f.el:getText(), f.range)
+                -- left as shown: the value itself, not its 2-decimal text (0.125 shown as "0.13" folded in as an edit
+                -- nobody made, now on every show and push too: review r1, 2026-10-28)
+                local text = f.el:getText()
+                local v, key, lo, hi
+                if text == f.shown then v = valueAt(P, f) end
+                if type(v) ~= "number" then v, key, lo, hi = AM.check(text, f.range) end
                 mark(f.el, v == nil and getText(key, AM.num(lo), AM.num(hi)) or nil)
                 if v ~= nil then
                     values[#values + 1] = { field = f, value = v }
@@ -865,8 +886,15 @@ function A.markAll(P, marks)
     return top ~= nil
 end
 
+-- the latest catalog push (the client keeps it) when the panel let it pass (hidden, a field invalid): on a show, a tab
+-- switch, Apply and after a cfg.get reply
+local function catchUp()
+    if MQ.Client then A.onCatalog(MQ.Client.catalog) end
+end
+
 -- typed values reach the draft only through Preview or this: leaving a tab, or a button that edits the draft itself
--- (theme batch, difficulty). false = a field is invalid (marked, and the bar says so)
+-- (theme batch, difficulty). false = a field is invalid (marked, and the bar says so). It takes no waiting push: such a
+-- button edits the list shown by its row index (review r2: a push taken in between moved the rows under the click)
 function A.fold(P)
     local values, el, why = A.collect(P, P.pages[P.current])
     if values == nil then
@@ -889,6 +917,7 @@ function A.onPreview(P)
         if err then return A.say(P, err, "errorText") end
     end
     AM.formToDraft(P.S, values)
+    catchUp()
     local changes = AM.draftChanges(P.S.draft)
     if #changes == 0 then return A.say(P, getText("IGUI_MQ_Admin_NoChanges"), "textMuted") end
     A.previewChanges(P, changes, P.draftSummary or A.count("IGUI_MQ_Admin_SummaryN", #changes), { fromDraft = true })
@@ -909,20 +938,42 @@ function A.discard(P)
     A.say(P, nil)
 end
 
--- changes -> cfg.preview -> confirm view. opts = { fromDraft, note, estimate }
+-- CONFIG_CHANGED: the settings changed after these changes were built on them (another admin, config.json, an undo);
+-- the reply carries the rev in effect. A draft still on an older rev (one of its paths changed since: takeSettings)
+-- goes, or a whole-set list in it would put the old entries back (2026-10-28: a panel opened before a config.json
+-- change still listed the old horde spots); one already on that rev stays for another Apply. The panel reloads, the
+-- fields show the server values again and the bar says why: how many edits went, when the draft went (review r2).
+local function stale(P, res)
+    local n = AM.draftCount(P.S.draft)
+    P.confirm, P.msgToken = nil, "errorText"
+    if n > 0 and P.baseRev ~= res.rev then
+        P.S.draft, P.draftSummary = AM.newDraft(), nil
+        P.msg = A.count("IGUI_MQ_Admin_DraftDropped", n)
+    else
+        P.msg = A.codeText(P, res)
+    end
+    A.resync(P)
+    A.loadConfig(P)
+end
+
+-- changes -> cfg.preview -> confirm view. opts = { fromDraft, note, estimate }. Preview and Apply carry the rev the
+-- changes were built on, the draft's (P.baseRev) or the settings shown (P.rev); the server refuses an older one
 function A.previewChanges(P, changes, summary, opts)
     local json = A.encode(changes)
     if json == nil then return A.say(P, getText("IGUI_MQ_Admin_TooBig"), "errorText") end
-    A.send(P, "cfg.preview", { changes = json }, function(res)
+    local rev = (opts and opts.fromDraft) and P.baseRev or P.rev
+    A.send(P, "cfg.preview", { changes = json, rev = rev }, function(res)
+        if res.code == "CONFIG_CHANGED" then return stale(P, res) end
         if not res.ok then return A.fail(P, res) end
-        A.confirm(P, changes, res.rows, summary, opts)
+        A.confirm(P, changes, res.rows, summary, opts, rev)
     end)
 end
 
-function A.confirm(P, changes, rows, summary, opts)
+-- rev: what its Apply sends, the rev the changes were built on (previewChanges; diff.preview: the settings shown)
+function A.confirm(P, changes, rows, summary, opts, rev)
     opts = opts or {}
     P.confirm = { changes = changes, rows = A.diffRows(P, rows), summary = summary, fromDraft = opts.fromDraft,
-        note = opts.note, estimate = opts.estimate }
+        note = opts.note, estimate = opts.estimate, rev = rev }
     P.msg = nil
     A.layout(P)
     P.pages[P.current].sp:setYScroll(0)
@@ -932,7 +983,8 @@ function A.onConfirmApply(P)
     local c = P.confirm
     local json = c and A.encode(c.changes)
     if json == nil then return end
-    A.send(P, "cfg.apply", { changes = json, summary = string.sub(c.summary or "", 1, 256) }, function(res)
+    A.send(P, "cfg.apply", { changes = json, summary = string.sub(c.summary or "", 1, 256), rev = c.rev }, function(res)
+        if res.code == "CONFIG_CHANGED" then return stale(P, res) end
         if not res.ok then return A.fail(P, res) end
         P.confirm = nil
         if c.fromDraft then P.S.draft, P.draftSummary = AM.newDraft(), nil end
@@ -1038,18 +1090,51 @@ end
 
 -- ===== shell =====
 
+-- the settings in effect at rev, from cfg.get or the catalog push. Changes built on the settings shown move on with
+-- them when none of their paths changed (a write elsewhere, this panel's own Apply or undo): the draft (P.baseRev) and
+-- the confirm view's (its rev, what its Apply sends). Else they stay on the older rev and their Apply is refused
+-- (stale): a whole-set list in them holds the old entries (review r1, r2)
+local function takeSettings(P, overrides, rev)
+    local new = type(overrides) == "table" and overrides or {}
+    local was = { overrides = P.S.overrides, defaults = P.S.defaults }
+    local now = { overrides = new, defaults = P.S.defaults }
+    local function kept(list)
+        for _, x in ipairs(list) do
+            local path = type(x) == "table" and x.path or x
+            if not AM.same(AM.get(was, path), AM.get(now, path)) then return false end
+        end
+        return true
+    end
+    local c = P.confirm
+    if c and c.rev ~= nil and c.rev == P.rev and kept(c.changes) then c.rev = rev end
+    if AM.draftCount(P.S.draft) > 0 and P.baseRev == P.rev and kept(P.S.draft.order) then P.baseRev = rev end
+    P.S.overrides, P.rev = new, rev
+    syncBase(P)
+    A.resync(P)
+end
+
 function A.loadConfig(P)
-    A.send(P, "cfg.get", {}, function(res)
+    local sent = A.send(P, "cfg.get", {}, function(res)
         if not res.ok then
             P.loadError = res
+            -- settings already shown: the bar says the reload failed (the page shows only a first load's error), after
+            -- a refusal's reason (what it dropped is said there: review r2)
+            if P.S.overrides ~= nil then
+                local why = A.codeText(P, res)
+                return A.say(P, P.msgToken == "errorText" and P.msg and (P.msg .. " " .. why) or why, "errorText")
+            end
             A.layout(P)
             return
         end
         P.loadError = nil
-        P.S.overrides = type(res.overrides) == "table" and res.overrides or {}
-        P.history, P.rev, P.file, P.dir = res.history or {}, res.rev, res.file, res.dir
-        A.resync(P)
+        -- historyRev: what an undo from this list carries (a push moves P.rev on, not the list)
+        P.history, P.file, P.dir, P.historyRev = res.history or {}, res.file, res.dir, res.rev
+        takeSettings(P, res.overrides, res.rev)
+        -- a push newer than this reply (sent before a write it did not see, or while the panel was hidden) follows
+        -- it; the reply's history list stays, with the rev it was taken at (review r2)
+        catchUp()
     end)
+    if sent then P.getAt = getTimestampMs() end
 end
 
 -- fields show server values again (after apply, discard, reload)
@@ -1113,6 +1198,8 @@ function A.select(P, id)
             if P.pick then P.pick:setSelected(P.current, true) end
             return
         end
+        -- a push let pass while a field was invalid: the tab shown next reads the settings in effect
+        catchUp()
         -- the same path can sit on two tabs (Basic and its own tab): the tab shown reads the draft again
         P.pages[id].version = P.pages[id].version + 1
         if P.confirm then
@@ -1198,6 +1285,29 @@ function A.place(P, width, height)
     P.bar:setHeight(barH)
 end
 
+-- typed values on the shown tab into the draft (as on a tab switch) before server values come back over them; false
+-- when a field is invalid: then nothing reloads under the admin's typing
+local function keepTyped(P)
+    local values = A.collect(P, P.pages[P.current])
+    if values == nil then return false end
+    AM.formToDraft(P.S, values)
+    return true
+end
+
+-- a config write anywhere (another admin, config.json, an undo, this panel's own Apply) re-sends the catalog with the
+-- whole overrides tree and its rev (Sync.catalog): an open panel takes it at once, under the confirm view too (its
+-- rev moves on when the push left its changes' paths alone), instead of showing settings no longer in effect
+-- (2026-10-28: the horde spots changed through config.json while an open panel still listed the old ones). Not while
+-- a field is invalid, nothing reloads under the admin's typing: catchUp takes it on a tab switch, Apply, a show or
+-- after the next cfg.get reply
+function A.onCatalog(p)
+    local P = A.instance
+    if P == nil or P.S.overrides == nil or not P.root:isVisible() then return end
+    if type(p) ~= "table" or type(p.overrides) ~= "table" or type(p.rev) ~= "number" then return end
+    if type(P.rev) == "number" and p.rev <= P.rev then return end
+    if keepTyped(P) then takeSettings(P, p.overrides, p.rev) end
+end
+
 function A.show(host)
     if MQ.Draw and MQ.Draw.sep then AM.SEP = MQ.Draw.sep() end
     local P = A.instance
@@ -1208,7 +1318,19 @@ function A.show(host)
     end
     P.root:setVisible(true)
     A.place(P, host.width, host.height)
-    if P.S.overrides == nil then A.loadConfig(P) end
+    if MQ.Client and MQ.Client.on then MQ.Client.on("catalog", "adminPanel", A.onCatalog) end
+    -- a write while hidden: the latest push at once. cfg.get again for history and config.json state (typed values
+    -- into the draft first), not while the confirm view or a request is open, nor right after the last one: the
+    -- server drops a cfg.get inside its cooldown without a reply (NO_REPLY after 10 s, the panel busy meanwhile)
+    if P.S.overrides == nil then
+        A.loadConfig(P)
+    else
+        catchUp()
+        if not P.confirm and not A.busy(P) and getTimestampMs() - (P.getAt or 0) >= 2 * MQ.Contract.LIMIT.COOLDOWN_MS
+            and keepTyped(P) then
+            A.loadConfig(P)
+        end
+    end
     A.select(P, P.current)
 end
 
@@ -1300,7 +1422,13 @@ function A.onUndo(P, b)
     local h = b.entry
     A.ask(P, { title = getText("IGUI_MQ_Admin_Undo"), text = getText("IGUI_MQ_Admin_UndoAsk", A.summaryText(h.summary), A.time(h.at)),
         confirm = getText("IGUI_MQ_Admin_Undo"), onOk = function()
-            A.send(P, "cfg.undo", { historyId = h.id }, function(res)
+            -- the rev its list was loaded on: a write since (a push moves the settings on, not this list) may have set
+            -- the same paths, which this undo would set back
+            A.send(P, "cfg.undo", { historyId = h.id, rev = P.historyRev }, function(res)
+                if res.code == "CONFIG_CHANGED" then
+                    A.fail(P, res)
+                    return A.loadConfig(P)
+                end
                 if not res.ok then return A.fail(P, res) end
                 P.msg, P.msgToken = getText("IGUI_MQ_Admin_Undone"), "success"
                 A.loadConfig(P)

@@ -435,16 +435,16 @@ boards[i] = { id = "kills", cat = "combat", stat = "zombie.kills", periods = { "
 | `exchange` | mutation | `amount: int` | `result`（含 `state`＝`paid`／`queued`／`refunded`、`coins`）＋`state` |
 | `admin` | 依 op | `op: str`＋該 op 的欄位 | `admin` |
 
-錯誤碼（`Contract.CODE`，客戶端用 `IGUI_MQ_Code_<CODE>`）：`OK`、`PROTOCOL_MISMATCH`、`BAD_ARGS`、`IDENTITY_UNVERIFIED`、`NOT_READY`、`FORBIDDEN`、`RATE_LIMITED`、`NO_SWAPS`、`BAD_SLOT`、`BAD_THEME`、`TOO_MANY_PREFS`、`TOO_MANY_PINS`、`TITLE_LOCKED`、`EXCHANGE_OFF`、`EXCHANGE_MIN`、`EXCHANGE_DAY_LIMIT`、`NOT_ENOUGH_POINTS`、`ECONOMY_MISSING`、`BAD_BOARD`、`BAD_CONFIG`、`BAD_SEASON_LENGTH`、`TOO_SOON`、`NOT_FOUND`、`FILE_ERROR`、`INTERNAL`、`HORDE_BUSY`、`NO_SPOTS`。
+錯誤碼（`Contract.CODE`，客戶端用 `IGUI_MQ_Code_<CODE>`）：`OK`、`PROTOCOL_MISMATCH`、`BAD_ARGS`、`IDENTITY_UNVERIFIED`、`NOT_READY`、`FORBIDDEN`、`RATE_LIMITED`、`NO_SWAPS`、`BAD_SLOT`、`BAD_THEME`、`TOO_MANY_PREFS`、`TOO_MANY_PINS`、`TITLE_LOCKED`、`EXCHANGE_OFF`、`EXCHANGE_MIN`、`EXCHANGE_DAY_LIMIT`、`NOT_ENOUGH_POINTS`、`ECONOMY_MISSING`、`BAD_BOARD`、`BAD_CONFIG`、`BAD_SEASON_LENGTH`、`TOO_SOON`、`NOT_FOUND`、`FILE_ERROR`、`INTERNAL`、`HORDE_BUSY`、`NO_SPOTS`、`CONFIG_CHANGED`。
 
 ### 6.2 管理 op（`admin = true`，mutation 都寫稽核與事件記錄）
 
 | op | 欄位 | 回應 data |
 |---|---|---|
 | `cfg.get` | — | `overrides`、`rev`、`history`（id、時間、操作者、摘要）、`file`（`config.json` 的同步狀態，同 `status.json`）、`dir`（設定檔資料夾，`Zomboid/Lua/` 底下的相對路徑，變更紀錄頁顯示） |
-| `cfg.preview` | `changes: json` | `rows = { { path, before, after } }`、`ok` |
-| `cfg.apply` | `changes: json`、`summary: text` | `historyId`、`rev` |
-| `cfg.undo` | `historyId: int` | `historyId`、`rev` |
+| `cfg.preview` | `changes: json`、`rev: int?` | `rows = { { path, before, after } }`、`ok`；`rev` 不是目前的 `config.rev` 時 `CONFIG_CHANGED`（附目前的 `rev`） |
+| `cfg.apply` | `changes: json`、`summary: text`、`rev: int?` | `historyId`、`rev`；`rev` 不是目前的 `config.rev` 時 `CONFIG_CHANGED`（附目前的 `rev`），什麼都不寫 |
+| `cfg.undo` | `historyId: int`、`rev: int?` | `historyId`、`rev`；`rev` 不是目前的 `config.rev` 時 `CONFIG_CHANGED`（附目前的 `rev`），什麼都不寫 |
 | `diff.preview` | `preset: str`、`mult: num?` | `changes`、`rows`、`estimate` |
 | `season.preview` | `days: int` | `endMs`、`nextStartMs` |
 | `season.apply` | `days: int` | `endMs` |
@@ -467,6 +467,17 @@ boards[i] = { id = "kills", cat = "combat", stat = "zombie.kills", periods = { "
 | `horde.stop` | `id: int` | —；不是目前那場 `NOT_FOUND`。`planned`／`announced` → 取消（預告過才通知 `cancel`）；`waiting`／`rest` → 失敗 `admin`；`active` → 失敗 `admin` 並清掉剩下的；清光的波次照發；歷史 `horde.stop <id> <name>`（不能復原） |
 
 自訂成就、自訂城鎮、任務池、每週任務、共同目標、連續獎勵、兌換設定、廣播設定、稱號顯示（`titles.head`、`titles.chat`），都是 `cfg.preview`／`cfg.apply` 的路徑。
+
+`cfg.preview`／`cfg.apply`／`cfg.undo` 的 `rev` 是這些變更（或變更紀錄清單）是在哪一版設定上看到的；不帶就不檢查（腳本、harness）。管理面板一律帶（2026-10-28：面板開著時 `config.json` 換了屍潮地點，面板還列著舊地點，在上面移除一個地點會把整份舊清單寫回去）：
+
+- 草稿的變更帶草稿的起點 `P.baseRev`：草稿是空的時候，它跟著面板顯示的版本，第一筆修改就把它定下來。地點、時段、波次這類整份取代的清單，是照當時顯示的設定複製的。
+- 面板拿到新設定（`cfg.get` 或推送）時，草稿每條路徑的值新舊都一樣，起點就跟著前進：別處改的是別的設定，或自己的套用、復原沒碰到草稿。有一條變了，起點留在舊版，套用時被拒。確認畫面也一樣：裡面每條變更的路徑都沒變，它的版本（套用時送出的 `rev`）就跟著前進。
+- 被拒時，起點還在舊版的草稿整份清掉，底部列說清掉幾項（`IGUI_MQ_Admin_DraftDropped`）；已經跟上的留著，底部列說再試一次（`IGUI_MQ_Code_CONFIG_CHANGED`）。面板重新載入；重新載入失敗時，原因接在後面。
+- 不是草稿來的變更（建議值、`diff.preview` 的難度）帶面板顯示的版本 `P.rev`。「變更紀錄」的復原帶清單載入時的版本 `P.historyRev`：推送只換設定，不換清單。
+- 每次設定寫入都會廣播 `catalog`（整份覆寫與 `rev`），開著的面板收到就換上，確認畫面開著時也一樣。欄位裡打到一半的有效值先收進草稿；有無效值時先不換。客戶端留著最新一次推送（`Client.catalog`），面板在打開、切分頁、按套用、每次 `cfg.get` 回覆之後補上（回覆的變更紀錄照收，`P.historyRev` 是回覆的版本）。會改草稿的按鈕不補：它們照畫面上的列號改清單，補上會讓列號對到新清單的另一列。
+- 推送進來時畫面會重排，所以先存在草稿以外的東西另外處理：移除地點要先確認，確定時照對話框打開時那個地點的內容找，不照列號；成就分級編輯器有自己的暫存，儲存時那項成就已經和打開時不同，就擋下並用新的內容重開。
+- 數字欄位最多顯示 4 位小數；文字沒動過的欄位收進草稿時用真正的值，不用顯示的文字。
+- 每次打開也重新 `cfg.get`（變更紀錄、`config.json` 狀態），但距離上一次 `cfg.get` 不到冷卻的兩倍（`COOLDOWN_MS` × 2）時不送：伺服器在冷卻內收到的請求直接丟掉、不回覆，面板會等 10 秒才逾時。已經顯示設定時重新載入失敗，底部列說明。
 
 ### 6.3 伺服器 → 客戶端
 

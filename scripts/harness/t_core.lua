@@ -155,6 +155,37 @@ return function(T)
         and Q.Config.file.status.ok == true, "undoing a file apply restores the settings and rewrites config.json")
     edit(nil)
     T.check(fileTree("config.json") and fileTree("config.json").custom.c1.name == "Doc", "a deleted config.json is written again")
+    T.section("cfg.preview / cfg.apply / cfg.undo: changes built on an older rev are refused")
+    do
+        -- the panel loaded the settings, then config.json changed them (2026-10-28: an open panel still listed the old
+        -- horde spots, and a spot edit there would have sent the old list back)
+        local seen = T.cmd(admin, "admin", { op = "cfg.get" }).rev
+        edit({ '{ "exchange": { "perDay": 6 } }' })
+        local cur = Q.Store.root().config.rev
+        local ch = '[{"op":"set","path":"exchange.min","value":12}]'
+        r = T.cmd(admin, "admin", { op = "cfg.preview", changes = ch, rev = seen })
+        T.check(cur == seen + 1 and r and r.code == CODE.CONFIG_CHANGED and r.rev == cur,
+            "a preview on the rev loaded before the file change is refused with the rev in effect")
+        r = T.cmd(admin, "admin", { op = "cfg.apply", changes = ch, summary = "old", rev = seen })
+        T.check(r and r.code == CODE.CONFIG_CHANGED and r.rev == cur and Q.Store.root().config.rev == cur
+            and Q.Config.get().exchange.min ~= 12 and Q.Config.get().exchange.perDay == 6,
+            "an apply on it too: nothing written, the file's settings stay")
+        r = T.cmd(admin, "admin", { op = "cfg.preview", changes = ch, rev = cur + 1 })
+        T.check(r and r.code == CODE.CONFIG_CHANGED, "any rev but the one in effect is refused")
+        r = T.cmd(admin, "admin", { op = "cfg.preview", changes = ch, rev = "x" })
+        T.check(r and r.code == CODE.BAD_ARGS, "rev is an integer")
+        r = T.cmd(admin, "admin", { op = "cfg.apply", changes = ch, summary = "new", rev = cur })
+        T.check(r and r.ok and r.rev == cur + 1 and Q.Config.get().exchange.min == 12, "the rev in effect applies")
+        -- an undo from a history list loaded before another write to the same path (a push moves the panel's
+        -- settings on, not its list): undoing would set the newer value back (review r1, 2026-10-28)
+        local hid, listRev = r.historyId, r.rev
+        edit({ '{ "exchange": { "perDay": 6, "min": 13 } }' })
+        r = T.cmd(admin, "admin", { op = "cfg.undo", historyId = hid, rev = listRev })
+        T.check(r and r.code == CODE.CONFIG_CHANGED and r.rev == listRev + 1 and Q.Config.get().exchange.min == 13
+            and Q.Store.root().config.rev == listRev + 1, "an undo from a list loaded before another write is refused: the newer value stays")
+        r = T.cmd(admin, "admin", { op = "cfg.undo", historyId = hid, rev = listRev + 1 })
+        T.check(r and r.ok and r.rev == listRev + 2, "on the rev in effect the undo goes through")
+    end
     T.failWrites = true
     r = T.cmd(admin, "admin", { op = "cfg.apply", changes = '[{"op":"set","path":"exchange.min","value":11}]', summary = "w" })
     T.failWrites = false

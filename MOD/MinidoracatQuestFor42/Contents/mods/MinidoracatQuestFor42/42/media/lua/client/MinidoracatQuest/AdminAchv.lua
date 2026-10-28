@@ -37,9 +37,11 @@ function P_.onPreset(P, b)
     local function run(mult)
         A.send(P, "diff.preview", { preset = preset, mult = mult }, function(res)
             if not res.ok then return A.fail(P, res) end
+            -- its Apply carries the settings shown (a write before this reply pushed the catalog first): one since
+            -- refuses it (CONFIG_CHANGED)
             A.confirm(P, res.changes or {}, res.rows,
                 getText("IGUI_MQ_Admin_SumDiff", getText("IGUI_MQ_Admin_Diff_" .. preset)),
-                { estimate = res.estimate, note = getText("IGUI_MQ_Admin_DiffNote") })
+                { estimate = res.estimate, note = getText("IGUI_MQ_Admin_DiffNote") }, P.rev)
         end)
     end
     if preset ~= "custom" then return run(nil) end
@@ -121,6 +123,8 @@ function P_.onEdit(P, b)
     local a = P_.byId(pg, b.achId)
     if a == nil then return end
     pg.edit, pg.rows, pg.editErr, pg.rowsAt, pg.editOn = a.id, {}, nil, nil, a.enabled ~= false
+    -- what it was when opened: a push relays the page, not this buffer (review r2)
+    pg.editWas = AM.copy({ a.tiers, a.pts, a.titles, a.enabled ~= false })
     for i, t in ipairs(a.tiers) do
         local title = a.titles[i] or a.titles[tostring(i)]
         pg.rows[i] = { tier = tostring(t), pts = tostring(a.pts[i] or 0), title = title and tostring(title) or "" }
@@ -186,6 +190,12 @@ function P_.onEditSave(P)
     local pg = P.pages.achv
     local a = P_.byId(pg, pg.edit)
     if a == nil then return end
+    -- changed elsewhere since it opened (another admin, config.json): its old values would go back over the new ones,
+    -- and the draft would start on the new settings, so no Apply would refuse them. It opens again on the new values
+    if not AM.same(pg.editWas, { a.tiers, a.pts, a.titles, a.enabled ~= false }) then
+        P_.onEdit(P, { achId = a.id })
+        return A.say(P, A.codeText(P, { code = "CONFIG_CHANGED" }), "errorText")
+    end
     P_.readRows(pg)
     local tiers, pts, titles = AM.readTierRows(pg.rows)
     if tiers == nil then

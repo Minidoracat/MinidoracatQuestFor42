@@ -358,17 +358,21 @@ end
 
 -- ===== spots (hordes.spots, a whole-set list in the draft) =====
 
--- asks first: a removed spot comes back only by walking there again (review)
+-- asks first: a removed spot comes back only by walking there again (review). It goes by the spot as shown when asked,
+-- not by its row: a push while the dialog is open relays the list and this button's index with it (review r2)
 local function onSpotRemove(P, b)
-    A.ask(P, { title = getText("IGUI_MQ_Admin_HordeSpotDelTitle", tostring(b.spotName)), danger = true,
+    local spot, name = AM.copy((AM.get(P.S, "hordes.spots") or {})[b.spot]), b.spotName
+    A.ask(P, { title = getText("IGUI_MQ_Admin_HordeSpotDelTitle", tostring(name)), danger = true,
         text = getText("IGUI_MQ_Admin_HordeSpotDelAsk") .. "\n\n" .. getText("IGUI_MQ_Admin_AfterApply"),
         confirm = getText("IGUI_MQ_Admin_HordeSpotDel"), cancel = getText("IGUI_MQ_Admin_Keep"), onOk = function()
-            local out = {}
-            for i, s in ipairs(AM.get(P.S, "hordes.spots") or {}) do
-                if i ~= b.spot then out[#out + 1] = AM.copy(s) end
+            local out, gone = {}, false
+            for _, s in ipairs(AM.get(P.S, "hordes.spots") or {}) do
+                if not gone and AM.same(s, spot) then gone = true else out[#out + 1] = AM.copy(s) end
             end
+            -- removed elsewhere meanwhile: nothing left to remove
+            if not gone then return A.layout(P) end
             AM.draftSet(P.S.draft, "hordes.spots", out)
-            summary(P, getText("IGUI_MQ_Admin_HordeSumSpotDel", tostring(b.spotName)))
+            summary(P, getText("IGUI_MQ_Admin_HordeSumSpotDel", tostring(name)))
             A.say(P, getText("IGUI_MQ_Admin_InDraft"), "textMuted")
             A.layout(P)
         end })

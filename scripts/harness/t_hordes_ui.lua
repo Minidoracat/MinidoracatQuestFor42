@@ -808,6 +808,230 @@ return function(T)
     local closed = hf.L == nil and #hf.lists > 0
     for _, L in ipairs(hf.lists) do closed = closed and L.h ~= nil end
     T.check(closed, "the hordes tab closes every list box it opens")
+    T.section("admin ui: settings changed elsewhere (catalog push, reopen, CONFIG_CHANGED, undo)")
+    -- 2026-10-28: config.json moved the horde spots while an open panel kept listing the old ones, and a spot removed
+    -- there would have sent the old list back
+    local function spotsAt(rev, list, extra)
+        return function()
+            local o = { hordes = { spots = T.deepcopy(list) } }
+            for k, v in pairs(extra or {}) do o.hordes[k] = T.deepcopy(v) end
+            return { overrides = o, history = {}, rev = rev, file = { ok = true, at = now } }
+        end
+    end
+    -- what Client.H.catalog does: keep the latest push, then tell the listeners
+    local function push(rev, overrides)
+        Cl.catalog = { rev = rev, overrides = overrides }
+        Cl.emit("catalog", Cl.catalog)
+    end
+    local function spotName(i) local l = pool()["pl" .. i]; return l ~= nil and l:isVisible() and l.lines and l.lines[1] or nil end
+    local oldS = { { name = "Old", x = 1, y = 1, z = 0 } }
+    local newS = { { name = "New", x = 2, y = 2, z = 0 }, { name = "New2", x = 3, y = 3, z = 0 } }
+    local function hz(spots, extra)
+        local h = { spots = T.deepcopy(spots), maxPerDay = 2, enabled = false }
+        for k, v in pairs(extra or {}) do h[k] = v end
+        return { hordes = h }
+    end
+    local rest = { maxPerDay = 2, enabled = false }
+    local okPreview = replies["cfg.preview"]
+    replies["cfg.get"] = spotsAt(5, oldS)
+    A.onReload(P)
+    T.check(P.rev == 5 and P.baseRev == 5 and P.historyRev == 5 and spotName(1) == "Old", "loaded at rev 5: the old spot")
+    push(6, { hordes = { spots = T.deepcopy(newS) } })
+    T.check(P.rev == 6 and P.baseRev == 6 and P.historyRev == 5 and spotName(1) == "New" and spotName(2) == "New2",
+        "a write elsewhere (the catalog push, rev 6): the open panel lists the new spots at once; its history list stays on rev 5")
+    push(6, { hordes = { spots = T.deepcopy(oldS) } })
+    T.check(spotName(1) == "New", "a push of the rev already shown changes nothing")
+    field("hordes.maxPerDay"):setText("4")
+    push(7, hz(newS))
+    T.check(P.rev == 7 and P.baseRev == 6 and AM.get(P.S, "hordes.maxPerDay") == 4 and field("hordes.maxPerDay"):getText() == "4",
+        "a value being typed survives a push; the push set that same path, so the draft stays on rev 6")
+    A.discard(P)
+    T.check(P.baseRev == 7, "discarded: the next draft starts on the settings shown")
+    field("hordes.maxPerDay"):setText("3")
+    push(8, hz(newS))
+    T.check(P.rev == 8 and P.baseRev == 8 and AM.get(P.S, "hordes.maxPerDay") == 3,
+        "a push that leaves the draft's paths alone: the draft moves on to rev 8 (review r1: a write elsewhere cost the whole draft)")
+    A.discard(P)
+    press("pr1")
+    answer(true)
+    push(9, hz(oldS))
+    local draftSpots = AM.get(P.S, "hordes.spots")
+    T.check(P.rev == 9 and P.baseRev == 8 and #draftSpots == 1 and draftSpots[1].name == "New2",
+        "a spot removed, then a write to the spots: the draft (the whole list as it was on rev 8) stays on rev 8")
+    local gets = count("cfg.get")
+    replies["cfg.preview"] = function() return { ok = false, code = "CONFIG_CHANGED", rev = 9 } end
+    replies["cfg.get"] = spotsAt(9, oldS, rest)
+    A.onPreview(P)
+    T.check(last("cfg.preview").rev == 8 and AM.draftCount(P.S.draft) == 0 and P.confirm == nil and count("cfg.get") == gets + 1
+        and has(P.msg, "IGUI_MQ_Admin_DraftDropped1") and spotName(1) == "Old" and not spotName(2) and P.baseRev == 9,
+        "its Apply carries rev 8 and is refused: the draft goes, the panel reloads the spots in effect, the bar says an edit went")
+    replies["cfg.preview"] = okPreview
+    field("hordes.maxPerDay"):setText("5")
+    A.onPreview(P)
+    T.check(P.confirm ~= nil and P.confirm.rev == 9 and last("cfg.preview").rev == 9, "a fresh draft previews on rev 9")
+    push(10, hz(newS))
+    T.check(P.confirm ~= nil and P.rev == 10 and P.baseRev == 10 and P.confirm.rev == 10,
+        "a push under the confirm view that leaves its changes alone: taken, the view and the draft move to rev 10 (review r1, r2)")
+    replies["cfg.apply"] = function() return { historyId = 10, rev = 11 } end
+    replies["cfg.get"] = spotsAt(11, newS, { maxPerDay = 5, enabled = false })
+    A.onConfirmApply(P)
+    T.check(last("cfg.apply").rev == 10 and P.confirm == nil and AM.draftCount(P.S.draft) == 0 and P.rev == 11,
+        "so its first Apply carries rev 10 and goes through (review r2: it was refused once)")
+    field("hordes.maxPerDay"):setText("6")
+    A.onPreview(P)
+    push(12, hz(newS, { maxPerDay = 7 }))
+    T.check(P.confirm ~= nil and P.rev == 12 and P.baseRev == 11 and P.confirm.rev == 11,
+        "a write to the draft's own path under the confirm view: the view and the draft stay on rev 11")
+    replies["cfg.apply"] = function() return { ok = false, code = "CONFIG_CHANGED", rev = 12 } end
+    replies["cfg.get"] = spotsAt(12, newS, { maxPerDay = 7, enabled = false })
+    A.onConfirmApply(P)
+    T.check(AM.draftCount(P.S.draft) == 0 and field("hordes.maxPerDay"):getText() == "7" and has(P.msg, "IGUI_MQ_Admin_DraftDropped1"),
+        "so its Apply is refused and the draft goes; the bar says so (review r2: it only said try again)")
+    -- a change not from the draft (a suggestion) whose path a write sets: refused, while the draft beside it stays
+    local function withRate(fn, rate) return function() local r = fn(); r.overrides.exchange = { rate = rate }; return r end end
+    field("hordes.maxPerDay"):setText("8")
+    A.fold(P)
+    A.previewChanges(P, { { op = "set", path = "exchange.rate", value = 1 } }, "x", {})
+    T.check(P.confirm ~= nil and P.confirm.rev == 12 and last("cfg.preview").rev == 12, "a change not from the draft previews on the settings shown")
+    local o13 = hz(newS, { maxPerDay = 7 })
+    o13.exchange = { rate = 7.25 }
+    push(13, o13)
+    T.check(P.rev == 13 and P.baseRev == 13 and P.confirm.rev == 12, "a write to its path: the view stays on rev 12, the draft beside it moves on")
+    replies["cfg.apply"] = function() return { ok = false, code = "CONFIG_CHANGED", rev = 13 } end
+    replies["cfg.get"] = withRate(spotsAt(13, newS, { maxPerDay = 7, enabled = false }), 7.25)
+    A.onConfirmApply(P)
+    T.check(last("cfg.apply").rev == 12 and AM.get(P.S, "hordes.maxPerDay") == 8 and has(P.msg, "CONFIG_CHANGED")
+        and not has(P.msg, "DraftDropped"), "its Apply is refused; the draft, on rev 13, stays and the bar says try again")
+    -- this panel's own writes, the push before the reply as the server sends them: the draft moves on when they leave its
+    -- paths alone, not when they set them (review r1: an undo putting the spots back, then the draft's old list applied)
+    replies["cfg.apply"] = function()
+        local o = hz(newS, { maxPerDay = 7 })
+        o.exchange = { rate = 1 }
+        push(14, o)
+        return { historyId = 14, rev = 14 }
+    end
+    replies["cfg.get"] = withRate(spotsAt(14, newS, { maxPerDay = 7, enabled = false }), 1)
+    A.previewChanges(P, { { op = "set", path = "exchange.rate", value = 1 } }, "x", {})
+    A.onConfirmApply(P)
+    T.check(P.rev == 14 and P.baseRev == 14 and AM.draftCount(P.S.draft) == 1 and P.historyRev == 14,
+        "its own Apply left the draft's path alone: the draft moves to rev 14")
+    A.discard(P)
+    press("pr1")
+    answer(true)
+    replies["cfg.undo"] = function() push(15, hz(oldS, { maxPerDay = 7 })); return { historyId = 15, rev = 15 } end
+    replies["cfg.get"] = spotsAt(15, oldS, { maxPerDay = 7, enabled = false })
+    A.onUndo(P, { entry = { id = 4, at = now, summary = "s" } })
+    answer(true)
+    T.check(last("cfg.undo").rev == 14 and P.rev == 15 and P.baseRev == 14,
+        "an undo of its own that sets the spots back: the spot draft stays on rev 14 (applied, the removed spot came back)")
+    A.onPreview(P)
+    T.check(last("cfg.preview").rev == 14, "so its Apply carries rev 14, which the server refuses")
+    A.onConfirmCancel(P)
+    A.discard(P)
+    push(16, hz(newS, { maxPerDay = 7 }))
+    gets = count("cfg.get")
+    replies["cfg.undo"] = function() return { ok = false, code = "CONFIG_CHANGED", rev = 16 } end
+    replies["cfg.get"] = spotsAt(16, newS, { maxPerDay = 7, enabled = false })
+    A.onUndo(P, { entry = { id = 4, at = now, summary = "s" } })
+    answer(true)
+    T.check(last("cfg.undo").rev == 15 and has(P.msg, "CONFIG_CHANGED") and count("cfg.get") == gets + 1 and P.historyRev == 16,
+        "an undo from a list loaded before a push carries the list's rev (15, not the 16 shown): refused, the list reloads")
+    -- Remove on a spot asks first; a push while the dialog is open relays the rows under it (review r2)
+    local other = { name = "Other", x = 9, y = 9, z = 0 }
+    press("pr1")
+    push(17, hz({ other, newS[1], newS[2] }, { maxPerDay = 7 }))
+    answer(true)
+    local ds = AM.get(P.S, "hordes.spots")
+    T.check(#ds == 2 and ds[1].name == "Other" and ds[2].name == "New2",
+        "a push while the Remove dialog is open: the spot asked about goes, not the one now in its row")
+    A.discard(P)
+    press("pr2")
+    push(18, hz({ newS[2] }, { maxPerDay = 7 }))
+    answer(true)
+    T.check(AM.draftCount(P.S.draft) == 0, "the spot asked about was removed elsewhere meanwhile: nothing changes")
+    -- a field invalid: the push waits; a button that edits a list by its row works on the rows shown (review r2: a push
+    -- taken under the click moved the rows, and the wrong window went)
+    local W1 = { days = "1234567", from = "19:00", to = "23:00", chance = 40, preset = "default", leadMin = 15, waitMin = 60 }
+    local W2 = { days = "67", from = "20:00", to = "22:00", chance = 30, preset = "default", leadMin = 15, waitMin = 60 }
+    push(19, hz({ newS[2] }, { maxPerDay = 7, windows = { W1, W2 } }))
+    field("hordes.maxPerDay"):setText("x")
+    push(20, hz({ newS[2] }, { maxPerDay = 7, windows = { W2 } }))
+    T.check(P.rev == 19 and field("hordes.maxPerDay"):getText() == "x", "a field invalid: the push waits, nothing reloads under the typing")
+    field("hordes.maxPerDay"):setText("8")
+    press("w:r2")
+    local dw = AM.get(P.S, "hordes.windows")
+    T.check(P.rev == 19 and #dw == 1 and dw[1].chance == 40, "fixed, then Remove on the second window: the window shown goes")
+    replies["cfg.preview"] = function() return { ok = false, code = "CONFIG_CHANGED", rev = 20 } end
+    replies["cfg.get"] = spotsAt(20, { newS[2] }, { maxPerDay = 7, enabled = false, windows = { W2 } })
+    A.onPreview(P)
+    T.check(P.rev == 20 and last("cfg.preview").rev == 19 and AM.draftCount(P.S.draft) == 0 and has(P.msg, "IGUI_MQ_Admin_DraftDropped|2"),
+        "then Apply takes the waiting push first: the windows changed under the draft, so its 2 edits go and the bar says so")
+    replies["cfg.preview"] = okPreview
+    field("hordes.maxPerDay"):setText("x")
+    push(21, hz({ newS[2] }, { maxPerDay = 7, windows = { W1 } }))
+    field("hordes.maxPerDay"):setText("8")
+    A.select(P, "basic")
+    T.check(P.rev == 21 and P.baseRev == 21 and AM.get(P.S, "hordes.maxPerDay") == 8,
+        "fixed, then a tab switch: the waiting push is taken, the draft's path alone, so the draft moves on")
+    A.select(P, "hordes")
+    A.discard(P)
+    local pid = P.pages.hordes.preset or "default"
+    local hpKey = "hordes.presets." .. pid .. ".hp.vanilla"
+    push(22, hz({ newS[2] }, { maxPerDay = 7, presets = { [pid] = { hp = { vanilla = 1.125 } } } }))
+    T.check(field(hpKey) ~= nil and field(hpKey):getText() == "1.125" and A.fold(P) and AM.draftCount(P.S.draft) == 0,
+        "a toughness of 1.125 shows as itself (review r2: it showed 1.13); left as it is, a fold adds no edit")
+    field(hpKey):setText("1.13")
+    A.fold(P)
+    T.check(AM.get(P.S, hpKey) == 1.13, "1.13 typed over it is an edit (review r2: it read as untouched)")
+    A.discard(P)
+    push(23, hz({ newS[2] }, { maxPerDay = 7, presets = { [pid] = { hp = { vanilla = 1.23456 } } } }))
+    T.check(field(hpKey):getText() == "1.2346" and A.fold(P) and AM.draftCount(P.S.draft) == 0,
+        "past 4 places it shows rounded; left as it is, still no edit (review r1)")
+    replies["cfg.get"] = function() return { ok = false, code = "NO_REPLY" } end
+    A.onReload(P)
+    T.check(has(P.msg, "IGUI_MQ_Admin_NoReply") and P.rev == 23,
+        "a reload that fails with settings shown: the bar says so (review r1: nothing showed)")
+    -- after a refusal its reason stays in front of a failed reload's: what the refusal dropped is said there (review r2)
+    A.say(P, A.count("IGUI_MQ_Admin_DraftDropped", 1), "errorText")
+    A.loadConfig(P)
+    T.check(has(P.msg, "IGUI_MQ_Admin_DraftDropped1") and has(P.msg, "IGUI_MQ_Admin_NoReply"),
+        "a reload failing after a refusal: the bar keeps the refusal and adds the failure")
+    replies["cfg.get"] = spotsAt(22, newS)
+    A.onReload(P)
+    T.check(P.rev == 23 and spotName(1) == "New2" and P.historyRev == 22,
+        "a cfg.get reply older than a push already taken: the push follows it, the reply's history list stays (at its rev)")
+    -- the client kept a push newer than a reply on its way (sent before a write it did not see; the panel hidden)
+    Cl.catalog = { rev = 25, overrides = hz(oldS, { maxPerDay = 7 }) }
+    replies["cfg.get"] = spotsAt(24, newS)
+    A.onReload(P)
+    T.check(P.rev == 25 and spotName(1) == "Old", "a cfg.get reply older than the client's latest push: that push follows it (review r2)")
+    A.hide()
+    push(26, { hordes = { spots = T.deepcopy(newS) } })
+    T.check(P.rev == 25, "hidden: the push waits")
+    gets = count("cfg.get")
+    A.show(P.host)
+    T.check(P.rev == 26 and spotName(1) == "New" and count("cfg.get") == gets,
+        "reopened right after a cfg.get: the push from while hidden shows; no cfg.get the server's cooldown would drop")
+    A.hide()
+    local t0 = T.now
+    T.advance(2 * Q.Contract.LIMIT.COOLDOWN_MS)
+    replies["cfg.get"] = spotsAt(27, oldS)
+    A.show(P.host)
+    T.check(count("cfg.get") == gets + 1 and P.rev == 27 and spotName(1) == "Old",
+        "reopened later: settings, history and config.json state are fetched again")
+    T.now = t0
+    -- a field invalid while a push leaves the draft alone: fixed, then Apply takes the push first, on its rev (review r1)
+    field("hordes.maxPerDay"):setText("x")
+    push(28, { hordes = { spots = T.deepcopy(oldS), enabled = true } })
+    field("hordes.maxPerDay"):setText("9")
+    A.onPreview(P)
+    T.check(P.rev == 28 and P.baseRev == 28 and last("cfg.preview").rev == 28,
+        "fixed, then Apply: the waiting push is taken first and the preview carries rev 28")
+    A.onConfirmCancel(P)
+    A.discard(P)
+    replies["cfg.apply"], replies["cfg.undo"] = nil, nil
+    Cl.catalog = nil
+    Cl.invalidate()
     A.hide()
     A.instance = nil
 

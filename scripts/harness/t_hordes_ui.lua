@@ -1585,20 +1585,45 @@ return function(T)
     do
     -- C2 (review r2): Esc and gamepad B close it at once; a held Esc is eaten with its release (eatKeyPress), so neither
     -- the pause menu nor a Dock above us gets it; B (Esc up) eats nothing
-    local kb, gk = Keyboard, GameKeyboard
+    local kb, gk, fw = Keyboard, GameKeyboard, winUI.Focus
     local escDown, eaten = true, {}
     Keyboard = { KEY_ESCAPE = 1, isKeyDown = function(k) return k == 1 and escDown end }
     GameKeyboard = { eatKeyPress = function(k) eaten[#eaten + 1] = k end }
-    T.check(R.win.added and opened() and R.win.onEscape(R.win) == true and not opened() and #eaten == 1 and eaten[1] == 1,
+    -- the framework ledger (Focus.lua:90-107): eat on a handled press, release marks, consumed reads (and clears a
+    -- released hold)
+    local ledger, releasing = {}, {}
+    winUI.Focus = {
+        eat = function(k) ledger[k] = true end,
+        release = function(k) if ledger[k] then releasing[k] = true end end,
+        consumed = function(k)
+            local mine = ledger[k] == true
+            if releasing[k] then ledger[k], releasing[k] = nil, nil end
+            return mine
+        end,
+    }
+    -- Focus.onKeyPress: handle -> onEscape (escapeOverlay) answers true -> Focus.eat(key) (Focus.lua:963-965)
+    local function pressEsc()
+        local ok, took = pcall(R.win.onEscape, R.win)
+        if ok and took == true then winUI.Focus.eat(1) end
+        return ok and took
+    end
+    T.check(R.win.added and opened() and pressEsc() == true and not opened() and #eaten == 1 and eaten[1] == 1,
         "Esc held: onEscape closes it at once, eats Esc's press and release once, answers true (review r2)")
+    T.check(ledger[1] == true, "right after: the framework ledger holds Esc (the engine eats the release, no UI sees it)")
+    escDown = false
+    R.tick(T.now)
+    T.check(winUI.Focus.consumed(1) == false and ledger[1] == nil and not R.escEaten,
+        "the next tick settles the ledger: the next Esc press reaches the game (E2E quest-hres-1029c)")
     Cl.receive("hordeResult", result())
-    escDown, eaten = false, {}
+    eaten, ledger[1] = {}, true   -- an Esc hold some other root owns: B must not settle it
     -- the framework's B: Focus.onJoypadDown asks onEscape (escapeOverlay) and returns when it says true, no closeRoot
     -- (Focus.lua:1101-1108): onEscape alone must close it
     local ok, closedIt = pcall(R.win.onEscape, R.win)
-    T.check(ok and closedIt == true and not opened() and #eaten == 0,
-        "gamepad B (Esc up): onEscape alone closes it, nothing eaten (the next Esc would be lost)")
-    Keyboard, GameKeyboard = kb, gk
+    T.check(ok and closedIt == true and not opened() and #eaten == 0 and not R.escEaten,
+        "gamepad B (Esc up): onEscape alone closes it, nothing eaten (the next Esc would be lost), nothing to settle")
+    R.tick(T.now)
+    T.check(ledger[1] == true and next(releasing) == nil, "B: the ledger is left alone (another root's hold stays)")
+    Keyboard, GameKeyboard, winUI.Focus = kb, gk, fw
     end
     -- C4: 50 deaths: 10 names and "+40"; the window stays on a 768 / 400 px high screen
     local core = getCore

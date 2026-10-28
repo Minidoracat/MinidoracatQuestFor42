@@ -60,8 +60,24 @@ function R.safe(p)
     return true
 end
 
--- once a second while results wait: SAFE_S safe checks in a row open them; dead or KEEP_MS later they are dropped
+-- an Esc eaten in onEscape: the engine swallows its release (GameKeyboard.java:37-41), so Focus.onKeyRelease never
+-- runs and the framework ledger keeps eaten[ESC] that Focus.onKeyPress set after onEscape answered true
+-- (Focus.lua:963-965). The always-visible Dock answers the next Esc press from that ledger (Dock.lua:1015-1018) and
+-- the game never gets it: the second Esc did not open the pause menu (E2E quest-hres-1029c). Close the hold here,
+-- the way a release would: release marks it, consumed reads and clears it (Focus.lua:96-107).
+function R.settleEsc()
+    R.escEaten = false
+    local F = R.UI ~= nil and R.UI.Focus or nil
+    local K = Keyboard
+    if F == nil or K == nil or F.release == nil or F.consumed == nil then return end
+    F.release(K.KEY_ESCAPE)
+    F.consumed(K.KEY_ESCAPE)
+end
+
+-- every tick: the Esc ledger (the frame after onEscape); once a second while results wait: SAFE_S safe checks in a
+-- row open them; dead or KEEP_MS later they are dropped
 function R.tick(now)
+    if R.escEaten then R.settleEsc() end
     if R.pending == nil or now - (R.lastTick or 0) < 1000 then return end
     R.lastTick = now
     local p = getSpecificPlayer(0)
@@ -121,12 +137,14 @@ function R.build(UI)
     -- 71-77), so the release cannot reach the game's pause menu; waiting for the release instead lost it to a Dock
     -- above us, which answers isKeyConsumed from the shared ledger (UIManager.java:1468-1476, Dock.lua:1017-1018).
     -- Not when Esc is up (B): a mark never cleared by a release would eat the player's next Esc (Focus.lua:349-357).
+    -- An eaten Esc leaves the framework ledger to settle on the next tick (R.settleEsc).
     win.onEscape = function()
         win:close()
         local K = Keyboard
         if K ~= nil and K.isKeyDown ~= nil and K.isKeyDown(K.KEY_ESCAPE) and GameKeyboard ~= nil
             and GameKeyboard.eatKeyPress ~= nil then
             GameKeyboard.eatKeyPress(K.KEY_ESCAPE)
+            R.escEaten = true
         end
         return true
     end

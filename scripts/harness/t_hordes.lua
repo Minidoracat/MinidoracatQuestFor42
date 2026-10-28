@@ -1,6 +1,8 @@
--- Hordes (server/Hordes.lua): windows with weekdays and hourly rolls, kind mix, waves (size by players near, exits,
--- maxAlive batches, lure, rest), kills and the capped kill-value payout, admin ops, boot, Config hordes.* validation,
--- the 2026-10-27 migration and config.json, the facade's registerHordeKind, the "hordes" state part and delta.
+-- Hordes (server/Hordes.lua): windows with weekdays and hourly rolls, presets (a window's or horde.now's set of waves,
+-- kinds, points, hp, cap, limitMin, restSec, maxAlive) and each window's lead / wait, kind mix, waves (size by players
+-- near, exits, maxAlive batches, lure, rest, the hp multiplier), kills and the capped kill-value payout, admin ops,
+-- boot, Config hordes.* validation, the 0.2.0 and presets migrations and config.json, the facade's
+-- registerHordeKind, the "hordes" state part and delta.
 return function(T)
     local MIN, HOUR, DAY = 60000, 3600000, 86400000
     local TZ = 8
@@ -30,14 +32,26 @@ return function(T)
         Q.Hordes.lastTick = 0
         Q.Hordes.tick(T.now)
     end
+    -- fields: hordes.<key>; the preset knobs (waves, kinds, ...) go to the default preset
+    local PRESET = { waves = true, kinds = true, points = true, hp = true, cap = true, limitMin = true, restSec = true,
+        maxAlive = true }
     local function apply(Q, fields)
         local changes = {}
-        for k, v in pairs(fields) do changes[#changes + 1] = { op = "set", path = "hordes." .. k, value = v } end
+        for k, v in pairs(fields) do
+            changes[#changes + 1] = { op = "set", path = (PRESET[k] and "hordes.presets.default." or "hordes.") .. k, value = v }
+        end
         local ok, code, detail = Q.Config.apply(changes, "test", "tester")
         if not ok then T.check(false, "apply hordes: " .. tostring(code) .. " " .. tostring(detail and detail.path)) end
     end
-    local function win(from, to, chance, days) return { days = days or ALL, from = from, to = to, chance = chance } end
+    -- a window; o = { preset, leadMin, waitMin } (default "default", 15, 60)
+    local function win(from, to, chance, days, o)
+        o = o or {}
+        return { days = days or ALL, from = from, to = to, chance = chance, preset = o.preset or "default",
+            leadMin = o.leadMin or 15, waitMin = o.waitMin or 60 }
+    end
     local function wave(base, perPlayer) return { base = base, perPlayer = perPlayer or 0 } end
+    -- the default preset in effect
+    local function def(Q) return Q.Config.get().hordes.presets.default end
     local function cmd(p, c, args)
         T.advance(300)
         return T.cmd(p, c, args)
@@ -130,38 +144,42 @@ return function(T)
         local ws, we = H.windowOf(w, d, TZ)
         T.check(ws == at(d, 19) and we == at(d, 23), "19:00-23:00 in the sandbox timezone")
         T.check(H.windowOf(w, d, 0) == d * DAY + 19 * HOUR, "timezone 0 is UTC")
-        local wd, _, _, K = H.window(w, at(d, 18, 45), TZ, 15)
+        local wd, _, _, K = H.window(w, at(d, 18, 45), TZ)
         T.check(wd == d and K == 4, "rolls open leadMin before the window (4 hourly slots)")
-        T.check(H.window(w, at(d, 18, 44), TZ, 15) == nil, "a minute earlier: outside")
-        T.check(H.window(w, at(d, 23) - 1, TZ, 15) == d and H.window(w, at(d, 23), TZ, 15) == nil, "the window ends at to")
+        T.check(H.window(w, at(d, 18, 44), TZ) == nil, "a minute earlier: outside")
+        T.check(H.window(w, at(d, 23) - 1, TZ) == d and H.window(w, at(d, 23), TZ) == nil, "the window ends at to")
         local s0, e0, r0 = H.slot(ws, we, 0, 15)
         T.check(s0 == at(d, 19) and e0 == at(d, 20) and r0 == at(d, 18, 45), "slot 0: 19:00-20:00, rolled at 18:45")
         local part = win("19:00", "21:30", 30)
         local pws, pwe = H.windowOf(part, d, TZ)
-        local _, _, _, pK = H.window(part, at(d, 19), TZ, 0)
+        local _, _, _, pK = H.window(part, at(d, 19), TZ)
         local s2, e2 = H.slot(pws, pwe, 2, 0)
         T.check(pK == 3 and s2 == at(d, 21) and e2 == at(d, 21, 30), "a part hour is the last slot, cut at to")
         local night = win("22:00", "02:00", 30)
         local nws, nwe = H.windowOf(night, d, TZ)
         T.check(nws == at(d, 22) and nwe == at(d + 1, 2), "to < from runs past midnight")
-        T.check(H.window(night, at(d + 1, 1, 30), TZ, 15) == d, "01:30 belongs to the window that opened the day before")
-        T.check(H.window(night, at(d + 1, 2), TZ, 15) == nil and H.window(night, at(d + 1, 21, 45), TZ, 15) == d + 1,
+        T.check(H.window(night, at(d + 1, 1, 30), TZ) == d, "01:30 belongs to the window that opened the day before")
+        T.check(H.window(night, at(d + 1, 2), TZ) == nil and H.window(night, at(d + 1, 21, 45), TZ) == d + 1,
             "closed at 02:00; the next one rolls from 21:45")
         local all = win("06:00", "06:00", 30)
         local aws, awe = H.windowOf(all, d, TZ)
-        local _, _, _, aK = H.window(all, at(d, 12), TZ, 15)
+        local _, _, _, aK = H.window(all, at(d, 12), TZ)
         T.check(awe - aws == DAY and aK == 24, "to == from: all day, 24 slots")
-        T.check(H.window(all, at(d + 1, 5, 45), TZ, 15) == d + 1 and H.window(all, at(d + 1, 5, 44), TZ, 15) == d,
+        T.check(H.window(all, at(d + 1, 5, 45), TZ) == d + 1 and H.window(all, at(d + 1, 5, 44), TZ) == d,
             "all day: the next day takes over lead minutes before it opens")
         T.check(H.hm("7:05") == 425 and H.hm("23:59") == 1439 and H.hm("19:0") == nil and H.hm("1900") == nil, "HH:MM parse")
         T.check(H.weekday(0) == 4 and H.weekday(4) == 1 and H.weekday(10) == 7, "1970-01-01 Thursday = 4, Monday = 1, Sunday = 7")
         local wday = H.weekday(d)
         local only = win("19:00", "23:00", 30, tostring(wday))
-        T.check(H.window(only, at(d, 20), TZ, 15) == d and H.window(only, at(d + 1, 20), TZ, 15) == nil,
+        T.check(H.window(only, at(d, 20), TZ) == d and H.window(only, at(d + 1, 20), TZ) == nil,
             "a window opens on its weekdays only")
         local nightOnly = win("22:00", "02:00", 30, tostring(wday))
-        T.check(H.window(nightOnly, at(d + 1, 1), TZ, 15) == d, "past midnight it still belongs to its start day")
+        T.check(H.window(nightOnly, at(d + 1, 1), TZ) == d, "past midnight it still belongs to its start day")
         T.check(H.winKey(win("19:00", "23:00", 30, "135")) == "19:00-23:00-135", "winKey = from-to-days")
+        -- (b) the window's own leadMin: rolls open that long before it
+        local early = win("19:00", "23:00", 30, nil, { leadMin = 40 })
+        T.check(H.window(early, at(d, 18, 20), TZ) == d and H.window(early, at(d, 18, 19), TZ) == nil
+            and H.window(w, at(d, 18, 20), TZ) == nil, "win.leadMin 40: rolls from 18:20 (the 15 one not yet)")
     end)
 
     -- ===================== hourly rolls =====================
@@ -270,8 +288,9 @@ return function(T)
         local h = Q.Store.root().hordes
         local d = today() + 3
         local wd = H.weekday(d)
-        apply(Q, { enabled = true, spots = { SPOT }, leadMin = 0, maxPerDay = 2,
-            windows = { win("10:00", "12:00", 100, tostring(wd)), win("19:00", "21:00", 100, tostring(wd)) } })
+        apply(Q, { enabled = true, spots = { SPOT }, maxPerDay = 2,
+            windows = { win("10:00", "12:00", 100, tostring(wd), { leadMin = 0 }),
+                win("19:00", "21:00", 100, tostring(wd), { leadMin = 0 }) } })
         T.now = at(d, 10)
         step(Q)
         T.check(h.cur ~= nil and h.perDay[keyOf(Q, d)] == 1, "window A on its weekday: hit")
@@ -291,9 +310,144 @@ return function(T)
         T.now = at(d + 1, 12)
         local r = adm(T.player{ name = "admin", admin = true }, "horde.status")
         T.check(r and r.roll.n == 0 and r.roll.max == 2 and r.roll.nextAt == at(d + 7, 10), "status: next roll a week later")
-        apply(Q, { windows = { win("10:00", "12:00", 100, tostring(wd)), win("15:00", "16:00", 100, ALL) } })
+        apply(Q, { windows = { win("10:00", "12:00", 100, tostring(wd), { leadMin = 0 }),
+            win("15:00", "16:00", 100, ALL, { leadMin = 0 }) } })
         r = adm(T.player{ name = "admin2", admin = true }, "horde.status")
         T.check(r.roll.nextAt == at(d + 1, 15), "status: the earliest roll over every window")
+    end)
+
+    -- ===================== presets (plan-presets-1028) =====================
+    -- (a) a window playing another preset: its horde copies that preset's knobs
+    section("presets: a window's horde copies its preset", function()
+        local Q = boot()
+        local h = Q.Store.root().hordes
+        local d = today() + 2
+        local hard = { name = "Hard", waves = { wave(7, 10), wave(3) }, kinds = { vanilla = 10, runner = 90 },
+            points = { vanilla = 4, runner = 9 }, hp = { runner = 2.5 }, cap = 77, limitMin = 9, restSec = 11, maxAlive = 120 }
+        apply(Q, { enabled = true, spots = { SPOT }, maxPerDay = 3, presets = { p2 = hard, p3 = { name = "Thin", cap = 5 } },
+            windows = { win("19:00", "23:00", 100, nil, { preset = "p2" }) } })
+        T.now = at(d, 18, 45)
+        step(Q)
+        local cur = h.cur
+        T.check(cur ~= nil and cur.preset == "Hard" and #cur.waves == 2 and cur.waves[1].base == 7 and cur.waves[1].perPlayer == 10
+            and cur.waves[2].base == 3 and cur.weights.vanilla == 10 and cur.weights.runner == 90 and cur.points.vanilla == 4
+            and cur.points.runner == 9 and cur.hp.runner == 2.5 and cur.cap == 77 and cur.limitMin == 9 and cur.restSec == 11
+            and cur.maxAlive == 120, "the window's preset p2: waves, kinds, points, hp, cap, limitMin, restSec, maxAlive copied")
+        local p2 = Q.Config.get().hordes.presets.p2
+        T.check(cur.waves ~= p2.waves and cur.weights ~= p2.kinds and cur.points ~= p2.points and cur.hp ~= p2.hp,
+            "copies: a later settings change leaves the horde alone")
+        Q.Hordes.stop(cur.id, "tester", T.now)
+        apply(Q, { windows = { win("19:00", "23:00", 100, nil, { preset = "p3" }) } })
+        T.now = at(d, 19, 45)
+        step(Q)
+        cur = h.cur
+        T.check(cur ~= nil and cur.preset == "Thin" and cur.cap == 5 and cur.limitMin == 15 and cur.waves[1].base == 30
+            and cur.weights.runner == 20 and next(cur.hp) == nil, "a preset with some knobs only: the rest from Catalog.DEFAULTS")
+        local p = Q.Hordes.presetOf(Q.Config.get().hordes, "gone")
+        T.check(p.name == "" and p.cap == 500, "presetOf an id that does not exist: the default preset")
+    end)
+
+    -- (b) each window's own leadMin and waitMin: roll time, announceAt, expireAt
+    section("presets: each window's warning and waiting minutes", function()
+        local Q = boot()
+        local h = Q.Store.root().hordes
+        local admin = T.player{ name = "admin", admin = true }
+        local d = today() + 2
+        apply(Q, { enabled = true, spots = { SPOT }, maxPerDay = 2, windows = {
+            win("10:00", "12:00", 100, nil, { leadMin = 40, waitMin = 7 }),
+            win("19:00", "21:00", 100, nil, { leadMin = 5, waitMin = 90 }) } })
+        T.now = at(d, 9, 19)
+        step(Q)
+        T.check(h.cur == nil, "window A (lead 40): nothing at 09:19")
+        T.now = at(d, 9, 20)
+        step(Q)
+        local cur = h.cur
+        T.check(cur ~= nil and cur.startMs == at(d, 10) and cur.announceAt == at(d, 9, 20) and cur.expireAt == at(d, 10, 7)
+            and cur.waitMin == 7, "window A: rolled at 09:20, warned 40 minutes ahead, waits 7 minutes")
+        T.now = at(d, 10, 7) - 1
+        step(Q)
+        T.check(cur.state == "waiting", "still waiting a minute before its expireAt")
+        T.now = at(d, 10, 7)
+        step(Q)
+        T.check(h.cur == nil and lastLog(Q).why == "nobody", "nobody came within A's waitMin: failed nobody")
+        T.now = at(d, 12, 30)
+        step(Q)
+        local r = adm(admin, "horde.status")
+        T.check(r and r.roll.nextAt == at(d, 18, 55), "status: B's next roll is 5 minutes (its lead) before it opens")
+        T.now = at(d, 18, 54)
+        step(Q)
+        T.check(h.cur == nil, "window B (lead 5): nothing at 18:54")
+        T.now = at(d, 18, 55)
+        step(Q)
+        cur = h.cur
+        T.check(cur ~= nil and cur.startMs == at(d, 19) and cur.announceAt == at(d, 18, 55) and cur.expireAt == at(d, 20, 30)
+            and cur.waitMin == 90, "window B: rolled at 18:55, starts 19:00, waits 90 minutes")
+    end)
+
+    -- (c) horde.now { lead, wait, preset }
+    section("presets: horde.now picks a preset and the waiting minutes", function()
+        local Q = boot()
+        local root = Q.Store.root()
+        local admin = T.player{ name = "admin", admin = true }
+        apply(Q, { spots = { SPOT }, presets = { p2 = { name = "Hard", waves = { wave(2), wave(2) }, cap = 33, hp = { vanilla = 2 } } } })
+        local r = adm(admin, "horde.now", { lead = 3, wait = 5, preset = "p2" })
+        local cur = root.hordes.cur
+        T.check(r and r.ok and cur.preset == "Hard" and #cur.waves == 2 and cur.cap == 33 and cur.hp.vanilla == 2
+            and cur.waitMin == 5 and cur.announceAt == T.now and cur.startMs == T.now + 3 * MIN
+            and cur.expireAt == cur.startMs + 5 * MIN, "preset p2, lead 3, wait 5")
+        adm(admin, "horde.stop", { id = cur.id })
+        r = adm(admin, "horde.now", { lead = 3 })
+        cur = root.hordes.cur
+        T.check(r and r.ok and cur.preset == "" and cur.cap == 500 and cur.waitMin == 60 and next(cur.hp) == nil
+            and cur.expireAt == cur.startMs + 60 * MIN, "without preset / wait: the default preset, 60 minutes")
+        adm(admin, "horde.stop", { id = cur.id })
+        r = adm(admin, "horde.now", { wait = 240 })
+        T.check(r and r.ok and root.hordes.cur.waitMin == 240, "wait 240 is the top")
+        adm(admin, "horde.stop", { id = root.hordes.cur.id })
+        for _, args in ipairs({ { preset = "nope" }, { preset = "p3" }, { wait = 0 }, { wait = 241 }, { lead = 121, preset = "p2" } }) do
+            r = adm(admin, "horde.now", args)
+            T.check(r and r.code == "BAD_ARGS" and root.hordes.cur == nil,
+                "horde.now refused: preset " .. tostring(args.preset) .. " wait " .. tostring(args.wait))
+        end
+    end)
+
+    -- (d) the preset's hp multiplies the spawn health, capped at H.HP_MAX
+    section("presets: toughness multiplies the spawn health", function()
+        local Q = boot()
+        local H = Q.Hordes
+        local root = Q.Store.root()
+        local admin = T.player{ name = "admin", admin = true }
+        local alice = T.player{ name = "alice" }
+        near(alice)
+        T.spawnHealth = 2
+        local function healths()
+            local out = { vanilla = {}, runner = {} }
+            for z, t in pairs(H.live) do
+                if t.horde == root.hordes.cur.id then table.insert(out[t.kind], z.health) end
+            end
+            return out
+        end
+        local function all(list, v)
+            for _, x in ipairs(list) do if math.abs(x - v) > 1e-9 then return false end end
+            return #list > 0
+        end
+        apply(Q, { spots = { SPOT }, waves = { wave(4) }, kinds = { vanilla = 50, runner = 50 }, hp = { vanilla = 3 } })
+        adm(admin, "horde.now")
+        local hs = healths()
+        T.check(all(hs.vanilla, 6) and all(hs.runner, 2), "vanilla x 3: 2 -> 6; runner without hp (x 1): left at 2")
+        adm(admin, "horde.stop", { id = root.hordes.cur.id })
+        apply(Q, { hp = { vanilla = 10, runner = 0.5 } })
+        T.spawnHealth = 4
+        adm(admin, "horde.now")
+        hs = healths()
+        T.check(all(hs.vanilla, H.HP_MAX) and H.HP_MAX == 30 and all(hs.runner, 2),
+            "x 10 of 4 = 40: capped at 30 (the packet's short); x 0.5: 2")
+        adm(admin, "horde.stop", { id = root.hordes.cur.id })
+        apply(Q, { hp = { vanilla = 1, runner = 1 } })
+        T.spawnHealth = 31.5
+        adm(admin, "horde.now")
+        hs = healths()
+        T.check(all(hs.vanilla, 31.5) and all(hs.runner, 31.5), "x 1: the health is not touched (not even capped)")
     end)
 
     -- ===================== kind mix and wave size =====================
@@ -584,9 +738,9 @@ return function(T)
         local alice = T.player{ name = "alice" }
         cmd(alice, "hello")
         apply(Q, { spots = { SPOT }, waves = { wave(4), wave(2), wave(3) }, kinds = { vanilla = 100 },
-            points = { vanilla = 5 }, restSec = 30, waitMin = 10, cap = 500 })
+            points = { vanilla = 5 }, restSec = 30, cap = 500 })
         near(alice)
-        adm(admin, "horde.now")
+        adm(admin, "horde.now", { wait = 10 })
         local cur = root.hordes.cur
         T.check(cur.state == "active" and cur.wave == 1 and cur.size == 4, "wave 1 of 3")
         killAlive(Q, cur.id, alice)
@@ -792,7 +946,7 @@ return function(T)
         finishWith({ alice = 1, bob = 3 }, "failed", "time")
         T.check(accB.total["horde.joined"] == 3 and accB.total["horde.mvp"] == 1 and accB.total["horde.wins"] == 2,
             "a fail: joined counts, no win, no MVP")
-        local cur = H.plan(Q.Config.get().hordes, T.now + 2 * HOUR, nil)
+        local cur = H.plan(Q.Config.get().hordes, T.now + 2 * HOUR, nil, win("19:00", "23:00", 0))
         H.stop(cur.id, "admin", T.now)
         T.check(lastLog(Q).announced == false, "a cancel before the warning stays secret")
 
@@ -1055,7 +1209,7 @@ return function(T)
         apply(Q, { spots = { SPOT }, waves = { wave(4), wave(4) }, kinds = { vanilla = 100 }, points = { vanilla = 2 } })
         local cfg = Q.Config.get().hordes
 
-        local cur = H.plan(cfg, T.now + 2 * HOUR, nil)
+        local cur = H.plan(cfg, T.now + 2 * HOUR, nil, win("19:00", "23:00", 0))
         step(Q)
         T.check(cur.state == "planned", "planned until announceAt")
         local r = adm(bob, "horde.stop", { id = cur.id })
@@ -1075,7 +1229,7 @@ return function(T)
             "history row horde.stop <id> <name>")
         T.check(H.stateHordes(nil, "bob", T.now).last == nil, "a secret cancel is not shown as the last result")
 
-        cur = H.plan(cfg, T.now + 10 * MIN, nil)
+        cur = H.plan(cfg, T.now + 10 * MIN, nil, win("19:00", "23:00", 0))
         step(Q)
         T.check(cur.state == "announced", "announced")
         adm(admin, "horde.stop", { id = cur.id })
@@ -1168,7 +1322,7 @@ return function(T)
         SandboxVars.ZombieConfig = { ZombiesCountBeforeDelete = "x" }
         T.check(H.cull() == nil, "a non-number: nil")
 
-        local cur = H.plan(cfg, T.now + HOUR, nil)
+        local cur = H.plan(cfg, T.now + HOUR, nil, win("19:00", "23:00", 0))
         r = adm(admin, "horde.status")
         T.check(r.cur and r.cur.state == "planned" and #r.cur.waves == 1 and r.cur.weights.vanilla == 75 and r.cur.kills ~= nil,
             "status shows the planned horde in full")
@@ -1241,16 +1395,22 @@ return function(T)
             if extra then for k, x in pairs(extra) do out[1][k] = x end end
             return out
         end
+        local P = "presets.default."
         local good = {
             { "enabled", true }, { "windows", wins(1) }, { "windows", wins(8) }, { "windows", wins(1, { days = "7" }) },
             { "windows", wins(1, { days = "7654321", from = "7:05", to = "00:00", chance = 0 }) },
-            { "windows", wins(1, { chance = 100 }) }, { "maxPerDay", 1 }, { "maxPerDay", 24 }, { "leadMin", 0 },
-            { "leadMin", 120 }, { "waitMin", 1 }, { "waitMin", 240 }, { "waves", waves(1) }, { "waves", waves(10) },
-            { "waves", waves(1, { base = 1, perPlayer = 0 }) }, { "waves", waves(1, { base = 9999, perPlayer = 1000 }) },
-            { "restSec", 0 }, { "restSec", 600 }, { "maxAlive", 10 }, { "maxAlive", 2000 }, { "kinds.vanilla", 0 },
-            { "kinds.runner", 100 }, { "kinds", { vanilla = 10, ["m:fast"] = 5 } }, { "kinds.m:fast", 7 },
-            { "points.vanilla", 0 }, { "points.runner", 1000 }, { "points.m:fast", 3 }, { "points", { vanilla = 1 } },
-            { "limitMin", 1 }, { "limitMin", 120 }, { "cap", 1 }, { "cap", 1000000 }, { "spots", {} },
+            { "windows", wins(1, { chance = 100 }) }, { "windows", wins(1, { leadMin = 0, waitMin = 1 }) },
+            { "windows", wins(1, { leadMin = 120, waitMin = 240, preset = "p2" }) }, { "windows", wins(1, { preset = "m:x-1" }) },
+            { "maxPerDay", 1 }, { "maxPerDay", 24 }, { P .. "waves", waves(1) }, { P .. "waves", waves(10) },
+            { P .. "waves", waves(1, { base = 1, perPlayer = 0 }) }, { P .. "waves", waves(1, { base = 9999, perPlayer = 1000 }) },
+            { P .. "restSec", 0 }, { P .. "restSec", 600 }, { P .. "maxAlive", 10 }, { P .. "maxAlive", 2000 },
+            { P .. "kinds.vanilla", 0 }, { P .. "kinds.runner", 100 }, { P .. "kinds", { vanilla = 10, ["m:fast"] = 5 } },
+            { P .. "kinds.m:fast", 7 }, { P .. "points.vanilla", 0 }, { P .. "points.runner", 1000 }, { P .. "points.m:fast", 3 },
+            { P .. "points", { vanilla = 1 } }, { P .. "limitMin", 1 }, { P .. "limitMin", 120 }, { P .. "cap", 1 },
+            { P .. "cap", 1000000 }, { P .. "hp.runner", 0.1 }, { P .. "hp.m:fast", 10 }, { P .. "hp", { vanilla = 2.5 } },
+            { P .. "hp", {} }, { P .. "name", "" }, { P .. "name", string.rep("x", 32) }, { "presets.p2.name", "Hard" },
+            { "presets.p2.hp.runner", 3 }, { "presets.p2", Q.Catalog.DEFAULTS.hordes.presets.default },
+            { "presets.p2", { limitMin = 5 } }, { "spots", {} },
             { "spots", spots(32) }, { "spots", spots(1, { z = -32 }) }, { "spots", spots(1, { z = 31, x = 100000 }) },
         }
         for _, g in ipairs(good) do T.check(ok(g[1], g[2]), "valid hordes." .. g[1]) end
@@ -1261,27 +1421,71 @@ return function(T)
             { "windows", wins(1, { from = "24:00" }) }, { "windows", wins(1, { to = "19:60" }) }, { "windows", wins(1, { to = "1900" }) },
             { "windows", wins(1, { chance = 101 }) }, { "windows", wins(1, { chance = -1 }) }, { "windows", wins(1, { chance = 5.5 }) },
             { "windows", wins(1, { extra = 1 }) }, { "windows", { { from = "19:00", to = "23:00", chance = 30 } } },
+            { "windows", { { days = ALL, from = "19:00", to = "23:00", chance = 30 } } },
+            { "windows", wins(1, { leadMin = 121 }) }, { "windows", wins(1, { leadMin = -1 }) }, { "windows", wins(1, { waitMin = 0 }) },
+            { "windows", wins(1, { waitMin = 241 }) }, { "windows", wins(1, { waitMin = 1.5 }) }, { "windows", wins(1, { preset = "" }) },
+            { "windows", wins(1, { preset = "a b" }) }, { "windows", wins(1, { preset = 2 }) },
+            { "windows", wins(1, { preset = string.rep("p", 65) }) },
             { "windows", { 1 } }, { "windows", { a = win("19:00", "23:00", 30) } }, { "windows.1.from", "20:00" },
-            { "maxPerDay", 0 }, { "maxPerDay", 25 }, { "leadMin", 121 }, { "waitMin", 0 }, { "waitMin", 241 },
-            { "waves", {} }, { "waves", waves(11) }, { "waves", waves(1, { base = 0 }) }, { "waves", waves(1, { base = 10000 }) },
-            { "waves", waves(1, { perPlayer = -1 }) }, { "waves", waves(1, { perPlayer = 1001 }) }, { "waves", waves(1, { base = 2.5 }) },
-            { "waves", waves(1, { extra = 1 }) }, { "waves", { { base = 5 } } }, { "waves.1.base", 5 },
-            { "restSec", -1 }, { "restSec", 601 }, { "maxAlive", 9 }, { "maxAlive", 2001 },
-            { "kinds.vanilla", 101 }, { "kinds", { ["a b"] = 1 } }, { "kinds", { vanilla = -1 } },
-            { "points.vanilla", 1001 }, { "points.vanilla", -1 }, { "points", { ["a b"] = 1 } }, { "points.runner", 1.5 },
-            { "limitMin", 0 }, { "limitMin", 121 }, { "cap", 0 }, { "cap", 1000001 },
+            { "maxPerDay", 0 }, { "maxPerDay", 25 },
+            { P .. "waves", {} }, { P .. "waves", waves(11) }, { P .. "waves", waves(1, { base = 0 }) },
+            { P .. "waves", waves(1, { base = 10000 }) }, { P .. "waves", waves(1, { perPlayer = -1 }) },
+            { P .. "waves", waves(1, { perPlayer = 1001 }) }, { P .. "waves", waves(1, { base = 2.5 }) },
+            { P .. "waves", waves(1, { extra = 1 }) }, { P .. "waves", { { base = 5 } } }, { P .. "waves.1.base", 5 },
+            { P .. "restSec", -1 }, { P .. "restSec", 601 }, { P .. "maxAlive", 9 }, { P .. "maxAlive", 2001 },
+            { P .. "kinds.vanilla", 101 }, { P .. "kinds", { ["a b"] = 1 } }, { P .. "kinds", { vanilla = -1 } },
+            { P .. "points.vanilla", 1001 }, { P .. "points.vanilla", -1 }, { P .. "points", { ["a b"] = 1 } },
+            { P .. "points.runner", 1.5 }, { P .. "limitMin", 0 }, { P .. "limitMin", 121 }, { P .. "cap", 0 },
+            { P .. "cap", 1000001 }, { P .. "hp.runner", 0.09 }, { P .. "hp.runner", 10.1 }, { P .. "hp.runner", "2" },
+            { P .. "hp", { ["a b"] = 1 } }, { P .. "name", string.rep("x", 33) }, { P .. "name", "a\nb" }, { P .. "name", 1 },
+            { P .. "foo", 1 }, { "presets.a b.cap", 1 }, { "presets.p2", { foo = 1 } }, { "presets.p2", 5 },
             { "spots", spots(33) }, { "spots", spots(1, { z = 32 }) }, { "spots", spots(1, { z = -33 }) },
             { "spots", spots(1, { x = 100001 }) }, { "spots", spots(1, { name = "" }) }, { "spots", spots(1, { name = "a\nb" }) },
             { "spots", spots(1, { town = "x" }) }, { "spots", { 1 } }, { "foo", 1 },
             -- removed 2026-10-27
             { "from", "19:00" }, { "to", "23:00" }, { "chance", 30 }, { "count", { 20, 40 } }, { "perZombie", 5 },
             { "split", "share" },
+            -- moved into presets / windows 2026-10-28
+            { "leadMin", 15 }, { "waitMin", 60 }, { "waves", waves(1) }, { "kinds.vanilla", 1 }, { "points.vanilla", 1 },
+            { "cap", 500 }, { "limitMin", 15 }, { "restSec", 30 }, { "maxAlive", 200 }, { "hp.runner", 2 },
         }
         for _, b in ipairs(bad) do T.check(not ok(b[1], b[2]), "invalid hordes." .. b[1] .. " = " .. tostring(b[2])) end
         T.check(not Cf.validate({ op = "set", path = "hordes", value = { enabled = true, foo = 1 } }), "unknown key inside hordes")
         T.check(not Cf.validate({ op = "set", path = "hordes", value = { enabled = true, count = { 1, 2 } } }),
             "a removed key inside hordes")
         T.check(Cf.validate({ op = "set", path = "hordes", value = Q.Catalog.DEFAULTS.hordes }), "the defaults validate as a whole group")
+    end)
+
+    -- (e) after the changes: every window's preset exists, at most MAX_PRESETS presets
+    section("Config hordes: window presets exist, at most 8 presets", function()
+        local Q = boot()
+        local Cf = Q.Config
+        local function set(path, value) return { op = "set", path = "hordes." .. path, value = value } end
+        local ok, code, detail = Cf.apply({ set("windows", { win("19:00", "23:00", 30), win("8:00", "9:00", 30, nil,
+            { preset = "p3" }) }) }, "test", "tester")
+        T.check(not ok and code == "BAD_CONFIG" and detail.why == "preset" and detail.path == "hordes.windows.2.preset"
+            and Cf.get().hordes.windows[1].preset == "default" and #Cf.get().hordes.windows == 1,
+            "a window playing a preset that does not exist: refused on its path, nothing applied")
+        ok = Cf.apply({ set("presets.p3", { name = "Hard" }), set("windows", { win("8:00", "9:00", 30, nil, { preset = "p3" }) }) },
+            "test", "tester")
+        T.check(ok and Cf.get().hordes.windows[1].preset == "p3", "with the preset in the same apply: fine")
+        ok, code, detail = Cf.apply({ { op = "del", path = "hordes.presets.p3" } }, "test", "tester")
+        T.check(not ok and detail.why == "preset" and detail.path == "hordes.windows.1.preset" and Cf.get().hordes.presets.p3 ~= nil,
+            "deleting a preset a window still plays: refused")
+        ok = Cf.apply({ set("windows", { win("8:00", "9:00", 30) }), { op = "del", path = "hordes.presets.p3" } }, "test", "tester")
+        T.check(ok and Cf.get().hordes.presets.p3 == nil, "moved to default first: the preset goes")
+        Cf.apply({ set("presets.default.cap", 9) }, "test", "tester")
+        ok = Cf.apply({ { op = "del", path = "hordes.presets.default" } }, "test", "tester")
+        T.check(ok and Cf.get().hordes.presets.default.cap == 500 and Cf.get().hordes.windows[1].preset == "default",
+            "a del of default only brings its defaults back")
+        local changes = {}
+        for i = 2, 8 do changes[#changes + 1] = set("presets.p" .. i, { name = "P" .. i }) end
+        T.check((Cf.apply(changes, "test", "tester")), "8 presets with the default one: fine")
+        ok, code, detail = Cf.apply({ set("presets.p9", { name = "P9" }) }, "test", "tester")
+        T.check(not ok and code == "BAD_CONFIG" and detail.why == "presets" and Cf.get().hordes.presets.p9 == nil,
+            "a 9th preset: refused")
+        local okP, codeP, detailP = Cf.preview({ set("presets.p9", { name = "P9" }) })
+        T.check(not okP and codeP == "BAD_CONFIG" and detailP.why == "presets", "the preview says so too")
     end)
 
     -- ===================== migration =====================
@@ -1300,12 +1504,16 @@ return function(T)
         local t = prodTree()
         T.check(Cf.migrate(t) == true, "the production tree changes")
         local h = t.hordes
-        T.check(h.waves and #h.waves == 1 and h.waves[1].base == 100 and h.waves[1].perPlayer == 0 and h.count == nil,
-            "count { 100, 100 } -> one wave of 100, perPlayer 0")
-        T.check(h.points and h.points.vanilla == 1 and h.points.runner == 1 and h.points["m:x"] == 1 and h.perZombie == nil,
-            "perZombie 1 -> points 1 for vanilla, runner and every kind")
-        T.check(h.windows == nil and h.leadMin == 25 and h.maxPerDay == 2 and h.enabled == true and h.kinds.vanilla == 70,
-            "no window keys overridden: windows keep the default; the rest unchanged")
+        local dp = h.presets and h.presets.default or {}
+        T.check(dp.waves and #dp.waves == 1 and dp.waves[1].base == 100 and dp.waves[1].perPlayer == 0 and h.count == nil
+            and h.waves == nil, "count { 100, 100 } -> one wave of 100, perPlayer 0, in the default preset")
+        T.check(dp.points and dp.points.vanilla == 1 and dp.points.runner == 1 and dp.points["m:x"] == 1 and h.perZombie == nil
+            and h.points == nil, "perZombie 1 -> points 1 for vanilla, runner and every kind")
+        T.check(dp.kinds and dp.kinds.vanilla == 70 and h.kinds == nil and h.maxPerDay == 2 and h.enabled == true,
+            "kinds move to the default preset; the rest unchanged")
+        T.check(h.windows and #h.windows == 1 and h.windows[1].from == "19:00" and h.windows[1].preset == "default"
+            and h.windows[1].leadMin == 25 and h.windows[1].waitMin == 60 and h.leadMin == nil,
+            "leadMin without window keys: the default window, with the old lead")
         T.check(Cf.validate({ op = "set", path = "hordes", value = h }), "the migrated group validates")
         T.check(Cf.migrate(t) == false, "a second run changes nothing")
         t = { hordes = { from = "20:00", chance = 50, count = { 20, 41 }, split = "each", waves = { wave(7) },
@@ -1314,13 +1522,52 @@ return function(T)
         h = t.hordes
         T.check(#h.windows == 1 and h.windows[1].days == ALL and h.windows[1].from == "20:00" and h.windows[1].to == "23:00"
             and h.windows[1].chance == 50 and h.from == nil and h.chance == nil, "from / chance -> the first window (to default)")
-        T.check(h.waves[1].base == 7 and h.count[2] == 41 and h.points.vanilla == 9 and h.points.runner == nil
-            and h.perZombie == 3 and h.split == nil, "waves / points already there stay; the old keys next to them stay too")
+        T.check(h.presets.default.waves[1].base == 7 and h.count[2] == 41 and h.presets.default.points.vanilla == 9
+            and h.presets.default.points.runner == nil and h.perZombie == 3 and h.split == nil,
+            "waves / points already there stay (moved to the preset); the old keys next to them stay too")
         T.check(not Cf.validate({ op = "set", path = "hordes", value = h }),
             "so an edit in the old shape fails validation on its path instead of being dropped")
+        t = { hordes = { cap = 100, presets = { default = { cap = 200 } } } }
+        T.check(Cf.migrate(t) == false and t.hordes.cap == 100 and t.hordes.presets.default.cap == 200
+            and not Cf.validate({ op = "set", path = "hordes", value = t.hordes }),
+            "a top-level knob next to the preset's own: stays, validation names it")
         t = { hordes = { count = { 1, 2 } } }
         Cf.migrate(t)
-        T.check(t.hordes.waves[1].base == 2, "the average rounds half up")
+        T.check(t.hordes.presets.default.waves[1].base == 2, "the average rounds half up")
+
+        -- (f) the two old shapes in full: 0.2.0 (production) and the 0.3.0 in development (top-level knobs)
+        t = { hordes = { enabled = true, from = "20:00", to = "23:30", chance = 40, count = { 20, 40 }, perZombie = 2,
+            split = "share", kinds = { vanilla = 60, runner = 40 }, leadMin = 25, waitMin = 45, limitMin = 20, maxPerDay = 2,
+            spots = { { name = "A", x = 1, y = 2, z = 0 } } } }
+        T.check(Cf.migrate(t) == true, "0.2.0: changed")
+        h = t.hordes
+        local w = h.windows and h.windows[1] or {}
+        dp = h.presets and h.presets.default or {}
+        T.check(#h.windows == 1 and w.days == ALL and w.from == "20:00" and w.to == "23:30" and w.chance == 40
+            and w.preset == "default" and w.leadMin == 25 and w.waitMin == 45, "0.2.0: one window with the old lead and wait")
+        T.check(dp.waves[1].base == 30 and dp.points.vanilla == 2 and dp.points.runner == 2 and dp.kinds.runner == 40
+            and dp.limitMin == 20, "0.2.0: waves, points, kinds and limitMin in the default preset")
+        T.check(h.from == nil and h.count == nil and h.perZombie == nil and h.split == nil and h.kinds == nil and h.leadMin == nil
+            and h.waitMin == nil and h.limitMin == nil and h.maxPerDay == 2, "0.2.0: no old key left")
+        T.check(Cf.validate({ op = "set", path = "hordes", value = h }), "0.2.0: the result validates")
+        local function oldWin(from, to, chance, days) return { days = days or ALL, from = from, to = to, chance = chance } end
+        t = { hordes = { enabled = true, windows = { oldWin("19:00", "21:00", 50), oldWin("6:00", "8:00", 20, "67") },
+            maxPerDay = 3, waves = { wave(10, 20), wave(5) }, kinds = { runner = 50 }, points = { vanilla = 3 }, cap = 300,
+            limitMin = 10, restSec = 10, maxAlive = 150, leadMin = 5, waitMin = 30, spots = { { name = "A", x = 1, y = 2, z = 0 } } } }
+        T.check(Cf.migrate(t) == true, "0.3.0 in development: changed")
+        h = t.hordes
+        dp = h.presets and h.presets.default or {}
+        T.check(h.windows[1].preset == "default" and h.windows[1].leadMin == 5 and h.windows[1].waitMin == 30
+            and h.windows[2].preset == "default" and h.windows[2].leadMin == 5 and h.windows[2].waitMin == 30
+            and h.windows[2].days == "67" and h.leadMin == nil and h.waitMin == nil, "0.3.0: every window gets the lead and wait")
+        T.check(#dp.waves == 2 and dp.waves[1].perPlayer == 20 and dp.kinds.runner == 50 and dp.points.vanilla == 3 and dp.cap == 300
+            and dp.limitMin == 10 and dp.restSec == 10 and dp.maxAlive == 150 and h.waves == nil and h.cap == nil
+            and h.restSec == nil and h.maxAlive == nil, "0.3.0: every knob in the default preset")
+        T.check(Cf.validate({ op = "set", path = "hordes", value = h }), "0.3.0: the result validates")
+        T.check(Cf.migrate(t) == false, "0.3.0: a second run changes nothing")
+        t = { hordes = { windows = { oldWin("19:00", "21:00", 50) } } }
+        T.check(Cf.migrate(t) == true and t.hordes.windows[1].leadMin == 15 and t.hordes.windows[1].waitMin == 60
+            and t.hordes.windows[1].preset == "default", "windows without a top-level lead / wait: the old defaults 15 / 60")
         T.check(Cf.migrate({ daily = {} }) == false and Cf.migrate({ hordes = { enabled = true } }) == false and Cf.migrate(nil) == false,
             "nothing old: false")
         t = { hordes = { perZombie = "0", count = { 40, 20 }, from = "25:00" } }
@@ -1342,11 +1589,13 @@ return function(T)
         Q = boot({ keepGmd = true })
         Cf = Q.Config
         local hh = Cf.get().hordes
-        T.check(hh.waves[1].base == 100 and hh.points.vanilla == 1 and hh.count == nil and hh.perZombie == nil
-            and hh.windows[1].from == "19:00" and Q.Store.root().config.overrides.hordes.count == nil,
+        T.check(hh.presets.default.waves[1].base == 100 and hh.presets.default.points.vanilla == 1 and hh.count == nil
+            and hh.perZombie == nil and hh.leadMin == nil and hh.windows[1].from == "19:00" and hh.windows[1].leadMin == 25
+            and Q.Store.root().config.overrides.hordes.count == nil and Q.Store.root().config.overrides.hordes.leadMin == nil,
             "stored old overrides: migrated at boot")
         local mf = fileTree("config.json")
-        T.check(mf and mf.hordes.waves[1].base == 100 and mf.hordes.count == nil, "and written to config.json in the new shape")
+        T.check(mf and mf.hordes.presets.default.waves[1].base == 100 and mf.hordes.count == nil and mf.hordes.leadMin == nil
+            and mf.hordes.windows[1].leadMin == 25, "and written to config.json in the new shape")
 
         -- (b) an old config.json tree
         T.files[DIR .. "config.json"] = { lines = { '{ "hordes": { "count": [ 30, 50 ], "perZombie": 2, "split": "each", '
@@ -1354,11 +1603,12 @@ return function(T)
         T.advance(Cf.POLL_MS)
         T.tick(1)
         hh = Cf.get().hordes
-        T.check(Cf.file.status.ok == true and hh.waves[1].base == 40 and hh.points.runner == 2 and hh.windows[1].from == "18:00"
-            and hh.windows[1].chance == 40 and hh.spots[1].name == "Lot" and hh.split == nil, "an old config.json applies, migrated")
+        T.check(Cf.file.status.ok == true and def(Q).waves[1].base == 40 and def(Q).points.runner == 2
+            and hh.windows[1].from == "18:00" and hh.windows[1].chance == 40 and hh.windows[1].leadMin == 15
+            and hh.spots[1].name == "Lot" and hh.split == nil, "an old config.json applies, migrated")
         mf = fileTree("config.json")
         T.check(mf and mf.hordes.count == nil and mf.hordes.from == nil and mf.hordes.windows[1].to == "22:00"
-            and mf.hordes.waves[1].base == 40, "config.json rewritten in the new shape")
+            and mf.hordes.presets.default.waves[1].base == 40 and mf.hordes.waves == nil, "config.json rewritten in the new shape")
         local before = Q.Store.root().config.rev
         T.advance(Cf.POLL_MS)
         T.tick(1)
@@ -1370,7 +1620,7 @@ return function(T)
         T.tick(1)
         mf = fileTree("config.json")
         T.check(Cf.file.status.ok == false and mf.hordes.perZombie == "5" and mf.hordes.count ~= nil
-            and Cf.get().hordes.points.runner == 2 and Cf.get().hordes.waves[1].base == 40,
+            and def(Q).points.runner == 2 and def(Q).waves[1].base == 40,
             "a bad old perZombie: config.json refused and not rewritten, the applied settings unchanged")
 
         -- (d) an explicit false in an old config.json: refused, not filled with the default
@@ -1390,15 +1640,31 @@ return function(T)
         local r1 = adm(admin, "cfg.undo", { historyId = id1 })
         local r2 = adm(admin, "cfg.undo", { historyId = id2 })
         T.check(r1 and r1.code == "BAD_CONFIG" and r2 and r2.code == "BAD_CONFIG" and Cf.get().hordes.count == nil
-            and Cf.get().hordes.waves[1].base == 40, "undo refuses removed paths and old values; nothing written")
+            and def(Q).waves[1].base == 40, "undo refuses removed paths and old values; nothing written")
         apply(Q, { cap = 77 })
         local hist = Cf.historyRows()
         local r3 = adm(admin, "cfg.undo", { historyId = hist[#hist].id })
-        T.check(r3 and r3.ok and Cf.get().hordes.cap == 500, "a valid undo still works")
+        T.check(r3 and r3.ok and def(Q).cap == 500, "a valid undo still works")
+
+        -- (f) a config.json of the 0.3.0 in development: applies, migrated and rewritten
+        T.files[DIR .. "config.json"] = { lines = { '{ "hordes": { "windows": [ { "days": "1234567", "from": "18:00", '
+            .. '"to": "22:00", "chance": 40 } ], "waves": [ { "base": 12, "perPlayer": 0 } ], "cap": 90, "leadMin": 7, '
+            .. '"waitMin": 20, "spots": [ { "name": "Lot", "x": 10600, "y": 9800, "z": 0 } ] } }' } }
+        T.advance(Cf.POLL_MS)
+        T.tick(1)
+        hh = Cf.get().hordes
+        mf = fileTree("config.json")
+        T.check(Cf.file.status.ok == true and def(Q).waves[1].base == 12 and def(Q).cap == 90 and hh.windows[1].leadMin == 7
+            and hh.windows[1].waitMin == 20 and hh.windows[1].preset == "default", "a 0.3.0 config.json applies, migrated")
+        T.check(mf and mf.hordes.cap == nil and mf.hordes.leadMin == nil and mf.hordes.presets.default.cap == 90
+            and mf.hordes.windows[1].waitMin == 20, "and is rewritten in the new shape")
     end)
 
     section("Store: the old single roll keeps its day count; an old live horde carries on", function()
         local Q = boot()
+        -- (g) the default preset as the server has it now (an old horde takes what it did not copy from here)
+        apply(Q, { cap = 321, restSec = 12, maxAlive = 150, points = { vanilla = 7 }, hp = { vanilla = 3 }, limitMin = 40 })
+        Q.Config.apply({ { op = "set", path = "hordes.presets.default.name", value = "Std" } }, "test", "tester")
         local root = Q.Store.root()
         root.hordes.roll = { day = "2026-10-27", ws = 123, slot = 2, n = 1 }
         root.hordes.perDay = nil
@@ -1417,8 +1683,11 @@ return function(T)
         T.check(l1.waves == 1 and l1.cleared == 1 and l1.pool == 100 and l1.split == nil and l2.waves == 1 and l2.cleared == 0
             and l2.pool == 0, "old results: one wave, cleared on a win, pool = what was actually paid")
         local cur = root.hordes.cur
-        T.check(cur and cur.waves[1].base == 3 and cur.weights.vanilla == 3 and cur.points.vanilla == 5 and cur.cap == 500
-            and cur.count == nil and cur.split == nil and cur.got ~= nil, "an old planned horde: one wave of its count")
+        T.check(cur and cur.waves[1].base == 3 and cur.weights.vanilla == 3 and cur.count == nil and cur.split == nil
+            and cur.got ~= nil, "an old planned horde: one wave of its count")
+        T.check(cur.points.vanilla == 7 and cur.cap == 321 and cur.restSec == 12 and cur.maxAlive == 150 and cur.preset == "Std"
+            and type(cur.hp) == "table" and next(cur.hp) == nil and cur.limitMin == 15 and cur.waitMin == 60,
+            "(g) the rest from today's default preset, health x 1; its own limitMin and waitMin stay")
         local alice = T.player{ name = "alice" }
         near(alice)
         T.now = cur.startMs
@@ -1434,15 +1703,19 @@ return function(T)
             return f and Q.Util.decode(table.concat(f.lines, "\n"), 1000000) or nil
         end
         local defaults = fileTree("defaults.json")
-        T.check(defaults and defaults.hordes and defaults.hordes.windows[1].from == "19:00" and defaults.hordes.kinds.runner == 20
-            and defaults.hordes.waves[1].base == 30 and defaults.hordes.cap == 500, "defaults.json carries the hordes group")
+        T.check(defaults and defaults.hordes and defaults.hordes.windows[1].from == "19:00"
+            and defaults.hordes.windows[1].leadMin == 15 and defaults.hordes.presets.default.kinds.runner == 20
+            and defaults.hordes.presets.default.waves[1].base == 30 and defaults.hordes.presets.default.cap == 500,
+            "defaults.json carries the hordes group")
         T.files[DIR .. "config.json"] = { lines = { '{ "hordes": { "enabled": true, "maxPerDay": 3, '
-            .. '"spots": [ { "name": "Lot", "x": 10600, "y": 9800, "z": 0 } ], "kinds": { "runner": 0 } } }' } }
+            .. '"spots": [ { "name": "Lot", "x": 10600, "y": 9800, "z": 0 } ], '
+            .. '"presets": { "default": { "kinds": { "runner": 0 } } } } }' } }
         T.advance(Q.Config.POLL_MS)
         T.tick(1)
         local h = Q.Config.get().hordes
-        T.check(h.enabled == true and h.maxPerDay == 3 and #h.spots == 1 and h.spots[1].name == "Lot" and h.kinds.runner == 0
-            and h.kinds.vanilla == 80 and h.windows[1].from == "19:00", "an edited config.json applies hordes (kinds merge, spots replace)")
+        T.check(h.enabled == true and h.maxPerDay == 3 and #h.spots == 1 and h.spots[1].name == "Lot" and def(Q).kinds.runner == 0
+            and def(Q).kinds.vanilla == 80 and def(Q).cap == 500 and h.windows[1].from == "19:00",
+            "an edited config.json applies hordes (preset knobs merge, spots replace)")
         T.files[DIR .. "config.json"] = { lines = { '{ "hordes": { "spots": [ { "name": "Lot", "x": 1, "y": 1, "z": 40 } ] } }' } }
         T.advance(Q.Config.POLL_MS)
         T.tick(1)
@@ -1450,7 +1723,8 @@ return function(T)
             "a bad spot in config.json: nothing applied, the path reported")
         apply(Q, { cap = 123 })
         local mirrored = fileTree("config.json")
-        T.check(mirrored and mirrored.hordes.cap == 123 and mirrored.hordes.maxPerDay == 3 and mirrored.hordes.spots[1].x == 10600,
+        T.check(mirrored and mirrored.hordes.presets.default.cap == 123 and mirrored.hordes.maxPerDay == 3
+            and mirrored.hordes.spots[1].x == 10600,
             "a panel change to hordes is written back to config.json")
     end)
 

@@ -1,10 +1,12 @@
 -- MinidoracatQuest/Hordes.lua: timed horde events (docs/ARCHITECTURE.md section 5.10).
 -- Settings are Config hordes.* (config.json covers them); live state is root.hordes (section 3.1).
 -- Schedule: every window (its weekdays, from-to in the sandbox TimezoneOffset, not the reward day) rolls once an hour
--- with its chance; hordes.maxPerDay counts the hordes of all windows of a local day; one horde at a time. A planned
--- horde is announced leadMin before its start, then runs its waves: each waits up to waitMin for a verified player
--- within RANGE tiles, is sized by the players near (Catalog.hordeWaveSize) and comes in batches from exits on a ring
--- around the spot, at most maxAlive alive at once, more as they die. The engine spawns only on loaded squares
+-- with its chance; hordes.maxPerDay counts the hordes of all windows of a local day; one horde at a time. A window
+-- plays one of hordes.presets (a named set of waves, kinds, points, hp, cap, limitMin, restSec, maxAlive; H.presetOf)
+-- and has its own leadMin and waitMin. A planned horde copies its preset, is announced leadMin before its start, then
+-- runs its waves: each waits up to waitMin for a verified player within RANGE tiles, is sized by the players near
+-- (Catalog.hordeWaveSize) and comes in batches from exits on a ring around the spot, at most maxAlive alive at once,
+-- more as they die, each with its kind's health times hp (at most HP_MAX). The engine spawns only on loaded squares
 -- (addZombiesInOutfit returns an empty list for a nil square, 42.21.0 LuaManager.java:10626-10630) and the server keeps
 -- at least 48 tiles loaded around a player, so an exit stays within REACH of a player and GAP away from every player.
 -- The server runs no zombie AI: a sound at the spot every LURE_MS goes to the clients that own the zombies (addSound,
@@ -19,7 +21,8 @@
 -- fails an active horde ("restart"); planned / announced / waiting / rest ones carry on.
 -- Kinds: built-in vanilla and runner (z:doSprinter() at spawn, IsoZombie.java:5563; never doZombieSpeed(1), which
 -- rolls); other mods add "<modId>:<id>" kinds through v1.registerHordeKind. Quest owns timing, counting, clearing.
--- Manual starts (horde.now, design r12) announce lead minutes ahead (0 = at once). Players within RANGE get one
+-- Manual starts (horde.now, design r12 and plan-presets-1028) play a preset (default "default"), announce lead minutes
+-- ahead (0 = at once) and wait wait minutes for players (default 60). Players within RANGE get one
 -- personal reminder REMIND_MS before the start. Participants' stats (horde.joined / kills / mvp) feed achievements and
 -- the player Hordes page, which lists the recent results from root.hordes.log (H.recent, in the records reply).
 
@@ -68,6 +71,8 @@ H.LAST_MS = 10 * MIN      -- players see the last result this long after it ende
 H.LOG = 20                -- root.hordes.log entries kept
 H.RECENT = 10             -- results in the records reply (the player Hordes page)
 H.REMIND_MS = 2 * MIN     -- the personal reminder to players near the spot comes this long before the start
+H.HP_MAX = 30             -- spawn health cap: the zombie packet sends health x 1000 as a short, so above 32.767 it
+                          -- wraps negative on the clients (42.21.0 NetworkZombieAI.java:169, NetworkZombiePacker.java:243)
 H.MAX_PER_MOD, H.MAX_PACK = 8, 32
 H.kinds = H.kinds or {}   -- id -> { id, nameKey, spawn = fn(x, y, z, n) -> ArrayList | Lua array, modId? }
 H.live = H.live or {}     -- IsoZombie -> { horde, onlineId, kind }; memory only
@@ -210,11 +215,11 @@ function H.windowOf(win, d, tz)
     return ws, ws + len * MIN
 end
 
--- the day of win that now belongs to (its rolls start leadMin before it opens; only its weekdays): d, ws, we, slot
+-- the day of win that now belongs to (its rolls start win.leadMin before it opens; only its weekdays): d, ws, we, slot
 -- count; nil outside. The later day wins, so an all-day window's next day starts rolling lead minutes before midnight
 -- (no slot of the earlier day rolls that late).
-function H.window(win, now, tz, leadMin)
-    local lead = (leadMin or 0) * MIN
+function H.window(win, now, tz)
+    local lead = win.leadMin * MIN
     local d0 = localDay(now, tz)
     for d = d0 + 1, d0 - 1, -1 do
         if onDay(win, d) then
@@ -256,23 +261,23 @@ function H.roll(now, cfg, tz)
     for i, win in ipairs(cfg.windows) do
         local key = keys[i]
         keep[key] = true
-        local d, ws, we, K = H.window(win, now, tz, cfg.leadMin)
+        local d, ws, we, K = H.window(win, now, tz)
         if d ~= nil then
             local dk = dayKey(d)
             local r = rollFor(rolls[key], dk, ws)
             rolls[key] = r
             while r.slot < K do
-                local s, e, at = H.slot(ws, we, r.slot, cfg.leadMin)
+                local s, e, at = H.slot(ws, we, r.slot, win.leadMin)
                 if now < at then break end
                 r.slot = r.slot + 1
                 if now < e and cfg.enabled and #cfg.spots > 0 and h.cur == nil and (h.perDay[dk] or 0) < cfg.maxPerDay
                     and ZombRand(100) < win.chance then
                     -- a whole minute in [max(slot start, now + lead), slot end): the announcement keeps its lead
-                    local lo = math.ceil(math.max(s, now + cfg.leadMin * MIN) / MIN)
+                    local lo = math.ceil(math.max(s, now + win.leadMin * MIN) / MIN)
                     local hi = math.ceil(e / MIN) - 1
                     if hi >= lo then
                         countDay(h, dk)
-                        H.plan(cfg, (lo + ZombRand(hi - lo + 1)) * MIN, nil)
+                        H.plan(cfg, (lo + ZombRand(hi - lo + 1)) * MIN, nil, win)
                     end
                 end
             end
@@ -288,11 +293,11 @@ end
 -- the next roll time of one window, nil when none in the next week
 local function nextOf(win, cfg, now, tz, roll, perDay)
     local from
-    local d, ws, we, K = H.window(win, now, tz, cfg.leadMin)
+    local d, ws, we, K = H.window(win, now, tz)
     if d ~= nil then
         local r = rollFor(roll, dayKey(d), ws)
         if r.slot < K and (perDay[dayKey(d)] or 0) < cfg.maxPerDay then
-            local _, _, at = H.slot(ws, we, r.slot, cfg.leadMin)
+            local _, _, at = H.slot(ws, we, r.slot, win.leadMin)
             return at
         end
         from = d + 1
@@ -301,7 +306,7 @@ local function nextOf(win, cfg, now, tz, roll, perDay)
     end
     for dd = from, from + 7 do
         if onDay(win, dd) and (perDay[dayKey(dd)] or 0) < cfg.maxPerDay then
-            local at = H.windowOf(win, dd, tz) - cfg.leadMin * MIN
+            local at = H.windowOf(win, dd, tz) - win.leadMin * MIN
             if at > now then return at end
         end
     end
@@ -321,33 +326,43 @@ end
 
 -- ---------- one horde ----------
 
--- actor nil = an automatic roll; the knobs are copied so later setting changes leave it alone. announceAt nil =
--- leadMin before the start (a manual start passes now)
-function H.plan(cfg, startMs, actor, announceAt)
-    local h = hordes()
+-- a preset of cfg (Config hordes), "default" when id names none: every knob, the ones it lacks (only a hand-edited
+-- config.json leaves some out) from Catalog.DEFAULTS. The tables are cfg's: copy before keeping them.
+function H.presetOf(cfg, id)
+    local def = MQ.Catalog.DEFAULTS.hordes.presets.default
+    local p, out = cfg.presets[id] or cfg.presets.default, {}
+    for k, v in pairs(def) do
+        if p[k] ~= nil then out[k] = p[k] else out[k] = v end
+    end
+    return out
+end
+
+-- win = { preset, leadMin, waitMin }: the window that rolled it, or horde.now's; actor nil = an automatic roll. The
+-- preset's knobs are copied so later setting changes leave it alone; cur.preset is its name ("" = the default one).
+function H.plan(cfg, startMs, actor, win)
+    local h, p = hordes(), H.presetOf(cfg, win.preset)
     local spot = cfg.spots[ZombRand(#cfg.spots) + 1]
     h.seq = (h.seq or 0) + 1
     h.cur = { id = h.seq, auto = actor == nil, actor = actor or "auto", name = spot.name, x = spot.x, y = spot.y,
-        z = spot.z, town = MQ.Towns.at(spot.x, spot.y), state = "planned",
-        announceAt = announceAt or (startMs - cfg.leadMin * MIN), startMs = startMs,
-        expireAt = startMs + cfg.waitMin * MIN, waves = U.copy(cfg.waves), wave = 1, weights = U.copy(cfg.kinds),
-        points = U.copy(cfg.points), cap = cfg.cap, limitMin = cfg.limitMin, waitMin = cfg.waitMin,
-        restSec = cfg.restSec, maxAlive = cfg.maxAlive,
+        z = spot.z, town = MQ.Towns.at(spot.x, spot.y), state = "planned", preset = p.name,
+        announceAt = startMs - win.leadMin * MIN, startMs = startMs, expireAt = startMs + win.waitMin * MIN,
+        waves = U.copy(p.waves), wave = 1, weights = U.copy(p.kinds), points = U.copy(p.points), hp = U.copy(p.hp),
+        cap = p.cap, limitMin = p.limitMin, waitMin = win.waitMin, restSec = p.restSec, maxAlive = p.maxAlive,
         size = 0, queued = 0, spawned = 0, left = 0, killed = 0, mix = {}, queue = {}, angle = 0, tries = 0,
         totalSpawned = 0, totalKilled = 0, cleared = 0, kills = {}, waveGot = {}, got = {}, waveKills = {}, gotKills = {} }
     dirty()
     return h.cur
 end
 
--- A horde planned before the waves update (no cur.waves) carries on as one wave of its count with today's points
--- and cap.
+-- A horde planned before the waves update (0.2.0, no cur.waves; it has its limitMin and waitMin) carries on as one
+-- wave of its count; what it did not copy comes from today's default preset, at health x 1.
 local function upgrade(cur)
-    local cfg = settings()
+    local p = H.presetOf(settings(), "default")
     local weights = {}
     for _, m in ipairs(cur.mix or {}) do weights[m.kind] = m.n end
     cur.waves = { { base = math.max(1, cur.count or 1), perPlayer = 0 } }
-    cur.wave, cur.weights, cur.points, cur.cap = 1, weights, U.copy(cfg.points), cfg.cap
-    cur.restSec, cur.maxAlive, cur.size, cur.queued, cur.queue, cur.angle = cfg.restSec, cfg.maxAlive, 0, 0, {}, 0
+    cur.wave, cur.weights, cur.points, cur.cap, cur.hp, cur.preset = 1, weights, U.copy(p.points), p.cap, {}, p.name
+    cur.restSec, cur.maxAlive, cur.size, cur.queued, cur.queue, cur.angle = p.restSec, p.maxAlive, 0, 0, {}, 0
     cur.totalSpawned, cur.totalKilled, cur.cleared = cur.spawned or 0, cur.killed or 0, 0
     cur.firstSpawnAt, cur.kills, cur.waveGot, cur.got = cur.spawnAt, cur.kills or {}, {}, {}
     cur.waveKills, cur.gotKills = {}, {}
@@ -477,6 +492,10 @@ local function spawnAt(cur, kind, x, y, n)
                 z:setOwnerPlayer(nil)
                 H.live[z] = { horde = cur.id, onlineId = z:getOnlineID(), kind = kind.id }
                 got = got + 1
+                -- the preset's toughness: x the health the kind spawned with (sandbox ZombieLore.Toughness for the
+                -- built-in ones); set at the spawn it reaches the clients (quest-hz-1027k)
+                local mult = cur.hp and cur.hp[kind.id] or 1
+                if mult ~= 1 then z:setHealth(math.min(z:getHealth() * mult, H.HP_MAX)) end
             end
         end)
     end)
@@ -887,13 +906,16 @@ function H.status(now)
             nextAt = H.nextRoll(cfg, now, tz, h.roll, h.perDay) } }
 end
 
--- manual start (design r12): announced at once, starting lead minutes later (nil / 0 = now, announced as "open");
--- not counted in perDay
-function H.startNow(actor, now, lead)
+-- manual start (design r12, plan-presets-1028): announced at once, starting lead minutes later (nil / 0 = now,
+-- announced as "open"), playing presetId (nil = "default"), each wave waiting wait minutes (nil = 60); not counted in
+-- perDay
+function H.startNow(actor, now, lead, presetId, wait)
     local h, cfg = hordes(), settings()
     if h.cur ~= nil then return false, CODE.HORDE_BUSY end
     if #cfg.spots == 0 then return false, CODE.NO_SPOTS end
-    local cur = H.plan(cfg, now + (lead or 0) * MIN, actor, now)
+    lead = lead or 0
+    local cur = H.plan(cfg, now + lead * MIN, actor, { preset = presetId or "default", leadMin = lead,
+        waitMin = wait or 60 })
     MQ.Config.addHistory(actor, "horde.now " .. cur.id .. " " .. cur.name, {}, false)
     H.step(now)
     return true, cur.id
@@ -915,10 +937,13 @@ end
 
 MQ.Server.defineAdmin("horde.status", { kind = "query", run = function(ctx) return true, H.status(ctx.now) end })
 
-MQ.Server.defineAdmin("horde.now", { kind = "mutation", fields = { lead = "int?" }, run = function(ctx)
-    local lead = ctx.args.lead
-    if lead ~= nil and (lead < 0 or lead > C.LIMIT.MAX_LEAD) then return false, CODE.BAD_ARGS end
-    local ok, res = H.startNow(ctx.user, ctx.now, lead)
+MQ.Server.defineAdmin("horde.now", { kind = "mutation", fields = { lead = "int?", wait = "int?", preset = "str?" },
+    run = function(ctx)
+    local a = ctx.args
+    if a.lead ~= nil and (a.lead < 0 or a.lead > C.LIMIT.MAX_LEAD) then return false, CODE.BAD_ARGS end
+    if a.wait ~= nil and (a.wait < 1 or a.wait > 240) then return false, CODE.BAD_ARGS end
+    if a.preset ~= nil and settings().presets[a.preset] == nil then return false, CODE.BAD_ARGS end
+    local ok, res = H.startNow(ctx.user, ctx.now, a.lead, a.preset, a.wait)
     if not ok then return false, res end
     return true, { id = res }
 end })

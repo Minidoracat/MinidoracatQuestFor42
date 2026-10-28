@@ -68,7 +68,9 @@ return function(T)
             setSelected = function(self, id) self.selected = id end, getSelected = function(self) return self.selected end }),
             close = function() end },
         Tabs = { new = widget({ getWidth = function() return 400 end, setSelected = function() end }) },
-        ScrollPanel = { new = widget({ contentWidth = function(self) return self.width - 12 end }) },
+        -- the framework ScrollPanel: Draw.reveal finds it by _scrollPanel up the parents
+        ScrollPanel = { new = widget({ contentWidth = function(self) return self.width - 12 end, _scrollPanel = true,
+            scrollTo = function(self, el) self.scrolledTo = el end }) },
         Dialog = { show = function(opts) dialogs[#dialogs + 1] = opts end },
     }
     -- every token reads white; .token tells which one a label was given
@@ -154,6 +156,10 @@ return function(T)
         if loads[id] then T.check(last(loads[id]) ~= nil, "tab " .. id .. " sends " .. loads[id]) end
     end
     T.check(not T.printed("admin layout"), "no tab raised during layout")
+    -- a number field without its own width fits its largest value with the error mark shown (A.FIELD_CHROME), the
+    -- rule the hordes tab used: "10,000" + 20 cut the marked text on Basic
+    T.check(pool("basic")["f:rewards.top1"].width == math.max(60, A.textW(AM.num(AM.RANGE.pts[2])) + A.FIELD_CHROME),
+        "a number field's default width is its largest value plus the error mark")
 
     T.section("admin ui: a status message that wraps grows the bar")
     local sp = P.pages[P.current].sp
@@ -202,6 +208,17 @@ return function(T)
     T.check(#apg.rows == 5 and pool("achv")["e:t1"]:getText() == tostring(apg.rows[1].tier), "editor filled from the achievement")
     press("achv", "e:add")
     T.check(#apg.rows == 6 and pool("achv")["e:t6"]:getText() ~= "", "add tier fills the default")
+    -- a bad row: the bar names the topmost wrong field and the page scrolls to it, like a bad form field
+    local keepT2, keepP4 = pool("achv")["e:t2"]:getText(), pool("achv")["e:p4"]:getText()
+    pool("achv")["e:t2"]:setText("abc")
+    pool("achv")["e:p4"]:setText("-1")
+    apg.sp.scrolledTo = nil
+    press("achv", "e:save")
+    T.check(apg.edit == "zombie_kills" and P.msg == "IGUI_MQ_Admin_FixErrorsWhy" and P.msgToken == "errorText"
+        and apg.sp.scrolledTo == pool("achv")["e:t2"] and pool("achv")["e:t2"].invalid == "IGUI_MQ_Admin_ErrNumber"
+        and pool("achv")["e:p4"].invalid ~= nil, "the tier editor with two bad rows: the bar names the top one and the page scrolls to it")
+    pool("achv")["e:t2"]:setText(keepT2)
+    pool("achv")["e:p4"]:setText(keepP4)
     pool("achv")["e:n6"]:setText("Undying")
     local onBox = pool("achv")["e:on"]
     onBox.handler(P, false, onBox)
@@ -456,6 +473,19 @@ return function(T)
     T.check(ecButton("basic", "s4e"), "Basic: the limit warning comes with the button")
     MinidoracatEconomy, exWarn = nil, nil
     A.select(P, "quests")
+    local qsp = P.pages.quests.sp
+    pool("quests")["ev:mult"]:setText("9")
+    qsp.scrolledTo = nil
+    press("quests", "ev:add")
+    T.check(last("event.add") == nil and P.msg == "IGUI_MQ_Admin_FixErrorsWhy" and qsp.scrolledTo == pool("quests")["ev:name"]
+        and pool("quests")["ev:name"].invalid == "IGUI_MQ_Admin_ErrName" and pool("quests")["ev:mult"].invalid ~= nil,
+        "an event without a name and with a bad multiplier: both marked, the bar and the scroll go to the name (the top one)")
+    pool("quests")["ev:name"]:setText("Fest")
+    qsp.scrolledTo = nil
+    press("quests", "ev:add")
+    T.check(last("event.add") == nil and qsp.scrolledTo == pool("quests")["ev:mult"] and pool("quests")["ev:name"].invalid == nil,
+        "named: the multiplier is the one the bar and the scroll go to")
+    pool("quests")["ev:mult"]:setText("2")
     pool("quests")["ev:name"]:setText("Fest")
     pool("quests")["ev:start"]:setText("2099-01-01")
     pool("quests")["ev:end"]:setText("2099-01-03")
@@ -531,6 +561,19 @@ return function(T)
     pool("towns")["t:name"]:setText("Camp")
     pool("towns")["t:x2"]:setText("10400")
     pool("towns")["t:y2"]:setText("9900")
+    local tsp = P.pages.towns.sp
+    pool("towns")["t:name"]:setText("")
+    pool("towns")["t:x2"]:setText("abc")
+    tsp.scrolledTo = nil
+    press("towns", "t:add")
+    T.check(#(AM.get(P.S, "towns.custom") or {}) == 0 and P.msg == "IGUI_MQ_Admin_FixErrorsWhy" and tsp.scrolledTo == pool("towns")["t:name"]
+        and pool("towns")["t:name"].invalid == "IGUI_MQ_Admin_ErrName" and pool("towns")["t:x2"].invalid ~= nil,
+        "a town without a name and with a bad corner: both marked, the bar and the scroll go to the name")
+    pool("towns")["t:name"]:setText("Camp")
+    tsp.scrolledTo = nil
+    press("towns", "t:add")
+    T.check(#(AM.get(P.S, "towns.custom") or {}) == 0 and tsp.scrolledTo == pool("towns")["t:x2"], "named: the bad corner is the one")
+    pool("towns")["t:x2"]:setText("10400")
     press("towns", "t:add")
     local ct = AM.get(P.S, "towns.custom")
     T.check(#ct == 1 and ct[1].rects[1].x1 == 10400 and ct[1].rects[1].y2 == 9900, "custom town drafted with a normalised rectangle")
@@ -555,10 +598,16 @@ return function(T)
         and A.summaryText("event.remove 3") == "IGUI_MQ_Admin_HistEventRemove|#3|nil",
         "event summaries show the event name, older rows the id")
     local json = A.fileText({ ok = false, at = now, why = "json", line = 4 })
+    -- a reason with a text says how to fix it; the others keep the server's word (getTextOrNull is nil for them)
+    local gton = getTextOrNull
+    getTextOrNull = function(key) if key ~= "IGUI_MQ_Admin_Why_preset" and string.find(key, "^IGUI_MQ_Admin_Why_") then return nil end return gton(key) end
     local bad = A.fileText({ ok = false, at = now, why = "target", path = "daily.pool.d_kill.target" })
+    local badPreset = A.fileText({ ok = false, at = now, why = "preset", path = "hordes.windows.2.preset" })
+    getTextOrNull = gton
     T.check(string.find(json, "^IGUI_MQ_Admin_FileBad|") and string.find(json, "IGUI_MQ_Admin_FileJson|4", 1, true)
-        and string.find(bad, "IGUI_MQ_Admin_BadConfig|daily.pool.d_kill.target|target", 1, true),
-        "a rejected config.json names the line, or the key path as written in the file")
+        and string.find(bad, "IGUI_MQ_Admin_BadConfig|daily.pool.d_kill.target|target", 1, true)
+        and string.find(badPreset, "IGUI_MQ_Admin_BadConfig|hordes.windows.2.preset|IGUI_MQ_Admin_Why_preset", 1, true),
+        "a rejected config.json names the line, or the key path as written in the file and why (translated when it says how to fix it)")
     getText = gt
     T.check(not T.printed("admin layout"), "no layout error during the flows")
     Flow.finish = finish

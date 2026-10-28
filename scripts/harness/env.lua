@@ -12,7 +12,7 @@ Quick reference
       false); replies reach MinidoracatQuest.Client.receive and are also recorded in T.outbox.
   T.bootClient{}           MP client: loads shared+client (T.mode = "client").
   T.player{ name, admin, role, sid, x, y, z, num, oid, dead, noRole, offline }  online IsoPlayer (p.veh, p.hand)
-  T.zombie{ oid, outfit, attacker, inWorld, owner, useless, cell, x, y }  IsoZombie; addZombiesInOutfitArea makes these at (x1, y1) (T.spawnCap limits
+  T.zombie{ oid, outfit, attacker, inWorld, owner, useless, cell, x, y, health }  IsoZombie; addZombiesInOutfitArea makes these at (x1, y1) with T.spawnHealth (default 2) (T.spawnCap limits
       how many it returns, like unloaded squares; T.spawnCalls records the calls; they report isExistInTheWorld() false
       like fresh zombies on a dedicated server, quest-hz-1026e; T.staleOwner = p makes them still owned by p and
       T.staleUseless = true keeps them useless, like a reused engine object); z:Kill(killer) fires OnZombieDead;
@@ -283,7 +283,7 @@ function T.zombie(o)
     -- single player: no online id (VirtualZombieManager.java:207-221 sets it on GameServer only; quest-hsp-pre-1027a)
     local z = { __class = "IsoZombie", oid = o.oid or (T.mode == "sp" and -1 or T.nextZombieId), outfit = o.outfit or 655360, attacker = o.attacker,
         dead = false, inWorld = o.inWorld ~= false, onSquare = true, sprinter = false, owner = o.owner, ownerPlayer = o.owner,
-        x = o.x or 0, y = o.y or 0, useless = o.useless == true }
+        x = o.x or 0, y = o.y or 0, useless = o.useless == true, health = o.health or 2 }
     T.nextZombieId = T.nextZombieId + 1
     function z:getOnlineID() return self.oid end
     function z:getX() return self.x end
@@ -301,6 +301,8 @@ function T.zombie(o)
     -- useless (IsoZombie.java:4764-4770): a reused zombie object keeps it from its last life (quest-hz-1027l)
     function z:isUseless() return self.useless end
     function z:setUseless(b) self.useless = b end
+    function z:getHealth() return self.health end
+    function z:setHealth(h) self.health = h end
     -- the server zombie's online id goes to -1 (IsoZombie.java:4335-4370, GameServer only); it leaves the cell's
     -- zombie list (:4366)
     function z:removeFromWorld()
@@ -337,7 +339,8 @@ function addZombiesInOutfitArea(x1, y1, x2, y2, z, n, outfit, femaleChance)
     T.spawnCalls[#T.spawnCalls + 1] = { x1 = x1, y1 = y1, x2 = x2, y2 = y2, z = z, n = n, outfit = outfit, female = femaleChance }
     local list = {}
     for i = 1, T.spawnCap and math.min(n, T.spawnCap) or n do
-        list[i] = T.zombie{ inWorld = false, owner = T.staleOwner, useless = T.staleUseless, x = x1, y = y1, cell = T.mode == "sp" }
+        list[i] = T.zombie{ inWorld = false, owner = T.staleOwner, useless = T.staleUseless, x = x1, y = y1, cell = T.mode == "sp",
+            health = T.spawnHealth }
         T.fire("OnZombieCreate", list[i])   -- createRealZombieAlways fires it before the caller gets the list
     end
     return T.javaList(list)
@@ -450,7 +453,7 @@ local function resetWorld(opts)
     T.unreadable = {}
     T.failWrites, T.silentWrites = false, false
     T.randQueue = {}
-    T.zombies, T.cellZombies, T.spawnCalls, T.spawnCap, T.staleOwner, T.staleUseless = {}, {}, {}, nil, nil, nil
+    T.zombies, T.cellZombies, T.spawnCalls, T.spawnCap, T.staleOwner, T.staleUseless, T.spawnHealth = {}, {}, {}, nil, nil, nil, nil
     T.sounds, T.square = {}, nil   -- horde server mocks
     T.steam = opts.steam or false
     T.nextOnlineId = 0

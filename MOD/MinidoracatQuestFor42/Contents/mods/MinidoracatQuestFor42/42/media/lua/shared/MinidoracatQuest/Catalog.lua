@@ -435,14 +435,21 @@ Cat.DEFAULTS = {
     towns = { custom = {}, disabled = {} },
     ceilings = {},
     -- timed horde events (Hordes.lua). windows: { days ("1".."7", 1 = Monday), from / to "HH:MM" in the sandbox
-    -- TimezoneOffset (to < from runs past midnight, to == from is all day), chance % per hourly roll }; maxPerDay counts
-    -- every window. waves: { base, perPlayer (% of base per extra player near the spot) }; maxAlive horde zombies at
-    -- once; kinds: kindId -> relative weight; points: kindId -> points per kill (no entry = points.vanilla); cap: the
-    -- most one horde pays, split by kill value
-    hordes = { enabled = false, windows = { { days = "1234567", from = "19:00", to = "23:00", chance = 30 } },
-        maxPerDay = 1, leadMin = 15, waitMin = 60, waves = { { base = 30, perPlayer = 50 } }, restSec = 30,
-        maxAlive = 200, kinds = { vanilla = 80, runner = 20 }, points = { vanilla = 5, runner = 8 }, limitMin = 15,
-        cap = 500, spots = {} },
+    -- TimezoneOffset (to < from runs past midnight, to == from is all day), chance % per hourly roll, preset (the
+    -- presets id its hordes play), leadMin (warning minutes), waitMin (minutes each wave waits for a player) };
+    -- maxPerDay counts every window. presets: id -> { name ("" = the translated "Default"), waves: { base, perPlayer
+    -- (% of base per extra player near the spot) }, kinds: kindId -> relative weight, points: kindId -> points per kill
+    -- (no entry = points.vanilla), hp: kindId -> health multiplier (no entry = 1), limitMin per wave, restSec between
+    -- waves, maxAlive horde zombies at once, cap: the most one horde pays, split by kill value }
+    hordes = { enabled = false,
+        windows = { { days = "1234567", from = "19:00", to = "23:00", chance = 30, preset = "default", leadMin = 15,
+            waitMin = 60 } },
+        maxPerDay = 1,
+        presets = {
+            default = { name = "", waves = { { base = 30, perPlayer = 50 } }, kinds = { vanilla = 80, runner = 20 },
+                points = { vanilla = 5, runner = 8 }, hp = {}, limitMin = 15, restSec = 30, maxAlive = 200, cap = 500 },
+        },
+        spots = {} },
 }
 
 -- zombies in a horde wave: base, plus perPlayer % of base for every player near the spot after the first (the server

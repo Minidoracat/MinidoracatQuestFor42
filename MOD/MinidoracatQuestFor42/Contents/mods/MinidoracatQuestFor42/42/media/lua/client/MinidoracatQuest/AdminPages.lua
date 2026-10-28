@@ -313,11 +313,11 @@ local function onEventAdd(P)
     local mult, key, lo, hi = AM.check(pool["ev:mult"]:getText(), "eventMult")
     local s = AM.dayStartMs(pool["ev:start"]:getText())
     local e = AM.dayStartMs(pool["ev:end"]:getText())
-    A.markError(P, pool["ev:mult"], mult == nil and getText(key, AM.num(lo), AM.num(hi)) or nil)
-    A.markError(P, pool["ev:start"], s == nil and getText("IGUI_MQ_Admin_ErrDate") or nil)
-    A.markError(P, pool["ev:end"], (e == nil or (s and e < s)) and getText("IGUI_MQ_Admin_ErrDate") or nil)
-    if name == "" then return A.say(P, getText("IGUI_MQ_Admin_ErrName"), "errorText") end
-    if mult == nil or s == nil or e == nil or e < s then return A.say(P, getText("IGUI_MQ_Admin_FixErrors"), "errorText") end
+    -- the bar names the topmost wrong field and the page scrolls to it (A.markAll, like a bad form field)
+    if A.markAll(P, { { pool["ev:name"], name == "" and getText("IGUI_MQ_Admin_ErrName") or nil },
+        { pool["ev:mult"], mult == nil and getText(key, AM.num(lo), AM.num(hi)) or nil },
+        { pool["ev:start"], s == nil and getText("IGUI_MQ_Admin_ErrDate") or nil },
+        { pool["ev:end"], (e == nil or (s and e < s)) and getText("IGUI_MQ_Admin_ErrDate") or nil } }) then return end
     e = e + 86400000   -- end day inclusive
     if e <= getTimestampMs() then return A.say(P, getText("IGUI_MQ_Admin_ErrPast"), "errorText") end
     A.send(P, "event.add", { name = string.sub(name, 1, 64), theme = pool["ev:theme"]:getSelected() or "all", mult = mult,
@@ -1044,15 +1044,15 @@ local function onTownAdd(P)
     local pg = P.pages.towns
     local pool = pg.flow.pool
     local name = textOf(pool["t:name"]:getText())
-    local c, bad = {}, false
+    local c, marks = {}, { { pool["t:name"], name == "" and getText("IGUI_MQ_Admin_ErrName") or nil } }
     for _, k in ipairs({ "x1", "y1", "x2", "y2" }) do
         local key = "t:" .. k
         local v, ek, lo, hi = AM.check(pool[key]:getText(), "coord")
-        A.markError(P, pool[key], v == nil and getText(ek, AM.num(lo), AM.num(hi)) or nil)
-        c[k], bad = v, bad or v == nil
+        marks[#marks + 1] = { pool[key], v == nil and getText(ek, AM.num(lo), AM.num(hi)) or nil }
+        c[k] = v
     end
-    if name == "" then return A.say(P, getText("IGUI_MQ_Admin_ErrName"), "errorText") end
-    if bad then return A.say(P, getText("IGUI_MQ_Admin_FixErrors"), "errorText") end
+    -- the bar names the topmost wrong field and the page scrolls to it (A.markAll, like a bad form field)
+    if A.markAll(P, marks) then return end
     local list = AM.copy(AM.get(P.S, "towns.custom")) or {}
     list[#list + 1] = { id = AM.newId("t", getTimestampMs()), name = string.sub(name, 1, 64),
         rects = { AM.townRect(c.x1, c.y1, c.x2, c.y2) } }

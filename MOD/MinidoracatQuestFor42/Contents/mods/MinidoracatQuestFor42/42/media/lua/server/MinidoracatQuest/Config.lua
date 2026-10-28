@@ -178,8 +178,17 @@ local function onlyKeys(t, names)
     for k in pairs(names) do if t[k] == nil then return false end end
     return true
 end
-local WINDOW_KEYS = { days = true, from = true, to = true, chance = true }
-local chanceV = int(0, 100)
+local WINDOW_KEYS = { days = true, from = true, to = true, chance = true, preset = true, leadMin = true, waitMin = true }
+local chanceV, leadV, waitV = int(0, 100), int(0, C.LIMIT.MAX_LEAD), int(1, 240)
+-- a hordes.presets id: the "*" key rule of child() below
+local function presetId(v)
+    return type(v) == "string" and #v >= 1 and #v <= 64 and string.find(v, "^[%w_:%-]+$") ~= nil
+end
+-- a preset name: "" (the default preset's, shown as the translated "Default") .. 32 bytes, no control characters
+local function presetName(v)
+    if type(v) ~= "string" or #v > 32 or string.find(v, "%c") then return false, "type" end
+    return true
+end
 -- weekdays "1".."7" (1 = Monday), each at most once
 local function weekdays(v)
     if type(v) ~= "string" or #v < 1 or #v > 7 or not string.find(v, "^[1-7]+$") then return false end
@@ -192,7 +201,7 @@ local function hordeWindows(v)
     if not isArray(v, 8) or #v < 1 then return false, "windows" end
     for _, w in ipairs(v) do
         if not onlyKeys(w, WINDOW_KEYS) or not weekdays(w.days) or not clock(w.from) or not clock(w.to)
-            or not chanceV(w.chance) then
+            or not chanceV(w.chance) or not presetId(w.preset) or not leadV(w.leadMin) or not waitV(w.waitMin) then
             return false, "windows"
         end
     end
@@ -239,12 +248,15 @@ Cf.SCHEMA = {
     titles = { head = bool, chat = bool },
     boards = { inactiveDays = int(7, 365), rebuildSeasonMs = int(60000, 86400000), rebuildTotalMs = int(60000, 86400000) },
     towns = { custom = townsCustom, disabled = townsDisabled },
-    -- timed hordes (Hordes.lua); kinds: kindId ("vanilla", "runner", "<modId>:<id>") -> weight, points: kindId -> points
-    -- per kill; windows, waves and spots are whole-set only
-    hordes = { enabled = bool, windows = hordeWindows, maxPerDay = int(1, 24), leadMin = int(0, C.LIMIT.MAX_LEAD),
-        waitMin = int(1, 240), waves = hordeWaves, restSec = int(0, 600), maxAlive = int(10, 2000),
-        kinds = { ["*"] = int(0, 100) }, points = { ["*"] = int(0, 1000) }, limitMin = int(1, 120),
-        cap = int(1, 1000000), spots = hordeSpots },
+    -- timed hordes (Hordes.lua); presets: id -> one set of horde knobs a window (or horde.now) plays, kinds: kindId
+    -- ("vanilla", "runner", "<modId>:<id>") -> weight, points: kindId -> points per kill, hp: kindId -> health
+    -- multiplier; windows, waves and spots are whole-set only. Every window's preset exists and there are at most
+    -- C.LIMIT.MAX_PRESETS presets: validateAll checks the result.
+    hordes = { enabled = bool, windows = hordeWindows, maxPerDay = int(1, 24),
+        presets = { ["*"] = { name = presetName, waves = hordeWaves, kinds = { ["*"] = int(0, 100) },
+            points = { ["*"] = int(0, 1000) }, hp = { ["*"] = num(0.1, 10) }, limitMin = int(1, 120),
+            restSec = int(0, 600), maxAlive = int(10, 2000), cap = int(1, 1000000) } },
+        spots = hordeSpots },
     ceilings = ceilingsMap,
     -- season.lengthDays only changes through the season ops (section 3.4); not a config path
 }
@@ -403,6 +415,15 @@ local function validateAll(changes)
     local n = 0
     for _ in pairs(after.custom or {}) do n = n + 1 end
     if n > Cf.MAX_CUSTOM then return false, { why = "custom count" } end
+    -- hordes: at most MAX_PRESETS presets, and every window plays one that exists ("default" always does: it is in the
+    -- defaults, a del of its override only brings them back)
+    local hz = effective(after).hordes
+    n = 0
+    for _ in pairs(hz.presets) do n = n + 1 end
+    if n > C.LIMIT.MAX_PRESETS then return false, { why = "presets" } end
+    for i, w in ipairs(hz.windows) do
+        if hz.presets[w.preset] == nil then return false, { why = "preset", path = "hordes.windows." .. i .. ".preset" } end
+    end
     return true, after
 end
 
@@ -557,13 +578,19 @@ local function changesTo(tree)
     return changes
 end
 
--- Rewrites the pre-2026-10-27 hordes keys of an overrides-shaped tree in place (design plan-hordes-1027); true when
--- anything changed. from / to / chance -> the first window (every weekday), count { a, b } -> one wave of their
--- average with no per-player growth, perZombie -> the points of vanilla, runner and every kind with a weight; split
--- goes (only the kill-value share is left). Keys the old tree did not override keep the new defaults. An old key that
--- does not convert stays, so the tree fails validation on its path (status.json names it): a value the old validation
--- would have refused (no silent new default), or one next to its new key (an edit in the old shape is not dropped).
+-- Rewrites the old hordes keys of an overrides-shaped tree in place; true when anything changed. Keys the old tree did
+-- not override keep the new defaults. An old key that does not convert stays, so the tree fails validation on its path
+-- (status.json names it): a value the old validation would have refused (no silent new default), or one next to its
+-- new key (an edit in the old shape is not dropped).
+-- 1. Before 2026-10-27 (0.2.0, design plan-hordes-1027): from / to / chance -> the first window (every weekday),
+--    count { a, b } -> one wave of their average with no per-player growth, perZombie -> the points of vanilla, runner
+--    and every kind with a weight; split goes (only the kill-value share is left).
+-- 2. Before the presets (2026-10-28, design plan-presets-1028): waves, kinds, points, cap, limitMin, restSec and
+--    maxAlive move to presets.default; leadMin / waitMin go into every window (a tree without windows gets the default
+--    ones first), and every window without them plays "default" with OLD_LEAD / OLD_WAIT, the old defaults.
 local oldChance, oldCount, oldPer = int(0, 100), int(1, 100), int(0, 1000)
+local PRESET_KEYS = { "waves", "kinds", "points", "cap", "limitMin", "restSec", "maxAlive" }
+local OLD_LEAD, OLD_WAIT = 15, 60
 function Cf.migrate(tree)
     local h = type(tree) == "table" and tree.hordes or nil
     if type(h) ~= "table" then return false end
@@ -597,6 +624,30 @@ function Cf.migrate(tree)
         end
     end
     if h.split ~= nil then h.split, changed = nil, true end
+    -- 2. presets
+    for _, k in ipairs(PRESET_KEYS) do
+        if h[k] ~= nil and (h.presets == nil or type(h.presets) == "table") then
+            h.presets = h.presets or {}
+            if h.presets.default == nil then h.presets.default = {} end
+            local d = h.presets.default
+            if type(d) == "table" and d[k] == nil then d[k], h[k], changed = h[k], nil, true end
+        end
+    end
+    local lead, wait, built = h.leadMin, h.waitMin, false
+    if (lead ~= nil or wait ~= nil) and h.windows == nil then
+        h.windows, built, changed = U.copy(Cf.defaults().hordes.windows), true, true
+    end
+    if type(h.windows) == "table" then
+        for _, w in ipairs(h.windows) do
+            if type(w) == "table" then
+                if w.preset == nil then w.preset, changed = "default", true end
+                -- windows built just now carry the new defaults: the old top-level value replaces them
+                if w.leadMin == nil or (built and lead ~= nil) then w.leadMin, changed = lead or OLD_LEAD, true end
+                if w.waitMin == nil or (built and wait ~= nil) then w.waitMin, changed = wait or OLD_WAIT, true end
+            end
+        end
+        if lead ~= nil or wait ~= nil then h.leadMin, h.waitMin, changed = nil, nil, true end
+    end
     return changed
 end
 
@@ -668,7 +719,7 @@ function Cf.fileBoot()
     U.log("settings files: Zomboid/Lua/" .. Q.Store.path(""))   -- the folder owners look for (sp_<save> in single player)
     if Cf.migrate(Q.Store.root().config.overrides) then
         Cf.invalidate()
-        U.log("config: hordes settings moved to the windows / waves / points shape")
+        U.log("config: hordes settings moved to the windows / presets shape")
     end
     local defaults, all = {}, Cf.defaults()
     for k in pairs(Cf.SCHEMA) do defaults[k] = all[k] end

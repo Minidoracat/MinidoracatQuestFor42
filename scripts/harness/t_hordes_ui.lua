@@ -49,9 +49,16 @@ return function(T)
         fitWidth = function(self) self.width = #tostring(self.opts.title) * 7 + 20 end, setStyle = function(self, s) self.style = s end,
         setActive = function(self, b) self.active = b end })
     local dialogs = {}
+    local wrapW = {}
     local UI = {
         CAPABILITIES = { textFieldInvalid = true },
-        Text = { fit = function(s) return s end, wrap = function(s) return { s } end },
+        -- wrap splits at "\n" like the framework and records the width each text was given (Flow:text's note cap)
+        Text = { fit = function(s) return s end, wrap = function(s, w)
+            wrapW[s] = w
+            local out = {}
+            for line in string.gmatch(s .. "\n", "(.-)\n") do out[#out + 1] = line end
+            return out
+        end },
         Button = { new = function(opts) local b = button(opts); b.target, b.onclick = opts.target, opts.onClick; return b end },
         Checkbox = { new = widget({ setLabel = function() end, setChecked = function(self, b) self.opts.checked = b end,
             getChecked = function(self) return self.opts.checked == true end }) },
@@ -128,6 +135,12 @@ return function(T)
     -- a pick in the dropdown, as the framework calls it: onChange(target, id, dropdown)
     local function pick(key, id) local dd = pool()[key]; dd.opts.onChange(dd.opts.target, id, dd) end
 
+    local D0 = "hordes.presets.default"
+    local DEF = "IGUI_MQ_Admin_HordePresetDefault"   -- the default preset's shown name (its name is "" in the Catalog)
+    -- copies are "<name> 2", "<name> 3": the key is 32 bytes, so the name is cut to make room (AM.MAX_NAME)
+    local DEF2, DEF3 = string.sub(DEF, 1, 30) .. " 2", string.sub(DEF, 1, 30) .. " 3"
+    local function token(key) local el = pool()[key]; return el and el.color and el.color.token end
+
     T.section("horde admin: the tab after towns, defaults, sections in the design's order, status on open")
     local ti, hi = 0, 0
     for i, id in ipairs(A.TABS) do if id == "towns" then ti = i elseif id == "hordes" then hi = i end end
@@ -141,34 +154,57 @@ return function(T)
     end
     T.check(field("hordes.windows.1.from"):getText() == "19:00" and field("hordes.windows.1.to"):getText() == "23:00"
         and field("hordes.windows.1.chance"):getText() == "30" and chipsOn(1) == "1234567"
-        and field("hordes.waves.1.base"):getText() == "30" and field("hordes.waves.1.perPlayer"):getText() == "50"
-        and field("hordes.kinds.vanilla"):getText() == "80" and field("hordes.kinds.runner"):getText() == "20"
-        and field("hordes.points.vanilla"):getText() == "5" and field("hordes.points.runner"):getText() == "8"
-        and field("hordes.restSec"):getText() == "30" and field("hordes.maxAlive"):getText() == "200"
-        and field("hordes.cap"):getText() == "500" and field("hordes.waitMin"):getText() == "60"
-        and field("hordes.enabled"):getChecked() == false, "every field shows Catalog.DEFAULTS.hordes")
-    local order, prevY, inOrder = { "h", "hs", "hl", "hp", "hw", "hv", "hk", "hr" }, -1, true
+        and field("hordes.windows.1.leadMin"):getText() == "15" and field("hordes.windows.1.waitMin"):getText() == "60"
+        and pool()["w:p1"].selected == "default" and P.pages.hordes.preset == "default"
+        and field(D0 .. ".waves.1.base"):getText() == "30" and field(D0 .. ".waves.1.perPlayer"):getText() == "50"
+        and field(D0 .. ".kinds.vanilla"):getText() == "80" and field(D0 .. ".kinds.runner"):getText() == "20"
+        and field(D0 .. ".points.vanilla"):getText() == "5" and field(D0 .. ".points.runner"):getText() == "8"
+        and field(D0 .. ".hp.vanilla"):getText() == "1" and field(D0 .. ".hp.runner"):getText() == "1"
+        and field(D0 .. ".restSec"):getText() == "30" and field(D0 .. ".maxAlive"):getText() == "200"
+        and field(D0 .. ".limitMin"):getText() == "15" and field(D0 .. ".cap"):getText() == "500"
+        and field(D0 .. ".name"):getText() == "" and field("hordes.maxPerDay"):getText() == "1"
+        and field("hordes.enabled"):getChecked() == false, "every field shows Catalog.DEFAULTS.hordes; the page edits the default preset")
+    local order, prevY, inOrder = { "n", "hs", "hl", "hp", "hw", "hpre", "hv", "hk", "hr" }, -1, true
     for _, k in ipairs(order) do
         inOrder = inOrder and shown(k) and pool()[k].y > prevY
         prevY = pool()[k] and pool()[k].y or prevY
     end
-    T.check(inOrder and pool()["hw"].lines[1] == "IGUI_MQ_Admin_HordeWindowsHead" and pool()["hv"].lines[1] == "IGUI_MQ_Admin_HordeWavesHead"
-        and pool()["hk"].lines[1] == "IGUI_MQ_Admin_HordeKindsHead" and pool()["hr"].lines[1] == "IGUI_MQ_Admin_HordeRewardHead",
-        "sections: hordes, status, recent results, spots, windows, waves, kinds, reward")
-    T.check(pool()["l:hordes.waitMin"].lines[1] == "IGUI_MQ_Admin_F_hordes_waitMin" and pool()["l:hordes.cap"] ~= nil
+    T.check(inOrder and pool()["h"] == nil and pool()["hpre"].lines[1] == "IGUI_MQ_Admin_HordePresetsHead"
+        and pool()["hv"].lines[1] == "IGUI_MQ_Admin_HordeWavesHead|" .. DEF and pool()["hk"].lines[1] == "IGUI_MQ_Admin_HordeKindsHead|" .. DEF
+        and pool()["hr"].lines[1] == "IGUI_MQ_Admin_HordeRewardHead|" .. DEF,
+        "no page heading; note, status, recent results, spots, windows, presets, then waves / kinds / reward named by the preset")
+    T.check(pool()["l:hordes.maxPerDay"].lines[1] == "IGUI_MQ_Admin_F_hordes_maxPerDay" and pool()["l:" .. D0 .. ".cap"].lines[1] == "IGUI_MQ_Admin_F_hordes_cap"
+        and pool()["l:" .. D0 .. ".name"].lines[1] == "IGUI_MQ_Admin_F_hordes_name" and pool()["l:hordes.waitMin"] == nil
         and pool()["ks:th"].cells[2].text == "IGUI_MQ_Admin_ColWeight" and pool()["ks:th"].cells[3].text == "IGUI_MQ_Admin_HordeColShare"
-        and pool()["ks:th"].cells[4].text == "IGUI_MQ_Admin_HordeColPoints" and shown("est") and shown("rn"),
-        "the wait label, kinds columns weight / share / points, the cap with its note and estimate in the reward section")
+        and pool()["ks:th"].cells[4].text == "IGUI_MQ_Admin_HordeColPoints" and pool()["ks:th"].cells[5].text == "IGUI_MQ_Admin_HordeColHp"
+        and shown("est") and shown("rn"),
+        "preset fields read like their settings; kinds columns weight / share / points / toughness; the cap with its note and estimate")
+    T.check(field("hordes.enabled").opts.label == "IGUI_MQ_Admin_F_hordes_enabled" and pool()["l:hordes.enabled"] == nil,
+        "Auto hordes is the checkbox's own label: a click on the words toggles it too")
+    local estEl = pool()["est"]
+    T.check(estEl.lines[1] == "IGUI_MQ_Admin_HordeEstHead|" .. DEF and #estEl.lines == 2 and estEl.firstFont == nil,
+        "the estimate box's first line names the preset, in the box's own font")
+    local hf = P.pages.hordes.flow
+    T.check(wrapW["IGUI_MQ_Admin_HordeNote"] == 30 * 14 and wrapW[estEl.lines[1] .. "\n" .. estEl.lines[2]] == hf.width - 2 * A.PAD - 16,
+        "a plain note wraps at 30 font heights at most; a boxed text keeps the full width")
     T.check(shown("cur") and has(pool()["cur"].lines[1], "IGUI_MQ_Admin_HordeNone") and pool()["now"]:isEnabled(),
         "no horde: says so, Start one now enabled")
-    T.check(shown("p:0") and shown("sp:add") and pool()["sp:add"]:isEnabled(), "no spots: the warning inside the list box, the add row")
-    T.check(#P.pages.hordes.flow.lists >= 2 and P.pages.hordes.flow.lists[1].key == "l" and P.pages.hordes.flow.lists[2].key == "p",
-        "recent results and spots are list boxes")
+    T.check(shown("p:0") and shown("sp:add") and pool()["sp:add"]:isEnabled() and pool()["sp:add"].style == "normal",
+        "no spots: the warning inside the list box; the add button is not the gold one")
+    T.check(#hf.lists >= 2 and hf.lists[1].key == "l" and hf.lists[2].key == "p", "recent results and spots are list boxes")
+    local keepData = P.pages.hordes.data
+    P.pages.hordes.data = nil
+    A.layout(P)
+    T.check(shown("hl") and not shown("l:th") and shown("l:0") and pool()["l:0"].lines[1] == "IGUI_MQ_Admin_Loading",
+        "recent results while loading: the box says loading, the column header waits for the results")
+    P.pages.hordes.data = keepData
+    A.layout(P)
+    T.check(shown("l:th") and pool()["l:0"].lines[1] == "IGUI_MQ_Admin_HordeLogNone", "loaded: the header, and no results said in the box")
     A.select(P, "towns")
     A.select(P, "hordes")
     T.check(count("horde.status") == 2, "coming back to the tab asks again (live status)")
 
-    T.section("horde admin: a status payload (wave 2 of 3, log with waves, a pack kind, the cull line)")
+    T.section("horde admin: a status payload (wave 2 of 3, log with waves, a pack kind, the cull line, the preset)")
     local log = {}
     for i = 1, 6 do
         log[i] = { id = 10 - i, name = "Spot" .. i, town = "muldraugh", state = i == 1 and "success" or (i == 2 and "cancelled" or "failed"),
@@ -178,13 +214,14 @@ return function(T)
     local threeWaves = { { base = 20, perPlayer = 50 }, { base = 30, perPlayer = 50 }, { base = 50, perPlayer = 100 } }
     status = { cur = { id = 3, auto = true, name = "Gas", town = "muldraugh", x = 10620, y = 9810, z = 0, state = "active",
         wave = 2, waves = threeWaves, size = 30, killed = 17, left = 13, endsAt = now + 600000, startMs = now - 60000,
-        expireAt = now + 3600000, nextAt = now + 24000, weights = { vanilla = 70, ["mod:brute"] = 30, runner = 0 } },
+        expireAt = now + 3600000, nextAt = now + 24000, weights = { vanilla = 70, ["mod:brute"] = 30, runner = 0 }, preset = "Hard" },
         roll = { n = 1, max = 2, nextAt = now + 3600000, enabled = true }, log = log, cull = 300,
         kinds = { { id = "vanilla", nameKey = "IGUI_MQ_Horde_Kind_vanilla", builtin = true },
             { id = "runner", nameKey = "IGUI_MQ_Horde_Kind_runner", builtin = true }, { id = "mod:brute", nameKey = "Brute_Name", builtin = false } } }
     press("refresh")
     T.check(count("horde.status") == 3 and shown("stop") and pool()["stop"].opts.title == "IGUI_MQ_Admin_HordeStop"
         and pool()["stop"].style == "danger", "Refresh asks again; an active horde has a danger Stop")
+    T.check(pool()["stop"].x + pool()["stop"].width == hf.width - A.PAD, "the Stop button keeps the row's end")
     T.check(has(pool()["cur"].lines[1], "IGUI_MQ_Admin_HordeCurActive|IGUI_MQ_Admin_HordeState_active|") and has(pool()["cur"].lines[1], "|2|3|17|30|"),
         "the current line: state, place, wave 2 / 3, cleared 17 / 30")
     T.check(has(pool()["roll"].lines[1], "IGUI_MQ_Admin_HordeToday|1|2|"), "today n / max and the next roll")
@@ -194,7 +231,7 @@ return function(T)
         and pool()["l1"].cells[3].token == "success" and has(cell("l2", 3), "IGUI_MQ_Admin_HordeRes_cancelled")
         and cell("l3", 3) == "IGUI_MQ_Admin_HordeResFail|IGUI_MQ_Admin_HordeWhy_time|2|3|500" and pool()["l3"].cells[3].token == "errorText"
         and cell("l:th", 1) == "IGUI_MQ_Admin_ColTime", "recent results: 5 of 6, cleared waves / waves, the pool, capped marked")
-    T.check(field("hordes.kinds.mod:brute") == nil and options("ks:add")["mod:brute"] == "Brute_Name"
+    T.check(field(D0 .. ".kinds.mod:brute") == nil and options("ks:add")["mod:brute"] == "Brute_Name"
         and options("ks:add").vanilla == nil and options("ks:add").runner == nil,
         "a pack kind (no weight yet) waits in the dropdown, named by its nameKey; the weighted kinds are rows")
     press("stop")
@@ -218,47 +255,61 @@ return function(T)
     status.cur.state, status.cur.wave = "announced", 1
     press("refresh")
     T.check(pool()["stop"].opts.title == "IGUI_MQ_Admin_HordeCancel" and has(pool()["cur"].lines[1], "IGUI_MQ_Admin_HordeCurPlan|")
-        and has(pool()["cur"].lines[1], "|3|IGUI_MQ_Horde_Kind_vanillaIGUI_MQ_UI_ListSepBrute_Name"),
-        "before it starts the button says Cancel; the admin sees the waves and the kinds with a weight")
+        and has(pool()["cur"].lines[1], "|3|IGUI_MQ_Horde_Kind_vanillaIGUI_MQ_UI_ListSepBrute_Name|Hard"),
+        "before it starts the button says Cancel; the admin sees the waves, the kinds with a weight and the preset")
+    T.check(pool()["stop"].x + pool()["stop"].width == hf.width - A.PAD, "Cancel keeps the row's end too")
     press("stop")
     T.check(dialogs[#dialogs].confirmText == "IGUI_MQ_Admin_HordeCancel" and dialogs[#dialogs].cancelText == "IGUI_MQ_Admin_HordeKeep"
         and d.cancelText == "UI_Cancel", "Cancel this horde: the way out says Keep, not Cancel too (Stop keeps Cancel)")
     answer(false)
+    status.cur.preset = nil
+    press("refresh")
+    T.check(has(pool()["cur"].lines[1], "|" .. DEF), "a horde planned before presets (no preset) reads as the default one")
     status.cur = nil
     status.roll.enabled = false
     press("refresh")
     T.check(pool()["now"]:isEnabled() and has(pool()["roll"].lines[1], "IGUI_MQ_Admin_HordeAutoOff"), "no horde: Start a horde; auto off said")
-    local lead = pool()["now:lead"]
-    T.check(lead:getText() == "15", "the warning field starts at the applied leadMin (15)")
+    local lead, wait = pool()["now:lead"], pool()["now:wait"]
+    T.check(lead:getText() == "15" and wait:getText() == "60" and pool()["now:pre"].selected == "default" and options("now:pre").default == DEF,
+        "Start a horde: the default preset, warning 15 and wait 60 (a new window's values)")
     press("now")
     d = dialogs[#dialogs]
-    T.check(d.confirmText == "IGUI_MQ_Admin_HordeNow" and d.text == "IGUI_MQ_Admin_HordeNowAsk|15",
-        "Start a horde asks with the warning minutes; the text names the applied settings")
+    T.check(d.confirmText == "IGUI_MQ_Admin_HordeNow" and d.text == "IGUI_MQ_Admin_HordeNowAsk|" .. DEF .. "|15",
+        "Start a horde asks with the preset and the warning minutes")
     answer(false)
     T.check(last("horde.now") == nil, "not confirmed: nothing sent")
     press("now")
     answer(true)
-    T.check(last("horde.now") ~= nil and last("horde.now").lead == 15 and P.msg == "IGUI_MQ_Admin_HordeStarted"
-        and AM.draftCount(P.S.draft) == 0, "confirmed: horde.now with lead 15, no draft change")
+    local hn = last("horde.now")
+    T.check(hn ~= nil and hn.lead == 15 and hn.wait == 60 and hn.preset == "default" and P.msg == "IGUI_MQ_Admin_HordeStarted"
+        and AM.draftCount(P.S.draft) == 0, "confirmed: horde.now { lead 15, wait 60, preset default }, no draft change")
     lead:setText("0")
+    wait:setText("30")
     press("now")
-    T.check(dialogs[#dialogs].text == "IGUI_MQ_Admin_HordeNowAskNow", "a warning of 0: the start-now text")
+    T.check(dialogs[#dialogs].text == "IGUI_MQ_Admin_HordeNowAskNow|" .. DEF, "a warning of 0: the start-now text, with the preset")
     answer(true)
-    T.check(last("horde.now").lead == 0 and pool()["now:lead"]:getText() == "0", "lead 0 sent; the admin's value survives the relayout")
+    T.check(last("horde.now").lead == 0 and last("horde.now").wait == 30 and pool()["now:lead"]:getText() == "0"
+        and pool()["now:wait"]:getText() == "30", "lead 0 and wait 30 sent; the admin's values survive the relayout")
     local asked = #dialogs
-    for _, bad in ipairs({ { "", "IGUI_MQ_Admin_ErrNumber|0|120" }, { "x", "IGUI_MQ_Admin_ErrNumber|0|120" },
-        { "-1", "IGUI_MQ_Admin_ErrWhole|0|120" }, { "121", "IGUI_MQ_Admin_ErrWhole|0|120" }, { "2.5", "IGUI_MQ_Admin_ErrWhole|0|120" } }) do
-        lead:setText(bad[1])
+    for _, bad in ipairs({ { lead, "", "IGUI_MQ_Admin_ErrNumber|0|120" }, { lead, "x", "IGUI_MQ_Admin_ErrNumber|0|120" },
+        { lead, "-1", "IGUI_MQ_Admin_ErrWhole|0|120" }, { lead, "121", "IGUI_MQ_Admin_ErrWhole|0|120" }, { lead, "2.5", "IGUI_MQ_Admin_ErrWhole|0|120" },
+        { wait, "0", "IGUI_MQ_Admin_ErrWhole|1|240" }, { wait, "241", "IGUI_MQ_Admin_ErrWhole|1|240" } }) do
+        local keep = bad[1]:getText()
+        bad[1]:setText(bad[2])
+        P.pages.hordes.sp.scrolledTo = nil
         press("now")
-        T.check(#dialogs == asked and P.msg == bad[2] and lead.invalid ~= nil,
-            "warning '" .. bad[1] .. "': marked with the field messages, nothing asked")
+        T.check(#dialogs == asked and P.msg == "IGUI_MQ_Admin_FixErrorsWhy|" .. bad[3] and bad[1].invalid ~= nil
+            and P.pages.hordes.sp.scrolledTo == bad[1], (bad[1] == lead and "warning" or "wait") .. " '" .. bad[2]
+            .. "': marked, the bar says why and the page scrolls to it, nothing asked")
+        bad[1]:setText(keep)
     end
     lead:setText("5")
     nowReply = { ok = false, code = "NO_SPOTS" }
     press("now")
     T.check(P.msg == nil, "a good value: the old error leaves the bar when the dialog opens")
     answer(true)
-    T.check(P.msg == "IGUI_MQ_Code_NO_SPOTS" and lead.invalid == nil, "a refusal shows the server code; a good value clears the mark")
+    T.check(P.msg == "IGUI_MQ_Code_NO_SPOTS" and lead.invalid == nil and wait.invalid == nil, "a refusal shows the server code; good values clear the marks")
+    nowReply = { id = 7 }
 
     T.section("horde admin: fields check like the server table")
     local pg = P.pages.hordes
@@ -276,17 +327,18 @@ return function(T)
         { "hordes.windows.1.from", { "0:00", "9:05", "23:59", " 19:30 " }, { "24:00", "12:60", "1200", "7:5", "", "ab:cd" } },
         { "hordes.windows.1.to", { "0:00", "23:59" }, { "24:00", "" } },
         { "hordes.windows.1.chance", { "0", "100" }, { "-1", "101", "2.5", "x" } },
+        { "hordes.windows.1.leadMin", { "0", "120" }, { "-1", "121", "1.5" } },
+        { "hordes.windows.1.waitMin", { "1", "240" }, { "0", "241" } },
         { "hordes.maxPerDay", { "1", "24" }, { "0", "25" } },
-        { "hordes.leadMin", { "0", "120" }, { "-1", "121" } },
-        { "hordes.waitMin", { "1", "240" }, { "0", "241" } },
-        { "hordes.waves.1.base", { "1", "9999" }, { "0", "10000", "1.5" } },
-        { "hordes.waves.1.perPlayer", { "0", "1000" }, { "-1", "1001" } },
-        { "hordes.restSec", { "0", "600" }, { "-1", "601" } },
-        { "hordes.limitMin", { "1", "120" }, { "0", "121" } },
-        { "hordes.maxAlive", { "10", "2000" }, { "9", "2001" } },
-        { "hordes.kinds.runner", { "0", "100" }, { "-1", "101", "1.5" } },
-        { "hordes.points.runner", { "0", "1000" }, { "-1", "1001" } },
-        { "hordes.cap", { "1", "1000000" }, { "0", "1000001" } },
+        { D0 .. ".waves.1.base", { "1", "9999" }, { "0", "10000", "1.5" } },
+        { D0 .. ".waves.1.perPlayer", { "0", "1000" }, { "-1", "1001" } },
+        { D0 .. ".restSec", { "0", "600" }, { "-1", "601" } },
+        { D0 .. ".limitMin", { "1", "120" }, { "0", "121" } },
+        { D0 .. ".maxAlive", { "10", "2000" }, { "9", "2001" } },
+        { D0 .. ".kinds.runner", { "0", "100" }, { "-1", "101", "1.5" } },
+        { D0 .. ".points.runner", { "0", "1000" }, { "-1", "1001" } },
+        { D0 .. ".hp.runner", { "0.1", "1.5", "10" }, { "0.05", "0", "10.5", "x" } },
+        { D0 .. ".cap", { "1", "1000000" }, { "0", "1000001" } },
     }
     for _, c in ipairs(cases) do
         local goodOk, badOk = true, false
@@ -300,18 +352,18 @@ return function(T)
     T.section("horde admin: a bad field is named in the bar and scrolled to; a good edit clears it (review H2, M1)")
     local sp = pg.sp
     sp.scrolledTo = nil
-    field("hordes.cap"):setText("0")
-    field("hordes.waves.1.base"):setText("1.5")
+    field(D0 .. ".cap"):setText("0")
+    field(D0 .. ".waves.1.base"):setText("1.5")
     A.onPreview(P)
     T.check(P.msgToken == "errorText" and has(P.msg, "IGUI_MQ_Admin_FixErrorsWhy|IGUI_MQ_Admin_ErrWhole|1|")
-        and sp.scrolledTo == field("hordes.waves.1.base"),
+        and sp.scrolledTo == field(D0 .. ".waves.1.base"),
         "Apply with two bad fields: the bar gives the topmost one's message (waves above the cap) and scrolls to it")
     sp.scrolledTo = nil
     press("w:add")
     T.check(#AM.get(P.S, "hordes.windows") == 1 and has(P.msg, "IGUI_MQ_Admin_FixErrorsWhy|IGUI_MQ_Admin_ErrWhole|1|")
-        and sp.scrolledTo == field("hordes.waves.1.base"), "Add a window with a bad field: nothing added, the bar and the scroll go to it")
-    field("hordes.waves.1.base"):setText("30")
-    field("hordes.cap"):setText("500")
+        and sp.scrolledTo == field(D0 .. ".waves.1.base"), "Add a window with a bad field: nothing added, the bar and the scroll go to it")
+    field(D0 .. ".waves.1.base"):setText("30")
+    field(D0 .. ".cap"):setText("500")
     press("w:add")
     T.check(#AM.get(P.S, "hordes.windows") == 2 and P.msg == "IGUI_MQ_Admin_InDraft" and P.msgToken == "textMuted",
         "fixed, then Add: the bar says it is in the draft, the error is gone")
@@ -320,53 +372,62 @@ return function(T)
     A.discard(P)
     field("hordes.windows.1.from"):setText("20:00")
     field("hordes.windows.1.chance"):setText("60")
+    field("hordes.windows.1.leadMin"):setText("5")
+    field("hordes.windows.1.waitMin"):setText("90")
     field("hordes.maxPerDay"):setText("3")
-    field("hordes.waves.1.base"):setText("25")
-    field("hordes.kinds.runner"):setText("0")
-    field("hordes.cap"):setText("800")
+    field(D0 .. ".waves.1.base"):setText("25")
+    field(D0 .. ".kinds.runner"):setText("0")
+    field(D0 .. ".hp.runner"):setText("1.5")
+    field(D0 .. ".cap"):setText("800")
     pick("ks:add", "mod:brute")
-    T.check(field("hordes.kinds.mod:brute"):getText() == "10" and field("hordes.points.mod:brute"):getText() == "5"
-        and shown("ks:n:mod:brute") and not shown("ks:add") and shown("ks:all") and field("hordes.kinds.runner"):getText() == "0",
-        "picked: the kind is a row at weight 10 and the regular zombie's 5 points, typed values stay, nothing left to add")
+    T.check(field(D0 .. ".kinds.mod:brute"):getText() == "10" and field(D0 .. ".points.mod:brute"):getText() == "5"
+        and field(D0 .. ".hp.mod:brute"):getText() == "1" and shown("ks:n:mod:brute") and not shown("ks:add") and shown("ks:all")
+        and field(D0 .. ".kinds.runner"):getText() == "0",
+        "picked: the kind is a row at weight 10, the regular zombie's 5 points and 1x toughness; typed values stay")
     field("hordes.enabled"):setChecked(true)
     A.onPreview(P)
     local changes = Q.Util.decode(last("cfg.preview").changes)
     local by = {}
     for _, ch in ipairs(changes) do by[ch.path] = ch.value end
-    local w1, v1 = by["hordes.windows"] and by["hordes.windows"][1], by["hordes.waves"] and by["hordes.waves"][1]
+    local w1, v1 = by["hordes.windows"] and by["hordes.windows"][1], by[D0 .. ".waves"] and by[D0 .. ".waves"][1]
     T.check(w1 and #by["hordes.windows"] == 1 and w1.from == "20:00" and w1.to == "23:00" and w1.chance == 60 and w1.days == "1234567"
-        and v1 and #by["hordes.waves"] == 1 and v1.base == 25 and v1.perPlayer == 50,
-        "windows and waves go as whole values with every item key the server wants")
-    T.check(by["hordes.maxPerDay"] == 3 and by["hordes.enabled"] == true and by["hordes.kinds.runner"] == 0
-        and by["hordes.kinds.mod:brute"] == 10 and by["hordes.points.mod:brute"] == 5 and by["hordes.cap"] == 800,
-        "valid values land in the draft and the preview; the picked kind brings its points key")
-    T.check(by["hordes.kinds.vanilla"] == nil and by["hordes.points.vanilla"] == nil and by["hordes.waitMin"] == nil and #changes == 8,
-        "untouched fields add nothing")
+        and w1.preset == "default" and w1.leadMin == 5 and w1.waitMin == 90
+        and v1 and #by[D0 .. ".waves"] == 1 and v1.base == 25 and v1.perPlayer == 50,
+        "a window's warning and wait read and write hordes.windows.<i>.leadMin / .waitMin; windows and waves go whole")
+    T.check(by["hordes.maxPerDay"] == 3 and by["hordes.enabled"] == true and by[D0 .. ".kinds.runner"] == 0 and by[D0 .. ".hp.runner"] == 1.5
+        and by[D0 .. ".kinds.mod:brute"] == 10 and by[D0 .. ".points.mod:brute"] == 5 and by[D0 .. ".cap"] == 800,
+        "valid values land in the draft and the preview, a decimal toughness too; the picked kind brings its points key")
+    T.check(by[D0 .. ".kinds.vanilla"] == nil and by[D0 .. ".points.vanilla"] == nil and by[D0 .. ".hp.vanilla"] == nil
+        and by[D0 .. ".hp.mod:brute"] == nil and #changes == 9, "untouched fields add nothing; a toughness left at 1 stays unset")
     local labels = {}
     for _, r in ipairs(P.confirm.rows) do labels[r.label] = r end
-    T.check(labels["IGUI_MQ_Admin_F_hordes_kinds - IGUI_MQ_Horde_Kind_runner"] ~= nil
-        and labels["IGUI_MQ_Admin_F_hordes_kinds - Brute_Name"] ~= nil and labels["IGUI_MQ_Admin_F_hordes_points - Brute_Name"] ~= nil
-        and labels["IGUI_MQ_Admin_F_hordes_cap"] ~= nil, "preview rows name the weight and points of each kind, the cap")
-    T.check(labels["IGUI_MQ_Admin_F_hordes_windows"].after == "IGUI_MQ_Admin_HordeWindowText|20:00|23:00|60|IGUI_MQ_Admin_HordeEveryDay"
-        and labels["IGUI_MQ_Admin_F_hordes_waves"].after == "IGUI_MQ_Admin_HordeWaveText|25|50",
-        "windows and waves read as one line each")
-    T.check(A.hordeValue("hordes.windows", { { days = "67", from = "14:00", to = "23:00", chance = 20 } })
-        == "IGUI_MQ_Admin_HordeWindowText|14:00|23:00|20|IGUI_MQ_UI_Weekday_6IGUI_MQ_UI_ListSepIGUI_MQ_UI_Weekday_7",
+    local PR = "IGUI_MQ_Admin_HordePresetRow|" .. DEF .. "|"
+    T.check(labels[PR .. "IGUI_MQ_Admin_F_hordes_kinds - IGUI_MQ_Horde_Kind_runner"] ~= nil
+        and labels[PR .. "IGUI_MQ_Admin_F_hordes_kinds - Brute_Name"] ~= nil and labels[PR .. "IGUI_MQ_Admin_F_hordes_points - Brute_Name"] ~= nil
+        and labels[PR .. "IGUI_MQ_Admin_F_hordes_hp - IGUI_MQ_Horde_Kind_runner"] ~= nil and labels[PR .. "IGUI_MQ_Admin_F_hordes_cap"] ~= nil,
+        "preview rows name the preset, then the field (and the kind)")
+    T.check(labels["IGUI_MQ_Admin_F_hordes_windows"].after == "IGUI_MQ_Admin_HordeWindowText|20:00|23:00|60|IGUI_MQ_Admin_HordeEveryDay|" .. DEF .. "|5|90"
+        and labels[PR .. "IGUI_MQ_Admin_F_hordes_waves"].after == "IGUI_MQ_Admin_HordeWaveText|25|50",
+        "windows (with preset, warning and wait) and waves read as one line each")
+    T.check(A.hordeValue(P, "hordes.windows", { { days = "67", from = "14:00", to = "23:00", chance = 20, preset = "default", leadMin = 10, waitMin = 30 } })
+        == "IGUI_MQ_Admin_HordeWindowText|14:00|23:00|20|IGUI_MQ_UI_Weekday_6IGUI_MQ_UI_ListSepIGUI_MQ_UI_Weekday_7|" .. DEF .. "|10|30",
         "a weekend window names its days")
     A.onConfirmCancel(P)
     A.discard(P)
 
-    T.section("horde admin: windows (claim 3)")
-    T.check(not pool()["w:r1"]:isEnabled() and pool()["w:add"]:isEnabled() and pool()["w:max"].lines[1] == "IGUI_MQ_Admin_HordeWindowsMax|8",
-        "one window: its Remove is off (at least one), Add on, the limit said")
+    T.section("horde admin: windows (claim 3; a preset, warning and wait per window)")
+    T.check(not pool()["w:r1"]:isEnabled() and pool()["w:add"]:isEnabled() and pool()["w:max"].lines[1] == "IGUI_MQ_Admin_HordeWindowsMax|8"
+        and token("w:max") == "textMuted", "one window: its Remove is off (at least one), Add on, the limit said quietly")
     field("hordes.windows.1.chance"):setText("45")
     press("w:add")
     local wins = AM.get(P.S, "hordes.windows")
-    T.check(#wins == 2 and wins[1].chance == 45 and wins[2].days == "1234567" and field("hordes.windows.1.chance"):getText() == "45"
+    T.check(#wins == 2 and wins[1].chance == 45 and wins[2].days == "1234567" and wins[2].preset == "default" and wins[2].leadMin == 15
+        and wins[2].waitMin == 60 and field("hordes.windows.1.chance"):getText() == "45"
         and field("hordes.windows.2.from"):getText() == "19:00" and pool()["w:r1"]:isEnabled(),
-        "Add: what was typed stays, the new window starts at the default, Remove comes on")
+        "Add: what was typed stays, the new window starts at the default (default preset, 15 / 60 min), Remove comes on")
     for _ = 1, 8 do press("w:add") end
-    T.check(#AM.get(P.S, "hordes.windows") == AM.MAX_WINDOWS and not pool()["w:add"]:isEnabled(), "8 windows: Add is off")
+    T.check(#AM.get(P.S, "hordes.windows") == AM.MAX_WINDOWS and not pool()["w:add"]:isEnabled() and token("w:max") == "warning",
+        "8 windows: Add is off, the limit in the warning colour")
     press("w:r1")
     wins = AM.get(P.S, "hordes.windows")
     T.check(#wins == 7 and wins[1].chance == 30, "Remove drops that window")
@@ -390,78 +451,79 @@ return function(T)
     T.section("horde admin: waves, share and the estimate (design numbers)")
     T.check(not pool()["v:r1"]:isEnabled() and pool()["v:add"]:isEnabled() and pool()["v:1:1"].lines[1] == "30"
         and pool()["v:4:1"].lines[1] == "75", "one wave: Remove off; previews 1 player 30, 4 players 75 (base 30, +50%)")
-    AM.draftSet(P.S.draft, "hordes.waves", T.deepcopy(threeWaves))
-    AM.draftSet(P.S.draft, "hordes.kinds.vanilla", 70)
-    AM.draftSet(P.S.draft, "hordes.kinds.runner", 50)
-    AM.draftSet(P.S.draft, "hordes.points.vanilla", 1)
-    AM.draftSet(P.S.draft, "hordes.points.runner", 2)
+    T.check(pool()["vn"].y > pool()["v:add"].y, "the waves note sits under the Add a wave row")
+    AM.draftSet(P.S.draft, D0 .. ".waves", T.deepcopy(threeWaves))
+    AM.draftSet(P.S.draft, D0 .. ".kinds.vanilla", 70)
+    AM.draftSet(P.S.draft, D0 .. ".kinds.runner", 50)
+    AM.draftSet(P.S.draft, D0 .. ".points.vanilla", 1)
+    AM.draftSet(P.S.draft, D0 .. ".points.runner", 2)
     A.resync(P)
     T.check(pool()["v:1:1"].lines[1] == "20" and pool()["v:4:1"].lines[1] == "50" and pool()["v:1:2"].lines[1] == "30"
         and pool()["v:4:2"].lines[1] == "75" and pool()["v:4:3"].lines[1] == "200", "wave previews: 20/50, 30/75, 50/200")
     T.check(pool()["ks:s:vanilla"].lines[1] == "IGUI_MQ_Admin_HordePct|58" and pool()["ks:s:runner"].lines[1] == "IGUI_MQ_Admin_HordePct|42",
         "weights 70 and 50: shares 58% and 42%")
     local est = pool()["est"].lines
-    T.check(est[1] == "IGUI_MQ_Admin_HordeEstHead" and est[2] == "IGUI_MQ_Admin_HordeEst1|1|140   IGUI_MQ_Admin_HordeEst|4|459   IGUI_MQ_Admin_HordeEstCap|8|500"
+    T.check(est[1] == "IGUI_MQ_Admin_HordeEstHead|" .. DEF and est[2] == "IGUI_MQ_Admin_HordeEst1|1|140   IGUI_MQ_Admin_HordeEst|4|459   IGUI_MQ_Admin_HordeEstCap|8|500"
         and pool()["v:th"].cells[4].text == "IGUI_MQ_Admin_HordeColPlayers1|1" and pool()["v:th"].cells[5].text == "IGUI_MQ_Admin_HordeColPlayers|4",
         "estimate: 1 player 140, 4 players 459, 8 players capped at 500")
     T.check(A.hordeEstimate(P, pg, { { id = "vanilla" }, { id = "runner" } }, 8) == 884, "8 players before the cap: 884")
     -- a pack kind with a weight but no points of its own pays the regular points as typed (Hordes.lua does the same)
-    AM.draftSet(P.S.draft, "hordes.kinds.mod:brute", 50)
+    AM.draftSet(P.S.draft, D0 .. ".kinds.mod:brute", 50)
     A.layout(P)
     local brute = { { id = "mod:brute" } }
     local estBefore = A.hordeEstimate(P, pg, brute, 1)
-    field("hordes.points.vanilla"):setText("3")
+    field(D0 .. ".points.vanilla"):setText("3")
     A.layout(P)
-    T.check(estBefore == 100 and A.hordeEstimate(P, pg, brute, 1) == 300 and field("hordes.points.mod:brute"):getText() == "1",
+    T.check(estBefore == 100 and A.hordeEstimate(P, pg, brute, 1) == 300 and field(D0 .. ".points.mod:brute"):getText() == "1",
         "an unset pack kind's points follow the regular points as typed (100 -> 300 over 100 zombies)")
-    field("hordes.points.vanilla"):setText("1")
-    AM.draftUnset(P.S.draft, "hordes.kinds.mod:brute")
+    field(D0 .. ".points.vanilla"):setText("1")
+    AM.draftUnset(P.S.draft, D0 .. ".kinds.mod:brute")
     A.layout(P)
-    field("hordes.waves.1.base"):setText("40")
-    field("hordes.kinds.runner"):setText("70")
+    field(D0 .. ".waves.1.base"):setText("40")
+    field(D0 .. ".kinds.runner"):setText("70")
     A.layout(P)
     T.check(pool()["v:1:1"].lines[1] == "40" and pool()["ks:s:runner"].lines[1] == "IGUI_MQ_Admin_HordePct|50"
-        and field("hordes.waves.1.base").onChange ~= nil, "previews and shares follow the typed values (fields relayout on change)")
-    field("hordes.kinds.runner"):setText("0")
-    field("hordes.kinds.vanilla"):setText("0")
+        and field(D0 .. ".waves.1.base").onChange ~= nil, "previews and shares follow the typed values (fields relayout on change)")
+    field(D0 .. ".kinds.runner"):setText("0")
+    field(D0 .. ".kinds.vanilla"):setText("0")
     A.layout(P)
     T.check(pool()["ks:s:runner"].lines[1] == "IGUI_MQ_Admin_HordePct|0" and shown("ks:n:runner"), "every weight 0: 0%, the rows stay until applied")
     A.discard(P)
-    AM.draftSet(P.S.draft, "hordes.waves", T.deepcopy(threeWaves))
+    AM.draftSet(P.S.draft, D0 .. ".waves", T.deepcopy(threeWaves))
     A.resync(P)
     press("v:add")
-    local waves = AM.get(P.S, "hordes.waves")
+    local waves = AM.get(P.S, D0 .. ".waves")
     T.check(#waves == 4 and waves[4].base == 50 and waves[4].perPlayer == 100, "Add a wave copies the last row")
     for _ = 1, 8 do press("v:add") end
-    T.check(#AM.get(P.S, "hordes.waves") == AM.MAX_WAVES and not pool()["v:add"]:isEnabled() and pool()["v:max"].lines[1] == "IGUI_MQ_Admin_HordeWavesMax|10",
-        "10 waves: Add is off")
+    T.check(#AM.get(P.S, D0 .. ".waves") == AM.MAX_WAVES and not pool()["v:add"]:isEnabled() and pool()["v:max"].lines[1] == "IGUI_MQ_Admin_HordeWavesMax|10"
+        and token("v:max") == "warning", "10 waves: Add is off, the limit in the warning colour")
     press("v:r1")
-    waves = AM.get(P.S, "hordes.waves")
-    T.check(#waves == 9 and waves[1].base == 30, "Remove drops that wave")
+    waves = AM.get(P.S, D0 .. ".waves")
+    T.check(#waves == 9 and waves[1].base == 30 and token("v:max") == "textMuted", "Remove drops that wave")
     A.discard(P)
 
-    T.section("horde admin: the kinds list box (design r11, points per kind)")
+    T.section("horde admin: the kinds list box (design r11, points and toughness per kind)")
     T.check(shown("ks:n:vanilla") and shown("ks:n:runner") and shown("ks:add") and pool()["ks:add"].opts.placeholder == "IGUI_MQ_Admin_HordeKindAdd",
         "defaults: both built-in kinds are rows, the dropdown says what it does")
-    field("hordes.points.vanilla"):setText("6")
+    field(D0 .. ".points.vanilla"):setText("6")
     pick("ks:add", "mod:brute")
-    T.check(P.S.draft.by["hordes.points.mod:brute"] == 6 and P.S.draft.by["hordes.points.vanilla"] == nil
-        and field("hordes.points.vanilla"):getText() == "6",
+    T.check(P.S.draft.by[D0 .. ".points.mod:brute"] == 6 and P.S.draft.by[D0 .. ".points.vanilla"] == nil
+        and field(D0 .. ".points.vanilla"):getText() == "6",
         "a pick copies the regular points as typed (6); the typed field stays typed, not folded")
     A.discard(P)
     press("ks:r:vanilla")
-    T.check(P.S.draft.by["hordes.kinds.vanilla"] == 0 and P.S.draft.by["hordes.points.vanilla"] == nil and not shown("ks:n:vanilla")
+    T.check(P.S.draft.by[D0 .. ".kinds.vanilla"] == 0 and P.S.draft.by[D0 .. ".points.vanilla"] == nil and not shown("ks:n:vanilla")
         and options("ks:add").vanilla == "IGUI_MQ_Horde_Kind_vanilla" and has(P.draftSummary, "IGUI_MQ_Admin_HordeSumKindDel|IGUI_MQ_Horde_Kind_vanilla"),
         "Remove on a built-in kind writes 0 (its default is 80), keeps its points, puts it back in the dropdown")
-    AM.draftSet(P.S.draft, "hordes.points.vanilla", 7)
+    AM.draftSet(P.S.draft, D0 .. ".points.vanilla", 7)
     pick("ks:add", "mod:brute")
-    T.check(P.S.draft.by["hordes.kinds.mod:brute"] == 10 and P.S.draft.by["hordes.points.mod:brute"] == 7
-        and field("hordes.points.mod:brute"):getText() == "7" and has(P.draftSummary, "IGUI_MQ_Admin_HordeSumKindAdd|Brute_Name"),
+    T.check(P.S.draft.by[D0 .. ".kinds.mod:brute"] == 10 and P.S.draft.by[D0 .. ".points.mod:brute"] == 7
+        and field(D0 .. ".points.mod:brute"):getText() == "7" and has(P.draftSummary, "IGUI_MQ_Admin_HordeSumKindAdd|Brute_Name"),
         "a pick adds the kind at weight 10 and the draft's regular points (7)")
-    AM.draftUnset(P.S.draft, "hordes.points.vanilla")
+    AM.draftUnset(P.S.draft, D0 .. ".points.vanilla")
     local n = AM.draftCount(P.S.draft)
     press("ks:r:mod:brute")
-    T.check(P.S.draft.by["hordes.kinds.mod:brute"] == nil and P.S.draft.by["hordes.points.mod:brute"] == nil and AM.draftCount(P.S.draft) == n - 2
+    T.check(P.S.draft.by[D0 .. ".kinds.mod:brute"] == nil and P.S.draft.by[D0 .. ".points.mod:brute"] == nil and AM.draftCount(P.S.draft) == n - 2
         and not shown("ks:n:mod:brute") and options("ks:add")["mod:brute"] == "Brute_Name",
         "picked and removed before Apply: the draft forgets weight and points, nothing to send")
     press("ks:r:runner")
@@ -470,7 +532,7 @@ return function(T)
     changes = Q.Util.decode(last("cfg.preview").changes)
     by = {}
     for _, ch in ipairs(changes) do by[ch.path] = ch end
-    T.check(#changes == 2 and by["hordes.kinds.vanilla"].value == 0 and by["hordes.kinds.runner"].value == 0,
+    T.check(#changes == 2 and by[D0 .. ".kinds.vanilla"].value == 0 and by[D0 .. ".kinds.runner"].value == 0,
         "the preview carries 0 for the built-in kinds, nothing for the kind picked and removed")
     A.onConfirmCancel(P)
     A.discard(P)
@@ -479,7 +541,8 @@ return function(T)
     T.check(AM.draftCount(P.S.draft) == 0 and P.draftSummary == nil and P.msg == nil,
         "picked and removed with nothing else pending: no summary, no in-the-draft note")
     -- as a cfg.get reply sets them: overrides, then a resync (fields read the server values again)
-    P.S.overrides.hordes = { kinds = { ["old:gone"] = 15, ["mod:brute"] = 30 }, points = { ["old:gone"] = 4, ["mod:brute"] = 12 } }
+    P.S.overrides.hordes = { presets = { default = { kinds = { ["old:gone"] = 15, ["mod:brute"] = 30 },
+        points = { ["old:gone"] = 4, ["mod:brute"] = 12 }, hp = { ["mod:brute"] = 2.5 } } } }
     local keep = P.pages.hordes.data
     P.pages.hordes.data = nil
     A.resync(P)
@@ -489,15 +552,145 @@ return function(T)
     T.check(shown("ks:o:old:gone") and pool()["ks:g:old:gone"].lines[1] == "IGUI_MQ_Admin_HordeKindGone" and pool()["ks:w:old:gone"].lines[1] == "15",
         "a key no mod registers any more: a row marked not installed, with its weight")
     press("ks:r:old:gone")
-    T.check(P.S.draft.by["hordes.kinds.old:gone"] == AM.DEL and P.S.draft.by["hordes.points.old:gone"] == AM.DEL and not shown("ks:o:old:gone"),
+    T.check(P.S.draft.by[D0 .. ".kinds.old:gone"] == AM.DEL and P.S.draft.by[D0 .. ".points.old:gone"] == AM.DEL and not shown("ks:o:old:gone"),
         "its Remove drops the weight and points keys")
-    T.check(shown("ks:n:mod:brute") and field("hordes.kinds.mod:brute"):getText() == "30" and field("hordes.points.mod:brute"):getText() == "12",
-        "a pack kind applied at 30 / 12 points is a row")
+    T.check(shown("ks:n:mod:brute") and field(D0 .. ".kinds.mod:brute"):getText() == "30" and field(D0 .. ".points.mod:brute"):getText() == "12"
+        and field(D0 .. ".hp.mod:brute"):getText() == "2.5", "a pack kind applied at 30 / 12 points / 2.5x is a row")
     press("ks:r:mod:brute")
-    T.check(P.S.draft.by["hordes.kinds.mod:brute"] == AM.DEL and P.S.draft.by["hordes.points.mod:brute"] == AM.DEL and not shown("ks:n:mod:brute"),
-        "Remove on an applied pack kind drops both keys")
+    T.check(P.S.draft.by[D0 .. ".kinds.mod:brute"] == AM.DEL and P.S.draft.by[D0 .. ".points.mod:brute"] == AM.DEL
+        and P.S.draft.by[D0 .. ".hp.mod:brute"] == AM.DEL and not shown("ks:n:mod:brute"),
+        "Remove on an applied pack kind drops weight, points and toughness")
     A.discard(P)
     P.S.overrides.hordes = nil
+
+    T.section("horde admin: presets (plan-presets-1028)")
+    A.resync(P)
+    T.check(options("pre:pick").default == DEF and pool()["pre:pick"].selected == "default" and not pool()["pre:del"]:isEnabled()
+        and pool()["pre:copy"]:isEnabled() and token("pre:max") == "textMuted"
+        and pool()["pre:u"].lines[1] == "IGUI_MQ_Admin_HordePresetUsed|IGUI_MQ_Admin_HordeWindowShort|IGUI_MQ_Admin_HordeEveryDay|19:00|23:00",
+        "the default preset: picked, cannot be deleted, can be copied, the windows using it listed")
+    -- applied settings first: the copy takes the merged values (an override of the default preset and the Catalog)
+    P.S.overrides.hordes = { presets = { default = { limitMin = 25, kinds = { runner = 0 }, hp = { vanilla = 2 } } } }
+    A.resync(P)
+    field(D0 .. ".restSec"):setText("45")
+    press("pre:copy")
+    local p2 = AM.get(P.S, "hordes.presets.p2")
+    T.check(pg.preset == "p2" and P.S.draft.by["hordes.presets.p2"] ~= nil and p2.name == DEF2 and p2.limitMin == 25 and p2.restSec == 45
+        and p2.maxAlive == 200 and p2.cap == 500 and p2.kinds.vanilla == 80 and p2.kinds.runner == 0 and p2.points.runner == 8
+        and p2.hp.vanilla == 2 and p2.hp.runner == nil and #p2.waves == 1 and p2.waves[1].base == 30,
+        "Copy: id p2, named '<name> 2', every field as the source plays it (applied overrides, the Catalog, what was typed)")
+    T.check(P.msg == "IGUI_MQ_Admin_InDraft" and has(P.draftSummary, "IGUI_MQ_Admin_HordeSumPresetAdd|" .. DEF2)
+        and pool()["pre:pick"].selected == "p2" and pool()["hv"].lines[1] == "IGUI_MQ_Admin_HordeWavesHead|" .. DEF2
+        and pool()["pre:del"]:isEnabled() and pool()["pre:u"].lines[1] == "IGUI_MQ_Admin_HordePresetUnused",
+        "the page switches to the copy, in the draft; no window uses it yet")
+    T.check(field("hordes.presets.p2.limitMin"):getText() == "25" and field("hordes.presets.p2.name"):getText() == DEF2
+        and not shown("f:" .. D0 .. ".limitMin"), "its fields are on the page, the default preset's are not")
+    -- edits on the copy go into it: waves, kinds, reward and a field, each on the preset's own path
+    field("hordes.presets.p2.limitMin"):setText("20")
+    field("hordes.presets.p2.cap"):setText("800")
+    press("v:add")
+    pick("ks:add", "mod:brute")
+    field("hordes.presets.p2.hp.vanilla"):setText("3")
+    pick("pre:pick", "default")
+    p2 = AM.get(P.S, "hordes.presets.p2")
+    T.check(pg.preset == "default" and p2.limitMin == 20 and p2.cap == 800 and #p2.waves == 2 and p2.kinds["mod:brute"] == 10
+        and AM.get(P.S, D0 .. ".limitMin") == 25 and #AM.get(P.S, D0 .. ".waves") == 1 and AM.get(P.S, D0 .. ".kinds.mod:brute") == nil
+        and AM.get(P.S, D0 .. ".cap") == 500 and field(D0 .. ".limitMin"):getText() == "25" and field(D0 .. ".restSec"):getText() == "45",
+        "switching folds the typed values into the preset shown; waves, kinds, reward and fields read and write that preset only")
+    T.check(AM.draftCount(P.S.draft) == 2 and P.S.draft.by["hordes.presets.p2.limitMin"] == nil,
+        "edits under a copied preset stay inside its one draft entry (plus the default's typed rest)")
+    -- the copy goes as one whole set, with the hp typed on it
+    A.onPreview(P)
+    changes = Q.Util.decode(last("cfg.preview").changes)
+    by = {}
+    for _, ch in ipairs(changes) do by[ch.path] = ch end
+    T.check(by["hordes.presets.p2"] and by["hordes.presets.p2"].op == "set" and by["hordes.presets.p2"].value.hp.vanilla == 3
+        and by["hordes.presets.p2"].value.limitMin == 20 and by[D0 .. ".restSec"].value == 45,
+        "Apply sends the new preset as one set, with what was typed on it")
+    labels = {}
+    for _, r in ipairs(P.confirm.rows) do labels[r.label] = r end
+    T.check(labels["IGUI_MQ_Admin_HordePresetAddRow|" .. DEF2] ~= nil and labels[PR .. "IGUI_MQ_Admin_F_hordes_restSec"] ~= nil,
+        "the preview says New preset with its name, and names the preset of a field")
+    A.onConfirmCancel(P)
+    -- a second copy of the default preset: the next free id, the next free name
+    press("pre:copy")
+    T.check(pg.preset == "p3" and AM.get(P.S, "hordes.presets.p3.name") == DEF3, "a second copy: p3, '<name> 3' ('<name> 2' is taken)")
+    -- Start a horde lists the applied presets only
+    T.check(options("now:pre").p2 == nil and options("now:pre").p3 == nil and options("now:pre").default == DEF,
+        "Start a horde does not offer presets that are only in the draft")
+    P.S.overrides.hordes.presets.hard = { name = "Hard", waves = { { base = 50, perPlayer = 50 } }, kinds = { runner = 100 }, points = { runner = 9 },
+        hp = {}, limitMin = 10, restSec = 30, maxAlive = 200, cap = 900 }
+    A.layout(P)
+    T.check(options("now:pre").hard == "Hard" and options("pre:pick").hard == "Hard", "an applied preset is offered to Start a horde")
+    pick("now:pre", "hard")
+    press("now")
+    T.check(dialogs[#dialogs].text == "IGUI_MQ_Admin_HordeNowAsk|Hard|5", "Start a horde asks with the picked preset's name")
+    answer(true)
+    T.check(last("horde.now").preset == "hard" and last("horde.now").lead == 5 and last("horde.now").wait == 30, "horde.now sends lead, wait, preset")
+    pick("now:pre", "default")
+    -- a window picks a preset; the presets section lists the windows on it
+    pick("w:p1", "p2")
+    T.check(AM.get(P.S, "hordes.windows")[1].preset == "p2" and pool()["w:p1"].selected == "p2", "a window's dropdown writes its preset")
+    pick("pre:pick", "p2")
+    T.check(has(pool()["pre:u"].lines[1], "IGUI_MQ_Admin_HordePresetUsed|IGUI_MQ_Admin_HordeWindowShort|"), "the copy lists the window now on it")
+    -- delete a preset a window uses: asked first, the windows go back to the default one
+    press("pre:del")
+    d = dialogs[#dialogs]
+    T.check(d.danger and d.title == "IGUI_MQ_Admin_HordePresetDelTitle|" .. DEF2 and d.confirmText == "IGUI_MQ_Admin_HordePresetDel"
+        and d.cancelText == "IGUI_MQ_Admin_Keep" and has(d.text, "IGUI_MQ_Admin_HordePresetDelAsk1|1\nIGUI_MQ_Admin_HordeWindowShort|")
+        and has(d.text, "IGUI_MQ_Admin_AfterApply"), "Delete asks first (danger): the windows that move to the default, apply to take effect")
+    answer(false)
+    T.check(AM.get(P.S, "hordes.presets.p2") ~= nil and AM.get(P.S, "hordes.windows")[1].preset == "p2", "Keep: nothing changes")
+    press("pre:del")
+    answer(true)
+    T.check(AM.get(P.S, "hordes.presets.p2") == nil and P.S.draft.by["hordes.presets.p2"] == nil and AM.get(P.S, "hordes.windows")[1].preset == "default"
+        and pg.preset == "default" and options("pre:pick").p2 == nil and has(P.draftSummary, "IGUI_MQ_Admin_HordeSumPresetDel|" .. DEF2),
+        "deleted: its window uses the default preset, the draft-only preset just leaves the draft, the page shows the default")
+    -- an applied preset gets a del, and the edits made under it go
+    pick("pre:pick", "hard")
+    field("hordes.presets.hard.cap"):setText("950")
+    pick("pre:pick", "default")
+    T.check(P.S.draft.by["hordes.presets.hard.cap"] == 950, "an edit on an applied preset is its own path")
+    pick("pre:pick", "hard")
+    press("pre:del")
+    T.check(dialogs[#dialogs].text == "IGUI_MQ_Admin_HordePresetUnused\n\nIGUI_MQ_Admin_AfterApply", "no window on it: the dialog says so")
+    answer(true)
+    T.check(P.S.draft.by["hordes.presets.hard"] == AM.DEL and P.S.draft.by["hordes.presets.hard.cap"] == nil and options("pre:pick").hard == nil,
+        "an applied preset: a del change; the edit under it is dropped")
+    -- names: blank or the same as another preset's shown name stops Apply on that preset
+    pick("pre:pick", "p3")
+    field("hordes.presets.p3.name"):setText("  ")
+    previews = count("cfg.preview")
+    pick("pre:pick", "default")
+    A.onPreview(P)
+    T.check(count("cfg.preview") == previews and P.msg == "IGUI_MQ_Admin_HordeErrPresetName" and pg.preset == "p3"
+        and field("hordes.presets.p3.name").invalid ~= nil, "a blank name stops Apply; the page shows that preset with its name marked")
+    field("hordes.presets.p3.name"):setText(DEF)
+    A.onPreview(P)
+    T.check(count("cfg.preview") == previews and P.msg == "IGUI_MQ_Admin_HordeErrPresetSame|" .. DEF,
+        "a name that reads like another preset (the default one's shown name) stops Apply")
+    field("hordes.presets.p3.name"):setText("Night")
+    A.onPreview(P)
+    T.check(count("cfg.preview") == previews + 1 and AM.get(P.S, "hordes.presets.p3.name") == "Night", "a free name: the preview goes out")
+    A.onConfirmCancel(P)
+    -- 8 presets: copy off, the limit in the warning colour
+    for _ = 1, 8 do press("pre:copy") end
+    local nIds = 0
+    for _ in pairs(options("pre:pick")) do nIds = nIds + 1 end
+    T.check(nIds == Q.Contract.LIMIT.MAX_PRESETS and not pool()["pre:copy"]:isEnabled() and token("pre:max") == "warning"
+        and pool()["pre:max"].lines[1] == "IGUI_MQ_Admin_HordePresetsMax|8", "8 presets: Copy is off, the limit in the warning colour")
+    A.discard(P)
+    T.check(pg.preset == "default" and pool()["pre:pick"].selected == "default", "discarded: a draft-only preset gone, the page is back on the default one")
+    P.S.overrides.hordes = nil
+    A.resync(P)
+    -- the server's refusals name the window or say the limit
+    T.check(A.codeText(P, { code = "BAD_CONFIG", detail = { why = "preset", path = "hordes.windows.2.preset" } })
+        == "IGUI_MQ_Admin_BadConfig|IGUI_MQ_Admin_F_hordes_windows 2|IGUI_MQ_Admin_Why_preset"
+        and A.codeText(P, { code = "BAD_CONFIG", detail = { why = "presets" } }) == "IGUI_MQ_Admin_Why_presets",
+        "a window on a missing preset names the window and how to fix it; too many presets says the limit")
+    T.check(A.pathLabel(P, "hordes.presets.default.kinds.runner") == PR .. "IGUI_MQ_Admin_F_hordes_kinds - IGUI_MQ_Horde_Kind_runner"
+        and A.hordeRow(P, { path = "hordes.presets.p5", before = { name = "Old" } }, "x").label == "IGUI_MQ_Admin_HordePresetDelRow|Old",
+        "a refused or previewed preset path names the preset; a deleted preset reads Delete preset")
 
     T.section("horde admin: spots through the draft, the Map button")
     local before = count("towns.here")
@@ -525,9 +718,17 @@ return function(T)
     pool()["sp:name"]:setText("School")
     press("sp:add")
     press("pr1")
+    d = dialogs[#dialogs]
+    T.check(d.danger and d.title == "IGUI_MQ_Admin_HordeSpotDelTitle|Gasstation" and d.confirmText == "IGUI_MQ_Admin_HordeSpotDel"
+        and d.cancelText == "IGUI_MQ_Admin_Keep" and d.text == "IGUI_MQ_Admin_HordeSpotDelAsk\n\nIGUI_MQ_Admin_AfterApply"
+        and #AM.get(P.S, "hordes.spots") == 2, "Remove asks first (danger): coming back means walking there again")
+    answer(false)
+    T.check(#AM.get(P.S, "hordes.spots") == 2, "Keep: the spot stays")
+    press("pr1")
+    answer(true)
     spots = AM.get(P.S, "hordes.spots")
     T.check(#spots == 1 and spots[1].name == "School" and has(P.draftSummary, "IGUI_MQ_Admin_HordeSumSpotDel|Gasstation"),
-        "Remove drops that spot from the draft")
+        "confirmed: Remove drops that spot from the draft")
     -- 2026-10-26 playtest: Start a horde pressed three times with the spot only in the draft got "add a spot first"
     -- while the list showed it
     local sentNow, askedNow = count("horde.now"), #dialogs
@@ -553,7 +754,6 @@ return function(T)
     T.check(A.summaryText("horde.now 7 Gas station") == "IGUI_MQ_Admin_HordeHistNow|Gas station"
         and A.summaryText("horde.stop 7") == "IGUI_MQ_Admin_HordeHistStop|#7", "history rows of horde.now / horde.stop are translated")
     T.check(not T.printed("admin layout"), "no layout error on the hordes tab")
-    local hf = P.pages.hordes.flow
     local closed = hf.L == nil and #hf.lists > 0
     for _, L in ipairs(hf.lists) do closed = closed and L.h ~= nil end
     T.check(closed, "the hordes tab closes every list box it opens")

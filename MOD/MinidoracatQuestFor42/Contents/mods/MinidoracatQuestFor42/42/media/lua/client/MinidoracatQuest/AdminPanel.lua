@@ -163,6 +163,9 @@ function Flow:text(key, text, token, font, box, title)
     local l = self:get(key, newLabel)
     local pad = box and 8 or 0
     local maxW = self.width - 2 * A.PAD - 2 * pad
+    -- a plain note (no box) wraps at 30 font heights at most (about 600 px in UIFont.Small): a 1920 px wide panel
+    -- made Latin lines of about 120 characters (horde presets design, review 2026-10-28)
+    if not box then maxW = math.min(maxW, 30 * fontH(font)) end
     local lines = {}
     if title then lines[1] = title end
     for _, line in ipairs(wrapLines(P.UI, text, maxW, font)) do lines[#lines + 1] = line end
@@ -408,9 +411,19 @@ function A.count(key, n) return getText(n == 1 and key .. "1" or key, n) end
 
 function A.tzNote() return getText("IGUI_MQ_Admin_TzNote", AM.tzText()) end
 
+-- a reason the server gives for a refused setting (Config.validate / validateAll): translated where it says how to fix
+-- it (IGUI_MQ_Admin_Why_<why>), else the server's own word
+function A.whyText(why)
+    why = tostring(why or "?")
+    return getTextOrNull("IGUI_MQ_Admin_Why_" .. why) or why
+end
+
 function A.codeText(P, res)
     if res.code == "BAD_CONFIG" and type(res.detail) == "table" then
-        return getText("IGUI_MQ_Admin_BadConfig", A.pathLabel(P, tostring(res.detail.path or "?")), tostring(res.detail.why or "?"))
+        local why = A.whyText(res.detail.why)
+        -- a check of the whole result (8 presets at most) names no path
+        if res.detail.path == nil and why ~= tostring(res.detail.why) then return why end
+        return getText("IGUI_MQ_Admin_BadConfig", A.pathLabel(P, tostring(res.detail.path or "?")), why)
     end
     if res.code == "NO_REPLY" then return getText("IGUI_MQ_Admin_NoReply") end
     local D = MQ.Draw
@@ -461,11 +474,24 @@ function A.pathLabel(P, path)
     local kind, tid
     kind, tid, f = string.match(path, "^(%a+)%.pool%.([^%.]+)%.(%a+)$")
     if kind then return A.questName(tid) .. " - " .. A.fieldName(f) end
-    -- per-kind horde weights and points (AdminHordes.lua names the kinds, pack kinds by the nameKey horde.status gave)
-    local group, kid = string.match(path, "^hordes%.(%a+)%.(.+)$")
-    if (group == "kinds" or group == "points") and A.hordeKindName then
-        return A.fLabel("hordes." .. group) .. " - " .. A.hordeKindName(P, kid)
+    -- horde presets (AdminHordes.lua names them and the kinds, pack kinds by the nameKey horde.status gave):
+    -- "Preset "Hard": Each kill - Runner"
+    local pid, rest = string.match(path, "^hordes%.presets%.([^%.]+)%.(.+)$")
+    if pid and A.hordePresetName then
+        local group, kid = string.match(rest, "^(%a+)%.(.+)$")
+        local what
+        if (group == "kinds" or group == "points" or group == "hp") and A.hordeKindName then
+            what = A.fLabel("hordes." .. group) .. " - " .. A.hordeKindName(P, kid)
+        else
+            what = A.fLabel("hordes." .. (group or rest))
+        end
+        return getText("IGUI_MQ_Admin_HordePresetRow", A.hordePresetName(P, pid), what)
     end
+    pid = string.match(path, "^hordes%.presets%.([^%.]+)$")
+    if pid and A.hordePresetName then return getText("IGUI_MQ_Admin_HordePresetIs", A.hordePresetName(P, pid)) end
+    -- one window of the whole-set list (the server names hordes.windows.<i>.preset): "Windows 2"
+    local wi = string.match(path, "^hordes%.windows%.(%d+)")
+    if wi then return A.fLabel("hordes.windows") .. " " .. wi end
     return getTextOrNull("IGUI_MQ_Admin_F_" .. string.gsub(path, "%.", "_")) or path
 end
 
@@ -522,10 +548,9 @@ function A.diffRows(P, rows)
         elseif r.path == "ceilings" and type(r.before) == "table" and type(r.after) == "table" then
             ceilRows(out, label, r.before, r.after)
         else
-            local b, a = r.before, r.after
-            -- whole horde windows / waves: one readable line each (AdminHordes.lua)
-            if A.hordeValue then b, a = A.hordeValue(r.path, b), A.hordeValue(r.path, a) end
-            out[#out + 1] = { label = label, before = A.valueText(b), after = A.valueText(a) }
+            -- whole horde windows / waves / presets: one readable line each (AdminHordes.lua A.hordeRow, nil = not one)
+            out[#out + 1] = A.hordeRow and A.hordeRow(P, r, label)
+                or { label = label, before = A.valueText(r.before), after = A.valueText(r.after) }
         end
     end
     return out
@@ -643,12 +668,13 @@ end
 A.FIELD_CHROME = 36
 
 -- number field bound to a config path (part = key list inside the value); range = AM.RANGE key;
--- default = what an unset key means (shown, and dropped again by AM.formToDraft)
+-- default = what an unset key means (shown, and dropped again by AM.formToDraft). Without a width it is as wide as
+-- its largest value with the error mark shown (at least 60)
 function A.numField(P, pg, key, path, part, range, width, default)
     local f = field(pg, key)
     f.path, f.part, f.range, f.kind, f.default = path, part, range, "num", default
     local r = AM.RANGE[range]
-    f.el = pg.flow:field("f:" .. key, width or math.max(60, textW(AM.num(r[2])) + 20))
+    f.el = pg.flow:field("f:" .. key, width or math.max(60, textW(AM.num(r[2])) + A.FIELD_CHROME))
     if f.at ~= pg.version then
         f.at = pg.version
         local v = valueAt(P, f)
@@ -669,6 +695,25 @@ function A.boolField(P, pg, key, label, path, part)
         f.el:setChecked(valueAt(P, f) ~= false, true)
     end
     return f.el
+end
+
+-- free text bound to a config path (a horde preset's name): control characters dropped, spaces trimmed, cut to max
+-- bytes; the page's own check says what a name may not be
+function A.textField(P, pg, key, path, width, max)
+    local f = field(pg, key)
+    f.path, f.kind, f.max = path, "text", max
+    f.el = pg.flow:field("f:" .. key, width, nil, max)
+    if f.at ~= pg.version then
+        f.at = pg.version
+        local v = AM.get(P.S, path)
+        f.el:setText(type(v) == "string" and v or "")
+    end
+    return f.el
+end
+
+function A.cleanText(s, max)
+    s = string.match((string.gsub(tostring(s or ""), "%c", "")), "^%s*(.-)%s*$")
+    return max and string.sub(s, 1, max) or s
 end
 
 -- "HH:MM" text bound to a config path (part = key list inside the value); AM.clock checks it like the server
@@ -699,7 +744,11 @@ end
 
 -- ===== forms: a label column + controls, shared by every tab =====
 
-function A.fLabel(path) return getTextOrNull("IGUI_MQ_Admin_F_" .. string.gsub(path, "%.", "_")) or path end
+-- a horde preset's field reads like the setting it holds: hordes.presets.<id>.limitMin -> F_hordes_limitMin
+function A.fLabel(path)
+    path = string.gsub(path, "^hordes%.presets%.[^%.]+%.", "hordes.")
+    return getTextOrNull("IGUI_MQ_Admin_F_" .. string.gsub(path, "%.", "_")) or path
+end
 
 -- label column + controls; a label longer than the (capped) column wraps inside it
 function A.formRow(F, key, text, labelW, ctrls)
@@ -751,6 +800,8 @@ function A.collect(P, pg)
                 values[#values + 1] = { field = f, value = f.el:getChecked() }
             elseif f.kind == "pick" then
                 values[#values + 1] = { field = f, value = f.el:getSelected() }
+            elseif f.kind == "text" then
+                values[#values + 1] = { field = f, value = A.cleanText(f.el:getText(), f.max) }
             elseif f.kind == "clock" then
                 local v = AM.clock(f.el:getText())
                 mark(f.el, v == nil and getText("IGUI_MQ_Admin_HordeErrClock") or nil)
@@ -784,9 +835,25 @@ end
 
 -- the bar says what is wrong with the topmost marked field (the range was only in its hover text) and the page
 -- scrolls to it (interface review H2, 2026-10-28)
-local function fixFirst(P, el, why)
+function A.fixFirst(P, el, why)
     A.say(P, getText("IGUI_MQ_Admin_FixErrorsWhy", why), "errorText")
     MQ.Draw.reveal(el)
+end
+local fixFirst = A.fixFirst
+
+-- fields a button reads itself (events, towns): marks = { { el, message | nil } } in any order. Marks each; when
+-- any is wrong, fixFirst on the topmost. true = something was wrong
+function A.markAll(P, marks)
+    local top, why
+    for _, m in ipairs(marks) do
+        local el, msg = m[1], m[2]
+        markError(P, el, msg)
+        if msg and (top == nil or el:getY() < top:getY() or (el:getY() == top:getY() and el:getX() < top:getX())) then
+            top, why = el, msg
+        end
+    end
+    if top then fixFirst(P, top, why) end
+    return top ~= nil
 end
 
 -- typed values reach the draft only through Preview or this: leaving a tab, or a button that edits the draft itself
@@ -1176,7 +1243,7 @@ end
 function A.fileText(fs)
     if fs.why == "read" or fs.why == "write" then return getText("IGUI_MQ_Admin_FileIo", A.time(fs.at), fs.why) end
     if fs.ok then return getText("IGUI_MQ_Admin_FileOk", A.time(fs.at)) end
-    local why = tostring(fs.why or "?")
+    local why = A.whyText(fs.why)
     if fs.line then
         why = getText("IGUI_MQ_Admin_FileJson", fs.line)
     elseif fs.path then

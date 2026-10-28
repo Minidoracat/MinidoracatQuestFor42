@@ -191,6 +191,14 @@ function P_.onEditSave(P)
     if tiers == nil then
         pg.editErr = pts
         A.layout(P)
+        -- like a bad form field (A.fixFirst): the bar gives the topmost row's message and the page scrolls to it
+        local pool = pg.flow.pool
+        for i = 1, #pg.rows do
+            local e = pts[i]
+            if e then
+                return A.fixFirst(P, pool[(e[1] == "tier" and "e:t" or "e:p") .. i], getText(e[2], AM.num(e[3] or 0), AM.num(e[4] or 0)))
+            end
+        end
         return A.say(P, getText("IGUI_MQ_Admin_FixErrors"), "errorText")
     end
     AM.putAch(P.S, a, tiers, pts, titles, pg.editOn ~= false)

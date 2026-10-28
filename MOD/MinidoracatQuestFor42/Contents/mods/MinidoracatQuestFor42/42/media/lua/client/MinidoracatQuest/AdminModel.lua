@@ -19,10 +19,12 @@ AM.RANGE = {
     hordeChance = { 0, 100, true }, hordePerDay = { 1, 24, true }, hordeLead = { 0, 120, true }, hordeWait = { 1, 240, true },
     hordeBase = { 1, 9999, true }, hordePerPlayer = { 0, 1000, true }, hordeRest = { 0, 600, true }, hordeAlive = { 10, 2000, true },
     hordeWeight = { 0, 100, true }, hordePoints = { 0, 1000, true }, hordeLimit = { 1, 120, true }, hordeCap = { 1, 1000000, true },
+    hordeHp = { 0.1, 10 },
 }
 AM.MAX_SPOTS = 32
 AM.MAX_WINDOWS = 8   -- hordes.windows items (Config.SCHEMA.hordes)
-AM.MAX_WAVES = 10    -- hordes.waves items
+AM.MAX_WAVES = 10    -- a preset's waves items
+AM.MAX_NAME = 32     -- a preset's name (bytes)
 AM.MAX_TIERS = 10
 AM.DEL = {}   -- draft marker: path removed (falls back to defaults)
 
@@ -124,14 +126,47 @@ end
 
 function AM.newDraft() return { order = {}, by = {} } end
 
+-- a whole value already in the draft on a shorter path (a horde preset copied in) holds the edits made under it:
+-- AM.get reads that value for every longer path, so an entry of its own would never show. -> table, key | nil
+local function inside(draft, path)
+    local parts = AM.split(path)
+    local prefix
+    for i = 1, #parts - 1 do
+        prefix = i == 1 and parts[1] or (prefix .. "." .. parts[i])
+        local t = draft.by[prefix]
+        if type(t) == "table" and t ~= AM.DEL then
+            for j = i + 1, #parts - 1 do
+                local k = parts[j]
+                if t[k] == nil and tonumber(k) then k = tonumber(k) end
+                if type(t[k]) ~= "table" then t[k] = {} end
+                t = t[k]
+            end
+            local k = parts[#parts]
+            if t[k] == nil and tonumber(k) then k = tonumber(k) end
+            return t, k
+        end
+    end
+    return nil
+end
+
 function AM.draftSet(draft, path, value)
+    local t, k = inside(draft, path)
+    if t then
+        if value == AM.DEL then t[k] = nil else t[k] = value end
+        return
+    end
     if draft.by[path] == nil then draft.order[#draft.order + 1] = path end
     draft.by[path] = value
 end
 
 -- drops an entry again (a horde kind picked and removed before Apply: a del of a key the config never had would
--- send a change that changes nothing and still writes a history row)
+-- send a change that changes nothing and still writes a history row); inside a whole value: drops that key
 function AM.draftUnset(draft, path)
+    local t, k = inside(draft, path)
+    if t then
+        t[k] = nil
+        return
+    end
     if draft.by[path] == nil then return end
     draft.by[path] = nil
     for i, p in ipairs(draft.order) do

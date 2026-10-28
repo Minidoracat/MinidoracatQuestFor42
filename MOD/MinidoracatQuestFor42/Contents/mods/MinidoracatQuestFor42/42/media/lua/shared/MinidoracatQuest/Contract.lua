@@ -28,7 +28,8 @@ C.LIMIT = {
     DELTA_MS = 1000, TOAST_MERGE_MS = 2000, BROADCAST_MS = 60000,
     MAX_PREFS = 3, ANOMALY_ROWS = 200,
     MAX_PINS = 5,                             -- quests / achievements on the tracker panel
-    MAX_LEAD = 120,                           -- horde warning minutes: hordes.leadMin and the horde.now lead
+    MAX_LEAD = 120,                           -- horde warning minutes: a window's leadMin and the horde.now lead
+    MAX_PRESETS = 8,                          -- hordes.presets (the "default" one included)
 }
 
 -- Result codes; the client shows IGUI_MQ_Code_<CODE>.

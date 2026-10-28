@@ -30,13 +30,14 @@ AM.DEL = {}   -- draft marker: path removed (falls back to defaults)
 
 -- ===== numbers =====
 
--- text -> value | nil, errKey, lo, hi (an integer range says "a whole number from lo to hi"). A decimal range below
--- 1000 (toughness, growth, multipliers) reads "," as the decimal point ("0,5" = 0.5, as many languages write it);
--- elsewhere "," is a thousands separator and dropped
+-- text -> value | nil, errKey, lo, hi (an integer range says "a whole number from lo to hi"). A decimal range
+-- (toughness, multipliers, the exchange rate) reads "," as the decimal point ("0,5" = 0.5, as many languages write
+-- it; a field never shows "," for one: whole numbers are tostring, others "%.2f"); an integer range drops "," as a
+-- thousands separator
 function AM.check(text, rangeKey)
     local r = AM.RANGE[rangeKey]
     local t = tostring(text or "")
-    if not r[3] and r[2] < 1000 then
+    if not r[3] then
         t = string.gsub(string.gsub(t, "%s", ""), ",", ".")
     else
         t = string.gsub(t, "[,%s]", "")

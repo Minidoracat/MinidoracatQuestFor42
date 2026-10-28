@@ -95,8 +95,11 @@ function A.flow(parent, P)
     return setmetatable({ parent = parent, P = P, pool = {}, seen = {}, gen = 0, y = 0, width = 0, ox = 0, lists = {} }, Flow)
 end
 
+-- narrowNotes goes back to off: a page turns it on in its own layout (the hordes tab), so the confirm view shown on
+-- the same flow keeps the full width
 function Flow:begin(width)
     self.gen, self.y, self.width, self.ox, self.L, self.lists = self.gen + 1, A.PAD, width, 0, nil, {}
+    self.narrowNotes = nil
 end
 
 function Flow:get(key, make)

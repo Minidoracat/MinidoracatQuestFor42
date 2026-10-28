@@ -361,10 +361,11 @@ return function(T)
     end
     T.check(AM.clock(" 19:30 ") == "19:30" and AM.clock("9:05") == "9:05" and AM.clock("24:00") == nil and AM.clock("1:2") == nil,
         "AM.clock keeps the typed text, rejects what the server rejects")
-    -- a decimal field below 1000 reads "," as the decimal point; elsewhere it stays a thousands separator (review r1 C4)
+    -- a decimal field reads "," as the decimal point, the exchange rate too; an integer field drops it as a thousands
+    -- separator (review r1 C4, r2: the rate read "0,5" as 5)
     T.check(AM.check("0,5", "hordeHp") == 0.5 and AM.check("1,25", "eventMult") == 1.25 and AM.check("1,000", "hordeCap") == 1000
-        and AM.check("1,000", "rate") == 1000 and AM.check("1.5", "hordeHp") == 1.5,
-        "0,5 is half a toughness; 1,000 is a thousand points")
+        and AM.check("0,5", "rate") == 0.5 and AM.check("1.5", "hordeHp") == 1.5,
+        "0,5 is half a toughness and half a coin; 1,000 is a thousand points")
 
     T.section("horde admin: a bad field is named in the bar and scrolled to; a good edit clears it (review H2, M1)")
     local sp = pg.sp

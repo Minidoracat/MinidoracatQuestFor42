@@ -1528,6 +1528,15 @@ return function(T)
             "names that differ (case too) are fine; default may have one")
         T.check((Cf.apply({ set("presets.p2.hp", {}) }, "test", "tester")) and Cf.apply({ { op = "del", path = "hordes.presets.p2.hp" } },
             "test", "tester"), "hp may be left out")
+        -- the last key of a map leaves it empty, not gone (review r2): a preset of pack kinds only can drop its kind
+        local packOnly = full("Pack")
+        packOnly.kinds, packOnly.points = { ["m:brute"] = 10 }, { ["m:brute"] = 5 }
+        T.check((Cf.apply({ set("presets.p4", packOnly) }, "test", "tester")), "a preset of pack kinds only applies")
+        local okDel = Cf.apply({ { op = "del", path = "hordes.presets.p4.kinds.m:brute" },
+            { op = "del", path = "hordes.presets.p4.points.m:brute" } }, "test", "tester")
+        local p4 = Cf.get().hordes.presets.p4
+        T.check(okDel and type(p4.kinds) == "table" and Q.Store.isEmpty(p4.kinds) and type(p4.points) == "table"
+            and Q.Store.isEmpty(p4.points), "removing its only kind leaves kinds and points empty, not gone")
     end)
 
     -- ===================== migration =====================

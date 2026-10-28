@@ -355,7 +355,10 @@ local function delAt(tree, segs)
         chain[i] = t
     end
     t[segs[#segs]] = nil
+    -- empty tables go too, up the path. A preset's own maps stay ({} is still the preset's: no kinds = all regular,
+    -- validateAll presetPart); the default one's go, the Catalog fills them key by key
     for i = #segs - 1, 1, -1 do
+        if i >= 4 and segs[1] == "hordes" and segs[2] == "presets" and segs[3] ~= "default" then break end
         if not Q.Store.isEmpty(chain[i]) then break end
         local parent = i == 1 and tree or chain[i - 1]
         parent[segs[i]] = nil

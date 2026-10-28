@@ -25,6 +25,8 @@
 -- ahead (0 = at once) and wait wait minutes for players (default 60). Players within RANGE get one
 -- personal reminder REMIND_MS before the start. Participants' stats (horde.joined / kills / mvp) feed achievements and
 -- the player Hordes page, which lists the recent results from root.hordes.log (H.recent, in the records reply).
+-- Players dying near a spawned horde are listed and announced (H.onDeath); at a success or failure the ones still
+-- there (online, alive, within CLEAR_RANGE) get the full result (H.result, command hordeResult), anyone can ask for it.
 
 if isClient() then return end
 
@@ -70,6 +72,9 @@ H.CLEAR_RANGE = 50        -- a wave counts as cleared with a player this close (
 H.LAST_MS = 10 * MIN      -- players see the last result this long after it ended
 H.LOG = 20                -- root.hordes.log entries kept
 H.RECENT = 10             -- results in the records reply (the player Hordes page)
+H.DEATHS_MAX = 50         -- deaths listed per horde (the first of each account)
+H.DEATH_MS = 2000         -- deaths within this long of the first one go out as one toast
+H.RESULT_ROWS = 100       -- rows of a result by kills; a player further down gets their own row appended
 H.REMIND_MS = 2 * MIN     -- the personal reminder to players near the spot comes this long before the start
 H.HP_MAX = 30             -- spawn health cap: the zombie packet sends health x 1000 as a short, so above 32.767 it
                           -- wraps negative on the clients (42.21.0 NetworkZombieAI.java:169, NetworkZombiePacker.java:243)
@@ -79,6 +84,7 @@ H.live = H.live or {}     -- IsoZombie -> { horde, onlineId, kind }; memory only
 H.lastTick = H.lastTick or 0
 H.lureAt = H.lureAt or 0  -- next lure sound (ms); memory only
 H.spawnErr = H.spawnErr or {}   -- kind id -> the horde id its spawn error was logged for; memory only
+-- H.deathQ = { horde, due, users }: the deaths not announced yet (H.onDeath, flushed by H.step / H.finish); memory only
 
 local function hordes() return MQ.Store.root().hordes end
 local function settings() return MQ.Config.get().hordes end
@@ -345,7 +351,8 @@ function H.plan(cfg, startMs, actor, win)
         waves = U.copy(p.waves), wave = 1, weights = U.copy(p.kinds), points = U.copy(p.points), hp = U.copy(p.hp or {}),
         cap = p.cap, limitMin = p.limitMin, waitMin = win.waitMin, restSec = p.restSec, maxAlive = p.maxAlive,
         size = 0, queued = 0, spawned = 0, left = 0, killed = 0, mix = {}, queue = {}, angle = 0, tries = 0,
-        totalSpawned = 0, totalKilled = 0, cleared = 0, kills = {}, waveGot = {}, got = {}, waveKills = {}, gotKills = {} }
+        totalSpawned = 0, totalKilled = 0, cleared = 0, kills = {}, waveGot = {}, got = {}, waveKills = {}, gotKills = {},
+        deaths = {} }
     dirty()
     return h.cur
 end
@@ -376,6 +383,25 @@ local function toast(cur, ev, fields)
     local t = { kind = "horde", ev = ev, id = cur.id, name = cur.name, town = cur.town }
     for k, v in pairs(fields) do t[k] = v end
     MQ.Net.broadcast("toast", t)
+end
+
+-- the users who show their name, and how many are anonymous (acc.anon, as on the boards: Boards.page)
+local function names(users)
+    local out, anon = {}, 0
+    for _, u in ipairs(users) do
+        local acc = MQ.Store.account(u, false)
+        if acc ~= nil and acc.anon then anon = anon + 1 else out[#out + 1] = u end
+    end
+    return out, anon
+end
+
+-- the deaths waiting in H.deathQ as one toast (H.step when due; H.finish before the result toast)
+local function flushDeaths(cur)
+    local q = H.deathQ
+    H.deathQ = nil
+    if q == nil or q.horde ~= cur.id then return end
+    local list, anon = names(q.users)
+    toast(cur, "death", { names = list, anon = anon, wave = cur.wave, waves = #cur.waves })
 end
 
 -- verified, living online players within range (default RANGE) tiles (2D)
@@ -680,14 +706,20 @@ local function pay(cur)
     return paid, pool, capped
 end
 
--- the top killers of a cleared horde with 2+ participants (all of them on a tie): horde.mvp + 1
+-- the top killers of a cleared horde with 2+ participants (all of them on a tie): horde.mvp + 1. Returns them (by
+-- name, {} when none) and their kills.
 local function mvp(cur, users)
-    if #users < 2 then return end
+    local tops = {}
+    if #users < 2 then return tops, 0 end
     local top = 0
     for _, u in ipairs(users) do top = math.max(top, cur.kills[u]) end
     for _, u in ipairs(users) do
-        if cur.kills[u] == top then MQ.Stats.add(u, "horde.mvp", 1) end
+        if cur.kills[u] == top then
+            MQ.Stats.add(u, "horde.mvp", 1)
+            tops[#tops + 1] = u
+        end
     end
+    return tops, top
 end
 
 -- result "success" | "failed" | "cancelled"; why for failed: time | nobody | admin | restart | spawn. Any result pays
@@ -699,9 +731,10 @@ function H.finish(result, why, now)
     h.cur = nil   -- first: an error further down must not finish (and pay) it again on the next tick
     local users = participants(cur)
     local paid, pool, capped = pay(cur)
+    local tops, top = {}, 0
     if result == "success" then
         for _, user in ipairs(users) do MQ.Stats.add(user, "horde.wins", 1) end
-        mvp(cur, users)
+        tops, top = mvp(cur, users)
     end
     -- every participant counts, whatever the result (a cancel comes before the spawn, so it has none)
     for _, user in ipairs(users) do MQ.Stats.add(user, "horde.joined", 1) end
@@ -741,9 +774,14 @@ function H.finish(result, why, now)
         end)
     end
     local waves = #cur.waves
+    flushDeaths(cur)   -- the deaths come before the result
     if result == "success" then
         toast(cur, "win", { waves = waves, spawned = cur.totalSpawned, killed = cur.totalKilled, pool = pool,
             capped = capped, n = #users })
+        if #tops > 0 then
+            local list, anon = names(tops)
+            toast(cur, "mvp", { names = list, anon = anon, kills = top })
+        end
     elseif result == "failed" then
         -- the wave it failed in is the one after the cleared ones (in the rest: the next wave), as the records show
         toast(cur, "fail", { why = why, wave = cur.cleared + 1, waves = waves, cleared = cur.cleared, pool = pool,
@@ -754,18 +792,33 @@ function H.finish(result, why, now)
     MQ.EventLog.write("horde", nil, { id = cur.id, state = result, why = why, spawned = cur.totalSpawned,
         killed = cur.totalKilled })
     local log = h.log
-    log[#log + 1] = { id = cur.id, auto = cur.auto, name = cur.name, town = cur.town, state = result, why = why,
+    local e = { id = cur.id, auto = cur.auto, name = cur.name, town = cur.town, state = result, why = why,
         startMs = cur.startMs, spawnAt = cur.firstSpawnAt, endedAt = now, waves = waves, cleared = cur.cleared,
         spawned = cur.totalSpawned, killed = cur.totalKilled, pool = pool, capped = capped, paid = paid,
-        kills = cur.kills, announced = cur.state ~= "planned" }
+        kills = cur.kills, announced = cur.state ~= "planned", joined = #users, mvp = tops, deaths = cur.deaths or {} }
+    log[#log + 1] = e
     while #log > H.LOG do table.remove(log, 1) end
     dirty()
+    -- the result pops up only for the ones there at the end (2026-10-29): online, alive, within CLEAR_RANGE; the
+    -- others open it from the Hordes page (hordeResult)
+    if result ~= "cancelled" and cur.firstSpawnAt ~= nil then
+        local r2 = H.CLEAR_RANGE * H.CLEAR_RANGE
+        MQ.Net.eachOnline(function(p, user)
+            local dx, dy = p:getX() - cur.x, p:getY() - cur.y
+            if not p:isDead() and dx * dx + dy * dy <= r2 then
+                local s = H.result(e, user, MQ.Server.isAdmin(p))
+                s.push = true
+                MQ.Net.send(p, "hordeResult", s)
+            end
+        end)
+    end
 end
 
 -- planned -> announced (or waiting) -> waiting -> active -> rest -> waiting ... -> finish
 function H.step(now)
     local cur = hordes().cur
     if cur == nil then return end
+    if H.deathQ ~= nil and now >= H.deathQ.due then flushDeaths(cur) end
     if cur.state == "planned" and now >= cur.announceAt then
         local open = now >= cur.startMs
         cur.state = open and "waiting" or "announced"
@@ -843,6 +896,34 @@ function H.onZombieDead(z)
     dirty()
 end
 
+-- OnCharacterDeath (the server gets it; OnPlayerDeath does not fire on a dedicated server): a player dying within
+-- CLEAR_RANGE of a horde that has spawned (waiting / active / rest) is listed in cur.deaths once per account, at most
+-- DEATHS_MAX, and announced: deaths within DEATH_MS of the first go out as one toast (H.step). Animals are IsoPlayers
+-- too (Trackers.onCharacterDeath).
+function H.onDeath(c)
+    if c == nil or not instanceof(c, "IsoPlayer") or c:isAnimal() or not MQ.Store.ready() then return end
+    local cur = hordes().cur
+    if cur == nil or cur.firstSpawnAt == nil
+        or not (cur.state == "active" or cur.state == "rest" or cur.state == "waiting") then return end
+    local dx, dy = c:getX() - cur.x, c:getY() - cur.y
+    if dx * dx + dy * dy > H.CLEAR_RANGE * H.CLEAR_RANGE then return end
+    local user = MQ.Identity.principal(c)
+    if user == nil then return end
+    cur.deaths = cur.deaths or {}   -- a horde planned before the death list
+    if #cur.deaths >= H.DEATHS_MAX then return end
+    for _, d in ipairs(cur.deaths) do
+        if d.u == user then return end
+    end
+    local now = getTimestampMs()
+    cur.deaths[#cur.deaths + 1] = { u = user, wave = cur.wave, at = now }
+    local q = H.deathQ
+    if q == nil or q.horde ~= cur.id then
+        q = { horde = cur.id, due = now + H.DEATH_MS, users = {} }
+        H.deathQ = q
+    end
+    q.users[#q.users + 1] = user
+end
+
 -- ---------- state part, admin ops ----------
 
 -- Sync provider "hordes": { on, cur, last }; a planned horde is secret, the last result shows for LAST_MS. on: the
@@ -855,7 +936,7 @@ function H.stateHordes(acc, user, now)
             kinds = kindsOf(cur), announceAt = cur.announceAt, startMs = cur.startMs, expireAt = cur.expireAt,
             endsAt = cur.endsAt, nextAt = cur.nextAt, wave = cur.wave, waves = #cur.waves, size = cur.size,
             left = cur.left, killed = cur.killed, limitMin = cur.limitMin, mine = cur.kills[user] or 0,
-            got = cur.got[user] or 0 }
+            got = cur.got[user] or 0, joined = #participants(cur) }
     end
     local e = h.log[#h.log]
     if e ~= nil and e.announced ~= false and now - e.endedAt < H.LAST_MS then
@@ -867,6 +948,16 @@ function H.stateHordes(acc, user, now)
     return out
 end
 
+-- players with 1+ kill in a result; older logs have no joined
+local function joinedOf(e)
+    if e.joined ~= nil then return e.joined end
+    local n = 0
+    for _, k in pairs(e.kills or {}) do
+        if k >= 1 then n = n + 1 end
+    end
+    return n
+end
+
 -- the last n announced results, newest first, with this player's kills and points (the records reply, design r12)
 function H.recent(user, n)
     local out, log = {}, hordes().log
@@ -875,11 +966,56 @@ function H.recent(user, n)
         if e.announced ~= false then
             out[#out + 1] = { id = e.id, name = e.name, town = e.town, state = e.state, why = e.why,
                 endedAt = e.endedAt, waves = e.waves, cleared = e.cleared, spawned = e.spawned, killed = e.killed,
-                mine = e.kills and e.kills[user] or 0, got = e.paid and e.paid[user] or 0 }
+                mine = e.kills and e.kills[user] or 0, got = e.paid and e.paid[user] or 0, joined = joinedOf(e) }
             if #out >= n then break end
         end
     end
     return out
+end
+
+-- the announced log entry of horde id, or nil (hordeResult)
+function H.logged(id)
+    for _, e in ipairs(hordes().log) do
+        if e.id == id and e.announced ~= false then return e end
+    end
+    return nil
+end
+
+-- One log entry as this user sees it (hordeResult): the participants by kills (ties by name, as Boards' less), at
+-- most RESULT_ROWS, the user's own row appended when further down (me = its row, nil without a kill). An anonymous
+-- account (acc.anon) shows no name, admins get it in `a` (as Boards.page).
+function H.result(e, user, admin)
+    local function who(u, row)
+        local acc = MQ.Store.account(u, false)
+        if acc ~= nil and acc.anon then
+            row.anon, row.a = true, admin and u or nil
+        else
+            row.n = u
+        end
+        return row
+    end
+    local tops, dead, all = {}, {}, {}
+    for _, u in ipairs(e.mvp or {}) do tops[u] = true end
+    for _, d in ipairs(e.deaths or {}) do dead[d.u] = true end
+    for u, k in pairs(e.kills or {}) do
+        if k >= 1 then all[#all + 1] = { u = u, k = k } end
+    end
+    U.sort(all, function(a, b)
+        if a.k ~= b.k then return a.k > b.k end
+        return a.u < b.u
+    end)
+    local s = { id = e.id, name = e.name, town = e.town, state = e.state, why = e.why, spawnAt = e.spawnAt,
+        endedAt = e.endedAt, waves = e.waves, cleared = e.cleared, spawned = e.spawned, killed = e.killed,
+        pool = e.pool, capped = e.capped, joined = #all, rows = {}, deaths = {} }
+    for i, r in ipairs(all) do
+        if i <= H.RESULT_ROWS or r.u == user then
+            s.rows[#s.rows + 1] = who(r.u, { r = i, k = r.k, p = e.paid and e.paid[r.u] or 0, mvp = tops[r.u],
+                dead = dead[r.u] })
+            if r.u == user then s.me = #s.rows end
+        end
+    end
+    for i, d in ipairs(e.deaths or {}) do s.deaths[i] = who(d.u, { wave = d.wave }) end
+    return s
 end
 
 -- sandbox ZombieConfig.ZombiesCountBeforeDelete as the server has it (42.21.0 SandboxOptions.java:2044, 0..5000,
@@ -953,6 +1089,7 @@ if first then
     Events.OnTickEvenPaused.Add(function() MinidoracatQuest.Hordes.tick(getTimestampMs()) end)
     Events.OnZombieDead.Add(function(z) MinidoracatQuest.Hordes.onZombieDead(z) end)
     Events.OnZombieCreate.Add(function(z) MinidoracatQuest.Hordes.onZombieCreate(z) end)
+    Events.OnCharacterDeath.Add(function(c) MinidoracatQuest.Hordes.onDeath(c) end)
 end
 
 return H

@@ -448,6 +448,15 @@ S.define("records", { kind = "query", run = function(ctx)
     return true
 end })
 
+-- one horde's result as this player sees it (Hordes.result: anonymous names only to admins); the player Hordes page's
+-- "View results". Only the announced ones of root.hordes.log (the last Hordes.LOG).
+S.define("hordeResult", { kind = "query", fields = { id = "int" }, run = function(ctx)
+    local e = Q.Hordes ~= nil and Q.Hordes.logged(ctx.args.id) or nil
+    if e == nil then return false, CODE.NOT_FOUND end
+    Q.Net.send(ctx.player, "hordeResult", Q.Hordes.result(e, ctx.user, ctx.admin))
+    return true
+end })
+
 -- ===== admin ops (section 6.2) =====
 
 -- dir: the folder of config.json under Zomboid/Lua/ (the History tab names it; single player is sp_<save>)

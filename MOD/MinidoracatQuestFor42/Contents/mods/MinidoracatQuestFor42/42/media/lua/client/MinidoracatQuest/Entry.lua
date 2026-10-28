@@ -170,10 +170,19 @@ local function minsTo(ms)
     return math.max(1, math.floor(((tonumber(ms) or 0) - C.serverNow()) / 60000 + 0.5))
 end
 
+-- the names of a death / MVP toast: the shown accounts, then one "anonymous" per hidden one
+local function names(t)
+    local out = {}
+    for _, n in ipairs(type(t.names) == "table" and t.names or {}) do out[#out + 1] = tostring(n) end
+    for _ = 1, math.floor(tonumber(t.anon) or 0) do out[#out + 1] = getText("IGUI_MQ_UI_Anonymous") end
+    return out
+end
+
 -- server-wide horde toasts (t.ev) and "remind", the personal one to players near the spot just before the start;
 -- the warning names the kinds that may appear and the number of waves, never how many zombies. Every wave has its
 -- spawn toast ("Wave W/N - " in front when N > 1) and every cleared one but the last its rest toast; win and fail
--- say what the horde paid (fail: the cleared waves) and when the cap scaled the shares down
+-- say what the horde paid (fail: the cleared waves) and when the cap scaled the shares down. Deaths near the spot
+-- (merged over 2 s) and the MVP of a cleared horde have their own toast, plain text kept short (plan-horde-result 4)
 function E.hordeToast(t)
     local place, ev = D.hordePlace(t), t.ev
     local waves = tostring(t.waves or 1)
@@ -202,11 +211,27 @@ function E.hordeToast(t)
             D.hordeFailText(t.why, t.wave, t.waves, t.cleared, t.pool, t.capped), nil
     elseif ev == "cancel" then
         return getText("IGUI_MQ_Horde_Title_cancel", place), getText("IGUI_MQ_Horde_CancelBody"), nil
+    elseif ev == "death" then
+        local who, wave = names(t), tostring(t.wave or 1)
+        if #who <= 1 then
+            return getText("IGUI_MQ_Horde_Title_death", who[1] or getText("IGUI_MQ_UI_Anonymous")),
+                getText("IGUI_MQ_Horde_DeathBody", place, wave, waves), nil
+        end
+        return getText("IGUI_MQ_Horde_Title_deathN", tostring(#who)),
+            getText("IGUI_MQ_Horde_DeathBodyN", table.concat(who, getText("IGUI_MQ_UI_ListSep")), place, wave, waves), nil
+    elseif ev == "mvp" then
+        local who = names(t)
+        return getText("IGUI_MQ_Horde_Title_mvp", table.concat(who, getText("IGUI_MQ_UI_ListSep"))),
+            getText(#who > 1 and "IGUI_MQ_Horde_MvpBodyTie" or "IGUI_MQ_Horde_MvpBody", D.num(t.kills or 0)), D.EXTRA.gold
     end
     return nil
 end
 
+-- a horde taken off the tracker panel stays quiet (its server-wide toasts); "remind" still shows: it is the safety
+-- warning to players near the spot. hordePaid and the results are kinds of their own.
 function E.onToast(t)
+    local hid = C.hordeHidden
+    if t.kind == "horde" and t.ev ~= "remind" and hid ~= nil and t.id == hid then return end
     local title, message, border = E.toastText(t)
     if title == nil then return end
     D.toast(title, message or "", border)

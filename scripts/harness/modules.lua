@@ -47,6 +47,7 @@ return {
     { dir = "client", name = "MinidoracatQuest/AdminPages" },
     { dir = "client", name = "MinidoracatQuest/AdminReport" },
     { dir = "client", name = "MinidoracatQuest/AdminHordes" },
+    { dir = "client", name = "MinidoracatQuest/HordeResult" },
     { dir = "client", name = "MinidoracatQuest/Hud" },
     { dir = "client", name = "MinidoracatQuest/HordeMap" },
     { dir = "client", name = "MinidoracatQuest/Titles" },

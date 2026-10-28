@@ -451,6 +451,9 @@ function C.onQueryFailed(p)
     elseif p.command == "hello" then
         C.helloCode = p.code
         C.emit("state")
+    elseif p.command == "hordeResult" and Q.Draw ~= nil then
+        -- the log keeps the last Hordes.LOG; the Hordes page can list one that just dropped out
+        Q.Draw.toast(p.code == "NOT_FOUND" and getText("IGUI_MQ_Horde_ResultGone") or Q.Draw.codeText(p.code), "", nil)
     end
 end
 
@@ -510,6 +513,14 @@ function C.setPin(id, on)
     end)
 end
 
+-- the horde a player took off the tracker panel (its x, or the banner toggle): this horde only, in memory only, so a
+-- relogin or the next horde (a new id) shows it again; its server-wide toasts stay quiet meanwhile (Entry.onToast)
+function C.setHordeHidden(id)
+    C.hordeHidden = id
+    if Q.Hud ~= nil then Q.Hud.onData() end
+    if Q.Window ~= nil then Q.Window.onData() end
+end
+
 -- ===== receive =====
 local H = {}
 C.handlers = H
@@ -537,7 +548,8 @@ function H.delta(p)
 end
 
 function H.result(p)
-    if p.ok == false and (p.command == "board" or p.command == "records" or p.command == "hello") then
+    if p.ok == false and (p.command == "board" or p.command == "records" or p.command == "hello"
+        or p.command == "hordeResult") then
         C.onQueryFailed(p)
     end
     C.settle(p)
@@ -564,6 +576,10 @@ function H.records(p)
 end
 
 function H.toast(p) C.emit("toast", p) end
+
+-- a horde's results (plan-horde-result 1029, item 2): pushed at the end to the players at the spot (push = true,
+-- opens once the player is safe) or the answer to the Hordes page's View results (opens at once)
+function H.hordeResult(p) if Q.HordeResult ~= nil then Q.HordeResult.receive(p) end end
 
 -- { full, map = { user -> titleId } } at hello, { u, t } on a change (Titles.lua keeps the table)
 function H.titles(p) C.emit("titles", p) end

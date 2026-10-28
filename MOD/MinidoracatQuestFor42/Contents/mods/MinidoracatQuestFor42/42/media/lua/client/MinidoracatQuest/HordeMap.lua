@@ -1,13 +1,15 @@
 -- MinidoracatQuest/HordeMap.lua: optional MinidoracatMiniMap integration for hordes (MiniMap docs/addon-api.md 3.3, 3.14).
 --   While state.hordes.cur is announced / waiting / active / rest: one zone of +-ZONE_R squares around the spot and one
---   marker on it. MiniMap calls both providers every frame, so they only return cached tables; the tables are built
---   again when a state / delta push changes the horde view (id, state, spot, name, town). MiniMap is not a require
---   of this mod: the providers are registered when its API is there (file load, else OnGameStart); without it, nothing.
+--   marker on it, labelled with the page banner's title, so the state reads in words, not only in red or orange.
+--   MiniMap calls both providers every frame, so they only return cached tables; the tables are built again when a
+--   state / delta push changes the horde view (id, state, wave, spot, name, town). MiniMap is not a require of this
+--   mod: the providers are registered when its API is there (file load, else OnGameStart); without it, nothing.
 
 if isServer() then return end
 
 require "MinidoracatQuest/Client"
 require "MinidoracatQuest/Draw"
+require "MinidoracatQuest/PageDaily"
 
 local Q = MinidoracatQuest
 local C, D = Q.Client, Q.Draw
@@ -35,7 +37,8 @@ function M.refresh()
     local hs = C.state and C.state.hordes
     local h = D.hordeLive(type(hs) == "table" and hs.cur or nil)
     local x, y = h and tonumber(h.x), h and tonumber(h.y)
-    local key = x and y and table.concat({ tostring(h.id), h.state, x, y, tostring(h.name), tostring(h.town) }, "|") or nil
+    local key = x and y and table.concat({ tostring(h.id), h.state, tostring(h.wave), x, y, tostring(h.name), tostring(h.town) }, "|")
+        or nil
     if key == M.key then return end
     M.key = key
     if key == nil then
@@ -44,7 +47,8 @@ function M.refresh()
     end
     local c = h.state == "active" and D.EXTRA.horde or D.EXTRA.hordeSoon
     local col = { r = c.r, g = c.g, b = c.b }
-    local label, r = D.hordePlace(h), M.ZONE_R
+    local _, title = Q.PageDaily.hordeBanner(C.state, C.serverNow())
+    local label, r = title or D.hordePlace(h), M.ZONE_R
     M.zones = { { id = "mq_horde", name = label, rects = { { x1 = x - r, y1 = y - r, x2 = x + r, y2 = y + r } },
         fill = col, fillAlpha = 0.22, border = col, borderAlpha = 0.9 } }
     M.revision = M.revision + 1

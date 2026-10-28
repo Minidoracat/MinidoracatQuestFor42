@@ -792,8 +792,9 @@ end
 
 -- ===== hordes (state.hordes = { cur, last }; toasts kind "horde") =====
 local LIVE = { announced = true, waiting = true, active = true, rest = true }
--- the states where the spot matters (players walk there or stay away): the Map button shows (design 5)
-D.HORDE_MAP = { announced = true, waiting = true, rest = true }
+-- the states with a Map button: every one players see, also while it runs (players still look for the spot;
+-- plan-horde-result 1029, item 1)
+D.HORDE_MAP = { announced = true, waiting = true, active = true, rest = true }
 
 -- the current horde while players see it (announced / waiting / active / rest between waves), else nil
 function D.hordeLive(cur)

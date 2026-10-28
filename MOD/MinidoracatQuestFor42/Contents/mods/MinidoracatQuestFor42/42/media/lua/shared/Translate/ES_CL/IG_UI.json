@@ -1485,5 +1485,5 @@
   "IGUI_MQ_UI_TitleCondNewbie": "Completar cada paso de las misiones de novato en %1 días",
   "IGUI_MQ_UI_TitleCondRank": "Temporada %1, puntos: %2",
   "IGUI_MQ_UI_TitleCondFirst": "Temporada %1: n.º 1 en \"%2\"",
-  "IGUI_MQ_WhatsNew": "\"Mis registros\" muestra tus títulos y su fecha. Las misiones de XP omiten habilidades al máximo o sin bono."
+  "IGUI_MQ_WhatsNew": "Las hordas llegan en oleadas, crecen con los jugadores y te rodean. El aviso de horda tiene botón Mapa."
 }

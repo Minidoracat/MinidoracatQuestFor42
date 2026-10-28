@@ -9,10 +9,11 @@
 --   a gamepad player gets one toast instead (the character would stop answering the stick). One opened by the player
 --   (Results, View results) is the framework's: it takes the gamepad, B closes it.
 --   The window is a framework Window like ExchangeDialog (not a Dialog: that one blocks the whole screen), one at a
---   time. Esc (once the window has the keys) and Close close it; Esc closes on its release, so the release does not
---   reach the game's pause menu (C2). Result and place, end time / waves / minutes, joined / kills / points paid, the
---   cap note, the MVP (a tag, not only a color), the deaths (DEATHS names, then +N), then every player by kills in a
---   scrolling list (rank, player, kills, points; my row framed and named "(you)", the dead marked in words). The
+--   time. Esc (once the window has the keys), B and Close close it; a held Esc is eaten with its release, so the
+--   release does not reach the game's pause menu (C2). Result and place, end time / waves / minutes, joined / kills /
+--   points paid, the cap note, the MVP (a tag, not only a color), the deaths (DEATHS names, then +N), then every
+--   player by kills in a scrolling list (rank, player, kills, points; my row framed and named "(you)", the dead
+--   marked in words). The
 --   window stays on screen: on a short screen the list shows fewer rows (MIN_ROWS at least). Without the framework
 --   (or its window, controls, scroll panel): one toast.
 
@@ -115,19 +116,19 @@ function R.build(UI)
     local win = UI.Window.new({ x = math.floor((core:getScreenWidth() - w) / 2), y = math.floor(core:getScreenHeight() / 4),
         width = w, height = 300, title = getText("IGUI_MQ_Horde_ResultTitle"), icon = "skull", theme = theme,
         opaque = D.has(UI, "opaqueWindow") or nil })
-    -- Esc: taken on its press (Focus eats it), the window closes on the release; closing on the press let the
-    -- release through to the game, which opened the pause menu (Focus.lua:898-913, GameKeyboard.java:37)
+    -- Esc (and gamepad B, which asks onEscape first and stops there when it answers true, Focus.lua:1101-1108):
+    -- close now. While Esc is physically down, GameKeyboard.eatKeyPress takes its release too (GameKeyboard.java:37-41,
+    -- 71-77), so the release cannot reach the game's pause menu; waiting for the release instead lost it to a Dock
+    -- above us, which answers isKeyConsumed from the shared ledger (UIManager.java:1468-1476, Dock.lua:1017-1018).
+    -- Not when Esc is up (B): a mark never cleared by a release would eat the player's next Esc (Focus.lua:349-357).
     win.onEscape = function()
-        R.escHeld = true
-        return true
-    end
-    local base = win.onKeyRelease
-    win.onKeyRelease = function(self, key)
-        if base ~= nil then base(self, key) end
-        if R.escHeld and Keyboard ~= nil and key == Keyboard.KEY_ESCAPE then
-            R.escHeld = false
-            self:close()
+        win:close()
+        local K = Keyboard
+        if K ~= nil and K.isKeyDown ~= nil and K.isKeyDown(K.KEY_ESCAPE) and GameKeyboard ~= nil
+            and GameKeyboard.eatKeyPress ~= nil then
+            GameKeyboard.eatKeyPress(K.KEY_ESCAPE)
         end
+        return true
     end
     R.win, R.UI, R.theme = win, UI, theme
     R.canvas = D.newCanvas(UI, theme)
@@ -147,7 +148,7 @@ function R.open(s)
     local UI = D.ui({ "window", "controls", "scrollPanel" })
     if UI == nil then return D.toast(getText("IGUI_MQ_Horde_ResultTitle"), (R.head(s)), nil) end
     if R.win == nil or R.UI ~= UI then R.build(UI) end
-    R.s, R.escHeld = s, false
+    R.s = s
     R.win:setVisible(true)
     R.win:bringToTop()
     R.sp:setYScroll(0)

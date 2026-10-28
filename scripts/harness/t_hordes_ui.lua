@@ -1582,15 +1582,24 @@ return function(T)
     Cl.receive("hordeResult", result())
     T.check(R.win.width == 400, "the font back at 14 px: 400 again on the next open")
     do
-    -- C2: Esc is taken on its press and closes on its release, so the release does not reach the pause menu
-    local kb = Keyboard
-    Keyboard = { KEY_ESCAPE = 1 }
-    T.check(R.win.added and R.win.onEscape(R.win) == true and opened(), "Esc pressed: taken (true), the window stays open")
-    R.win:onKeyRelease(28)
-    T.check(opened(), "another key released: still open")
-    R.win:onKeyRelease(1)
-    T.check(not opened() and not R.escHeld, "Esc released: closed (review C2)")
-    Keyboard = kb
+    do
+    -- C2 (review r2): Esc and gamepad B close it at once; a held Esc is eaten with its release (eatKeyPress), so neither
+    -- the pause menu nor a Dock above us gets it; B (Esc up) eats nothing
+    local kb, gk = Keyboard, GameKeyboard
+    local escDown, eaten = true, {}
+    Keyboard = { KEY_ESCAPE = 1, isKeyDown = function(k) return k == 1 and escDown end }
+    GameKeyboard = { eatKeyPress = function(k) eaten[#eaten + 1] = k end }
+    T.check(R.win.added and opened() and R.win.onEscape(R.win) == true and not opened() and #eaten == 1 and eaten[1] == 1,
+        "Esc held: onEscape closes it at once, eats Esc's press and release once, answers true (review r2)")
+    Cl.receive("hordeResult", result())
+    escDown, eaten = false, {}
+    -- the framework's B: Focus.onJoypadDown asks onEscape (escapeOverlay) and returns when it says true, no closeRoot
+    -- (Focus.lua:1101-1108): onEscape alone must close it
+    local ok, closedIt = pcall(R.win.onEscape, R.win)
+    T.check(ok and closedIt == true and not opened() and #eaten == 0,
+        "gamepad B (Esc up): onEscape alone closes it, nothing eaten (the next Esc would be lost)")
+    Keyboard, GameKeyboard = kb, gk
+    end
     -- C4: 50 deaths: 10 names and "+40"; the window stays on a 768 / 400 px high screen
     local core = getCore
     local function screen(w, h)

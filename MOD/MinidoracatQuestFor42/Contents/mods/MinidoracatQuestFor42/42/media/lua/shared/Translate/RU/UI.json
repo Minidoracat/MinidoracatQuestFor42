@@ -5,11 +5,13 @@
   "UI_MinidoracatQuest_ShowBroadcast": "Показывать общие уведомления о достижениях",
   "UI_MinidoracatQuest_ShowBroadcast_tooltip": "Уведомления о том, что другой игрок получил высокую ступень достижения.",
   "UI_MinidoracatQuest_ShowHud": "Показывать панель отслеживания",
-  "UI_MinidoracatQuest_ShowHud_tooltip": "Слева вверху: прогресс заданий и достижений, отмеченных кнопкой «Следить» на карточке. Панель можно перетащить.",
+  "UI_MinidoracatQuest_ShowHud_tooltip": "Слева вверху: прогресс заданий и достижений, отмеченных кнопкой «Следить» на карточке. Панель можно перетащить, а потянув за правый край — ограничить её ширину.",
+  "UI_MinidoracatQuest_HudOpacity": "Непрозрачность фона панели отслеживания (%%)",
   "UI_MinidoracatQuest_ShowHeadTitles": "Показывать титулы над головами",
   "UI_MinidoracatQuest_ShowHeadTitles_tooltip": "Титул, который носит игрок, строкой над его именем. Скрыт, если сервер скрывает имена. Отключение также экономит отрисовку на этом компьютере.",
   "UI_MinidoracatQuest_ShowChatTitles": "Показывать титулы в чате",
   "UI_MinidoracatQuest_ShowChatTitles_tooltip": "Титул автора после его имени в строках чата.",
   "UI_optionscreen_binding_MinidoracatQuest": "Minidoracat: Задания и достижения",
-  "UI_optionscreen_binding_MinidoracatQuest_Toggle": "Открыть / закрыть «Задания и достижения»"
+  "UI_optionscreen_binding_MinidoracatQuest_Toggle": "Открыть / закрыть «Задания и достижения»",
+  "UI_optionscreen_binding_MinidoracatQuest_Hud": "Свернуть / развернуть панель отслеживания"
 }

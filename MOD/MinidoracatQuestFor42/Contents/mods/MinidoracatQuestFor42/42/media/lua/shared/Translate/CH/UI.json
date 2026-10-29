@@ -5,11 +5,13 @@
   "UI_MinidoracatQuest_ShowBroadcast": "顯示全服解鎖通知",
   "UI_MinidoracatQuest_ShowBroadcast_tooltip": "其他玩家解鎖高等級成就時的通知。",
   "UI_MinidoracatQuest_ShowHud": "顯示追蹤面板",
-  "UI_MinidoracatQuest_ShowHud_tooltip": "在畫面左上顯示你在卡片上按「追蹤」的任務與成就進度。拖曳可以移動面板。",
+  "UI_MinidoracatQuest_ShowHud_tooltip": "在畫面左上顯示你在卡片上按「追蹤」的任務與成就進度。拖曳可以移動面板，拖曳右緣可以限制寬度。",
+  "UI_MinidoracatQuest_HudOpacity": "追蹤面板背景不透明度（%%）",
   "UI_MinidoracatQuest_ShowHeadTitles": "顯示頭上的稱號",
   "UI_MinidoracatQuest_ShowHeadTitles_tooltip": "玩家戴的稱號顯示在名字上方一行；伺服器不顯示名字時也不顯示。關掉也會省下這台電腦的繪製成本。",
   "UI_MinidoracatQuest_ShowChatTitles": "在聊天顯示稱號",
   "UI_MinidoracatQuest_ShowChatTitles_tooltip": "聊天訊息的名字後面加上發言者戴的稱號。",
   "UI_optionscreen_binding_MinidoracatQuest": "Minidoracat 任務與成就",
-  "UI_optionscreen_binding_MinidoracatQuest_Toggle": "任務與成就開關"
+  "UI_optionscreen_binding_MinidoracatQuest_Toggle": "任務與成就開關",
+  "UI_optionscreen_binding_MinidoracatQuest_Hud": "追蹤面板收合／展開"
 }

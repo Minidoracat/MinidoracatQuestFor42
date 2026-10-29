@@ -1096,6 +1096,7 @@ return function(T)
     -- the panel's own layout: the horde row is on top, no unpin x, and the count is pins only
     local hp = { x = 0, y = 0, width = 300, height = 10, UI = UI, theme = { colors = colors } }
     function hp:setHeight(h) self.height = h end
+    function hp:setWidth(w) self.width = w end
     function hp:setX(v) self.x = v end
     function hp:setY(v) self.y = v end
     local function drewOp(s)
@@ -1120,18 +1121,22 @@ return function(T)
         end
         return nil
     end
-    local narrow = hp.width
-    hp.width = 400   -- the harness font is wide (7 px a char): 300 px leave no 24 px for the bar
+    -- a horde row takes the whole cap; the harness font is wide (7 px a char): its H.width() leaves no 24 px for the bar
+    local realWidth = Hd.width
+    Hd.width = function() return 400 end
     Hd.layout(hp)
     local barOp, cntOp = barOnLine2(), drewOp("IGUI_MQ_Horde_HudActive|12|17|30")   -- right-aligned: x is its right edge
-    T.check(cntOp ~= nil and cntOp.x <= hp.mapHit.x0 - 6 and barOp ~= nil and barOp.x == Hd.PAD
-        and barOp.x + barOp.w + 8 <= cntOp.x - cntOp.w, "active line 2: the count left of the Map button, the bar takes what is left")
-    hp.width = 150
+    T.check(hp.width == 400 and cntOp ~= nil and cntOp.x <= hp.mapHit.x0 - 6 and barOp ~= nil and barOp.x == Hd.PAD
+        and barOp.x + barOp.w + 8 <= cntOp.x - cntOp.w,
+        "a horde row is as wide as the cap; active line 2: the count left of the Map button, the bar takes what is left")
+    Hd.width = realWidth
+    hp.maxW = 1   -- a layout.ini cap under the floor: held to H.minWidth(), the narrowest a drag sets
     Hd.layout(hp)
     local cut = drewOp("IGUI_MQ_Horde_HudActive|12|17|30")
-    T.check(barOnLine2() == nil and cut ~= nil and cut.k == 3 and cut.x == Hd.PAD and hp.mapHit ~= nil,
-        "a narrow panel: the count cut from the left edge (not right-aligned past it), no bar, the Map button (C5)")
-    hp.width = narrow
+    T.check(hp.width == Hd.minWidth() and barOnLine2() == nil and cut ~= nil and cut.k == 3 and cut.x == Hd.PAD
+        and hp.mapHit ~= nil,
+        "the narrowest cap: the count cut from the left edge (not right-aligned past it), no bar, the Map button (C5)")
+    hp.maxW = nil
     Cl.state.hordes = { cur = cur("waiting") }
     Hd.layout(hp)
     local m, label = hp.mapHit, drewOp("IGUI_MQ_UI_Map")

@@ -1360,6 +1360,7 @@
   "IGUI_MQ_UI_Track": "Track",
   "IGUI_MQ_UI_Tracking": "Tracking",
   "IGUI_MQ_UI_HudTitle": "Tracked",
+  "IGUI_MQ_UI_HudResize": "Drag to set the maximum width. Double-click for automatic width.",
   "IGUI_MQ_UI_HudDaily": "Daily",
   "IGUI_MQ_UI_HudWeekly": "Weekly",
   "IGUI_MQ_UI_HudAch": "Achievement",

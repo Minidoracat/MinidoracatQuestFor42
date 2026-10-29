@@ -1360,6 +1360,7 @@
   "IGUI_MQ_UI_Track": "Следить",
   "IGUI_MQ_UI_Tracking": "Отслеживается",
   "IGUI_MQ_UI_HudTitle": "Отслеживание",
+  "IGUI_MQ_UI_HudResize": "Перетащите, чтобы задать максимальную ширину. Двойной щелчок — автоматическая ширина.",
   "IGUI_MQ_UI_HudDaily": "Ежедневное",
   "IGUI_MQ_UI_HudWeekly": "Еженедельное",
   "IGUI_MQ_UI_HudAch": "Достижение",

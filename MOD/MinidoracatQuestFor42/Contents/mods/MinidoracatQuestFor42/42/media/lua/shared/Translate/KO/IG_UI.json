@@ -1360,6 +1360,7 @@
   "IGUI_MQ_UI_Track": "추적",
   "IGUI_MQ_UI_Tracking": "추적 중",
   "IGUI_MQ_UI_HudTitle": "추적",
+  "IGUI_MQ_UI_HudResize": "드래그해서 최대 너비 설정, 더블클릭하면 자동 너비",
   "IGUI_MQ_UI_HudDaily": "일일",
   "IGUI_MQ_UI_HudWeekly": "주간",
   "IGUI_MQ_UI_HudAch": "업적",

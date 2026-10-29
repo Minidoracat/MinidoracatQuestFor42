@@ -30,7 +30,7 @@ Daily and weekly quests, achievements, season leaderboards and titles; pair it w
 [/list]
 [h3]Opening and sizing the window[/h3]
 [list]
-[*] [b]Hotkey[/b]: unbound by default. Set "Open / close Quests & Achievements" under "Minidoracat Quests & Achievements" in Options > Key Bindings.
+[*] [b]Hotkey[/b]: unbound by default. Set "Open / close Quests & Achievements" under "Minidoracat Quests & Achievements" in Options > Key Bindings; "Collapse / expand the tracker panel" in the same group folds the tracker panel.
 [*] [b]Number on the toolbar icon[/b]: completions and unlocks you have not seen yet; it clears when you open the Daily quests or Achievements page.
 [*] [b]Window size[/b]: drag the bottom-right corner and the game remembers it; when the size differs from the default, "Reset size" in the title bar brings it back.
 [/list]
@@ -228,7 +228,9 @@ When a horde ends, the players at the spot get its results; deaths during a hord
 [*] [b]Add[/b]: press "Track" on a daily or weekly quest card or an achievement card (press again to stop), up to 5; with 5 tracked, pressing "Track" on another card tells you to untrack one first.
 [*] [b]What it shows[/b]: at the top left, next to the vanilla sidebar: quests show progress/target, achievements the next tier's target, a done quest gets a check mark and the points it paid.
 [*] [b]Hordes[/b]: during a horde an extra row sits on top; it does not use one of the 5 slots, and the ✕ on its right hides this horde. After a horde ends, a "Results" row waits there until the results open (see "Hordes" and "Horde results and notices").
-[*] [b]Move and fold[/b]: drag the panel to move it and the game remembers where; the arrow in its title row folds it to one line.
+[*] [b]Move and fold[/b]: drag the panel to move it and the game remembers where; the arrow in its title row folds it to one line, and so can a hotkey (see "Opening and sizing the window").
+[*] [b]Width[/b]: the panel is only as wide as its rows, and every progress bar ends at the same place; with a horde or results row it gets wider so place names are not cut. Point at its right edge for a handle: drag it left to set the widest the panel gets (the game remembers it), and the panel still shrinks when its rows are narrower; double-click the edge for the automatic width again. A panel in the right half of the screen keeps its right edge when its width changes.
+[*] [b]Background[/b]: "Tracker panel background opacity (%)" in Options > MODS > Quests & Achievements goes from 50 to 100, 80 by default; under 80 the text gets a black shadow.
 [*] [b]Untrack[/b]: point at a row and press the × that appears on its right.
 [*] [b]Removed on its own[/b]: daily quests at the daily reset, weekly quests at the weekly reset, a swapped quest, and an achievement that reached its top tier.
 [*] [b]When it steps aside[/b]: while the UI is hidden with V, the Esc menu is up, or your character is dead. It stays while the quest window is open, so a Track press shows up at once; the quest window and every other window draw over it.
@@ -328,6 +330,7 @@ The server needs Minidoracat Economy (multiplayer only). The Exchange page on th
 [*] [b]Show the toolbar entry[/b]: when hidden, the hotkey still opens the window.
 [*] [b]Show server-wide unlock notices[/b]: when off, other players' unlocks are not shown.
 [*] [b]Show the tracker panel[/b]: the tracker panel at the top left.
+[*] [b]Tracker panel background opacity (%)[/b]: 50 to 100, 80 by default; under 80 the text gets a black shadow.
 [*] [b]Show titles above heads[/b]: other players' (and your own) head titles; turning it off also saves this computer the drawing.
 [*] [b]Show titles in chat[/b]: the title after the name in chat lines.
 [/list]

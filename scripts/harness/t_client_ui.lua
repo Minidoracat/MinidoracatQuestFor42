@@ -181,6 +181,7 @@ return function(T)
             trace[#trace + 1] = "create"
             local o = { modId = modId }
             function o:addTickBox() trace[#trace + 1] = "tick" end
+            function o:addSlider() trace[#trace + 1] = "slider" end
             return o
         end,
         load = function() trace[#trace + 1] = "load" end,
@@ -192,12 +193,12 @@ return function(T)
     fake.CAPABILITIES.modOptionsBackup = true
     T.bootClient()
     PZAPI.ModOptions:load() -- the vanilla load in MainOptions:create comes after every MOD file loaded
-    check(table.concat(trace, ",") == "create,tick,tick,tick,tick,tick,protect:MinidoracatQuestFor42,load",
-        "flag on: protect once, after every tick box, before the vanilla load (" .. table.concat(trace, ",") .. ")")
+    check(table.concat(trace, ",") == "create,tick,tick,tick,slider,tick,tick,protect:MinidoracatQuestFor42,load",
+        "flag on: protect once, after every option, before the vanilla load (" .. table.concat(trace, ",") .. ")")
     trace = {}
     fake.CAPABILITIES.modOptionsBackup = nil
     T.bootClient()
-    check(table.concat(trace, ",") == "create,tick,tick,tick,tick,tick", "flag off: protect not called (" .. table.concat(trace, ",") .. ")")
+    check(table.concat(trace, ",") == "create,tick,tick,tick,slider,tick,tick", "flag off: protect not called (" .. table.concat(trace, ",") .. ")")
     PZAPI, fake.ModOptionsBackup = nil, nil
 
     local MQ = T.bootClient()
@@ -745,6 +746,127 @@ return function(T)
     check(hp.collapsed and hp.height < fullH and hp.height <= Hd.titleH() + Hd.PAD, "the arrow folds the panel to its title row")
     Hd.onMouseDown(hp, hp.width - 10, 4)
     check(not hp.collapsed and hp.height == fullH, "and opens it again")
+
+    T.section("client UI: tracker panel width follows its rows (plan hud-width, user 2026-10-29)")
+    local gtFit, nameLen = getText, 2
+    getText = function(key, a, b)   -- short texts, real counts (12/20 and 72/150 differ), names nameLen long
+        if key == "IGUI_MQ_UI_Progress" then return tostring(a) .. "/" .. tostring(b) end
+        return string.sub(key, 1, 10) == "IGUI_MQ_Q_" and string.rep("n", nameLen) or "ab"
+    end
+    local function widthFor(n)
+        nameLen = n
+        Hd.onData()
+        return hp.width
+    end
+    local wFloor, w30, w31 = widthFor(2), widthFor(30), widthFor(31)
+    local whole, ends, countL = true, {}, math.huge
+    for _, r in ipairs(hp.rows) do
+        local drawn = false
+        for i = 1, hp.n do if hp.ops[i].s == r.name then drawn = true end end
+        whole = whole and drawn
+    end
+    for i = 1, hp.n do
+        local o = hp.ops[i]
+        if o.k == 8 and o.c == hp.theme.colors.well then ends[#ends + 1] = o.x + o.w end
+        if o.k == 4 and string.find(tostring(o.s), "^%d+/%d+$") then countL = math.min(countL, o.x - o.w) end
+    end
+    check(wFloor == Hd.minWidth() and w30 > wFloor and w31 == w30 + 7 and w31 < Hd.width() and whole,
+        "short rows: the floor (12 x font); a longer name widens the panel by its own width, shown in full, under H.width()")
+    check(#ends == 2 and ends[1] == ends[2] and ends[1] + 8 == countL, "every bar ends 8 px left of the widest count")
+    check(widthFor(200) == Hd.width(), "a name too long for any width: the cap, H.width()")
+    hp.x = 1500   -- the player moved it to the right half
+    local right = hp.x + hp.width
+    check(widthFor(30) == w30 and hp.x + hp.width == right, "in the right half a narrower panel keeps its right edge")
+    hp.x = 100
+    check(widthFor(31) == w31 and hp.x == 100, "in the left half it keeps its left edge")
+
+    T.section("client UI: tracker panel right edge sets the widest it gets (plan hud-width)")
+    local mx, gy = 0, Hd.titleH() + 4
+    hp.getMouseX = function() return mx end
+    isMouseButtonDown = function() return true end
+    T.advance(1000)
+    Hd.onMouseDown(hp, hp.width - 2, gy)
+    mx = 198
+    hp:onMouseMove(0, 0)
+    hp:onMouseUp(mx, gy)
+    check(hp.maxW == 200 and hp.width == 200 and hp.sizing == nil, "a drag on the right edge: the cap follows the mouse")
+    check(widthFor(2) == wFloor and widthFor(30) == 200, "under the cap the panel still fits its rows")
+    local ini = {}
+    hp:SaveLayout(Hd.LAYOUT_KEY, ini)
+    for k, v in pairs(ini) do ini[k] = tostring(v) end   -- layout.ini gives strings back
+    ini.moved = "true"
+    local fresh = getmetatable(hp):new(0, 0, Hd.width(), 10)
+    fresh:RestoreLayout(Hd.LAYOUT_KEY, ini)
+    check(fresh.maxW == 200 and fresh.width == 200 and fresh.x == hp.x, "the cap and the width go to layout.ini and come back")
+    T.advance(1000)
+    Hd.onMouseDown(hp, hp.width - 2, gy)
+    hp:onMouseUp(mx, gy)
+    T.advance(200)
+    Hd.onMouseDown(hp, hp.width - 2, gy)
+    check(hp.maxW == nil and hp.width == w30 and hp.sizing == nil, "a double click on the edge: the automatic width again")
+    T.advance(1000)
+    Hd.onMouseDown(hp, hp.width - 2, gy)
+    mx = 40
+    hp:onMouseMove(0, 0)
+    local held = hp.width
+    mx = 2000
+    hp:onMouseMove(0, 0)
+    local past = hp.maxW
+    isMouseButtonDown = function() return false end
+    hp:onMouseMove(0, 0)
+    check(held == Hd.minWidth() and past == nil and hp.width == w30 and hp.sizing == nil,
+        "a drag stops at 12 x font; past H.width() it is automatic again; a release the panel missed ends the drag")
+    hp.getMouseX, isMouseButtonDown = nil, nil
+
+    T.section("client UI: tracker panel key (MinidoracatQuest_Hud, unbound by default)")
+    local kb = keyBinding
+    keyBinding = {}
+    E.initBinds()
+    local hudBind = nil
+    for _, b in ipairs(keyBinding) do if b.value == E.BIND_HUD then hudBind = b end end
+    keyBinding = kb
+    local coreFn = getCore
+    getCore = function()
+        local c = coreFn()
+        c.getKey = function(_, bind) return bind == E.BIND_HUD and 44 or 0 end
+        return c
+    end
+    E.onKeyPressed(44)
+    local folded = hp.collapsed and hp.height <= Hd.titleH() + Hd.PAD
+    E.onKeyPressed(44)
+    local opened = not hp.collapsed
+    hp:setVisible(false)
+    E.onKeyPressed(44)
+    check(hudBind ~= nil and hudBind.key == 0 and folded and opened and not hp.collapsed,
+        "registered unbound; the key folds the panel and opens it again, and does nothing while it is hidden")
+    hp:setVisible(true)
+    getCore = coreFn
+
+    T.section("client UI: tracker panel background opacity (HudOpacity, 50-100)")
+    local optVal, opts = 50, E.options
+    E.options = { getOption = function(_, id)   -- tick boxes: nil reads as on
+        if id == "HudOpacity" then return { getValue = function() return optVal end } end
+    end }
+    local function bgAlpha()
+        for i = 1, hp.n do if hp.ops[i].k == 1 then return hp.ops[i].c.a end end
+    end
+    local function drawn()
+        local d0 = draws
+        D.renderOps(hp)
+        return draws - d0
+    end
+    E.applyOptions()
+    local a50, shadow50, drawn50 = bgAlpha(), hp.textShadow, drawn()
+    optVal = 999   -- a hand-edited ModOptions.ini
+    E.applyOptions()
+    local aHigh = bgAlpha()
+    optVal = 80
+    E.applyOptions()
+    check(a50 == 0.5 and shadow50 and aHigh == 1 and bgAlpha() == 0.8 and not hp.textShadow and drawn() < drawn50,
+        "50 %: a 0.5 background and every text drawn again as its shadow; over 100 held to 1; 80 % (the default): none")
+    E.options = opts
+    getText = gtFit
+    Hd.onData()
     W.open("daily")
     check(hp:isVisible(), "the panel stays while the main window is open")
     W.close()

@@ -1360,6 +1360,7 @@
   "IGUI_MQ_UI_Track": "追蹤",
   "IGUI_MQ_UI_Tracking": "追蹤中",
   "IGUI_MQ_UI_HudTitle": "追蹤",
+  "IGUI_MQ_UI_HudResize": "拖曳設定最大寬度，雙擊恢復自動寬度",
   "IGUI_MQ_UI_HudDaily": "每日",
   "IGUI_MQ_UI_HudWeekly": "每週",
   "IGUI_MQ_UI_HudAch": "成就",

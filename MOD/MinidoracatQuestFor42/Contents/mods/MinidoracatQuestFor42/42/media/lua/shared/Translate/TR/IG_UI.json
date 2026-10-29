@@ -1360,6 +1360,7 @@
   "IGUI_MQ_UI_Track": "Takip et",
   "IGUI_MQ_UI_Tracking": "Takipte",
   "IGUI_MQ_UI_HudTitle": "Takip",
+  "IGUI_MQ_UI_HudResize": "En fazla genişliği ayarlamak için sürükleyin. Çift tıklama: otomatik genişlik.",
   "IGUI_MQ_UI_HudDaily": "Günlük",
   "IGUI_MQ_UI_HudWeekly": "Haftalık",
   "IGUI_MQ_UI_HudAch": "Başarım",

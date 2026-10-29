@@ -1360,6 +1360,7 @@
   "IGUI_MQ_UI_Track": "追踪",
   "IGUI_MQ_UI_Tracking": "追踪中",
   "IGUI_MQ_UI_HudTitle": "追踪",
+  "IGUI_MQ_UI_HudResize": "拖动设置最大宽度，双击恢复自动宽度",
   "IGUI_MQ_UI_HudDaily": "每日",
   "IGUI_MQ_UI_HudWeekly": "每周",
   "IGUI_MQ_UI_HudAch": "成就",

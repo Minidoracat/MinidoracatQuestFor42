@@ -1360,6 +1360,7 @@
   "IGUI_MQ_UI_Track": "Seguir",
   "IGUI_MQ_UI_Tracking": "Siguiendo",
   "IGUI_MQ_UI_HudTitle": "Seguimiento",
+  "IGUI_MQ_UI_HudResize": "Arrastra para fijar el ancho máximo. Doble clic: ancho automático.",
   "IGUI_MQ_UI_HudDaily": "Diaria",
   "IGUI_MQ_UI_HudWeekly": "Semanal",
   "IGUI_MQ_UI_HudAch": "Logro",

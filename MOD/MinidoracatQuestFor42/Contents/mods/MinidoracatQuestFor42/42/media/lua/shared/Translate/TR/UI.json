@@ -5,11 +5,13 @@
   "UI_MinidoracatQuest_ShowBroadcast": "Sunucu geneli açılış bildirimlerini göster",
   "UI_MinidoracatQuest_ShowBroadcast_tooltip": "Başka bir oyuncu yüksek bir başarım kademesini açtığında gelen bildirimler.",
   "UI_MinidoracatQuest_ShowHud": "Takip panelini göster",
-  "UI_MinidoracatQuest_ShowHud_tooltip": "Sol üstte: bir kartta \"Takip et\" ile işaretlediğiniz görev ve başarımların ilerlemesi. Taşımak için sürükleyin.",
+  "UI_MinidoracatQuest_ShowHud_tooltip": "Sol üstte: bir kartta \"Takip et\" ile işaretlediğiniz görev ve başarımların ilerlemesi. Taşımak için sürükleyin; genişliği sınırlamak için sağ kenarını sürükleyin.",
+  "UI_MinidoracatQuest_HudOpacity": "Takip paneli arka planının opaklığı (%%)",
   "UI_MinidoracatQuest_ShowHeadTitles": "Unvanları başların üstünde göster",
   "UI_MinidoracatQuest_ShowHeadTitles_tooltip": "Her oyuncunun taşıdığı unvan, isminin bir satır üstünde. Sunucu isimleri gizlediğinde gizlenir. Kapatmak bu bilgisayarda çizim yükünü de azaltır.",
   "UI_MinidoracatQuest_ShowChatTitles": "Unvanları sohbette göster",
   "UI_MinidoracatQuest_ShowChatTitles_tooltip": "Yazan oyuncunun unvanı, sohbet satırlarında isminin ardında.",
   "UI_optionscreen_binding_MinidoracatQuest": "Minidoracat Görevler ve Başarımlar",
-  "UI_optionscreen_binding_MinidoracatQuest_Toggle": "Görevler ve Başarımlar'ı aç / kapat"
+  "UI_optionscreen_binding_MinidoracatQuest_Toggle": "Görevler ve Başarımlar'ı aç / kapat",
+  "UI_optionscreen_binding_MinidoracatQuest_Hud": "Takip panelini daralt / genişlet"
 }

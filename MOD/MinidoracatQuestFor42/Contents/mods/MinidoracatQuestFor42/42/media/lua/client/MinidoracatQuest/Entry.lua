@@ -1,8 +1,8 @@
 -- MinidoracatQuest/Entry.lua: ways into the window and notifications (ARCHITECTURE 7, spec 17).
---   Family Dock entry (id quest, order 70, badge = state.unseen, bind MinidoracatQuest_Toggle), the hotkey
---   (registered unbound: the family key table has no free single key), player MOD options (show the Dock entry,
---   server-wide unlock toasts, the tracker panel, other players' titles over heads and in chat) and the toast texts
---   for every server toast kind.
+--   Family Dock entry (id quest, order 70, badge = state.unseen, bind MinidoracatQuest_Toggle), the hotkeys
+--   (registered unbound: the family key table has no free single key; MinidoracatQuest_Hud folds the tracker panel),
+--   player MOD options (show the Dock entry, server-wide unlock toasts, the tracker panel and its background opacity,
+--   other players' titles over heads and in chat) and the toast texts for every server toast kind.
 --   Dock callbacks run every frame inside pcall: they only read cached values (no tables, no strings).
 
 if isServer() then return end
@@ -18,6 +18,7 @@ local E = Q.Entry or {}
 Q.Entry = E
 
 E.BIND = "MinidoracatQuest_Toggle"
+E.BIND_HUD = "MinidoracatQuest_Hud"
 E.DOCK_ICON = "media/ui/MinidoracatQuest/dock_trophy.png"
 E.badge = E.badge or 0
 E.showDock = E.showDock ~= false
@@ -25,6 +26,7 @@ E.showBroadcast = E.showBroadcast ~= false
 E.showHud = E.showHud ~= false
 E.showHeadTitles = E.showHeadTitles ~= false
 E.showChatTitles = E.showChatTitles ~= false
+E.hudOpacity = E.hudOpacity or 80
 
 -- ===== MOD options (PZAPI.ModOptions; tick boxes read with explicit nil/type tests) =====
 local function tick(o, id)
@@ -32,11 +34,20 @@ local function tick(o, id)
     return t == nil or t:getValue() ~= false
 end
 
+-- a slider's number (ModOptions.lua:215; ModOptions.ini is read back with tonumber, :311), held to its range
+local function slider(o, id, lo, hi, default)
+    local s = o:getOption(id)
+    local v = s ~= nil and tonumber(s:getValue()) or nil
+    if v == nil then return default end
+    return math.max(lo, math.min(hi, v))
+end
+
 function E.readOptions()
     local o = E.options
     if o == nil then return end
     E.showDock, E.showBroadcast = tick(o, "ShowDock"), tick(o, "ShowBroadcast")
     E.showHud, E.showHeadTitles, E.showChatTitles = tick(o, "ShowHud"), tick(o, "ShowHeadTitles"), tick(o, "ShowChatTitles")
+    E.hudOpacity = slider(o, "HudOpacity", 50, 100, 80)
 end
 
 function E.applyOptions()
@@ -44,7 +55,10 @@ function E.applyOptions()
     E.readOptions()
     local UI = D.ui({ "dock" })
     if UI ~= nil and UI.Dock ~= nil then UI.Dock.refresh() end
-    if Q.Hud ~= nil and hud ~= E.showHud then Q.Hud.setShown(E.showHud) end
+    if Q.Hud ~= nil then
+        if hud ~= E.showHud then Q.Hud.setShown(E.showHud) end
+        Q.Hud.setOpacity(E.hudOpacity / 100)
+    end
 end
 
 if first and PZAPI and PZAPI.ModOptions then
@@ -52,6 +66,8 @@ if first and PZAPI and PZAPI.ModOptions then
     o:addTickBox("ShowDock", "UI_MinidoracatQuest_ShowDock", true, "UI_MinidoracatQuest_ShowDock_tooltip")
     o:addTickBox("ShowBroadcast", "UI_MinidoracatQuest_ShowBroadcast", true, "UI_MinidoracatQuest_ShowBroadcast_tooltip")
     o:addTickBox("ShowHud", "UI_MinidoracatQuest_ShowHud", true, "UI_MinidoracatQuest_ShowHud_tooltip")
+    -- vanilla shows no tooltip for a mod slider (MainOptions.lua:3024-3049): the label says what the number is
+    o:addSlider("HudOpacity", "UI_MinidoracatQuest_HudOpacity", 50, 100, 5, 80)
     o:addTickBox("ShowHeadTitles", "UI_MinidoracatQuest_ShowHeadTitles", true, "UI_MinidoracatQuest_ShowHeadTitles_tooltip")
     o:addTickBox("ShowChatTitles", "UI_MinidoracatQuest_ShowChatTitles", true, "UI_MinidoracatQuest_ShowChatTitles_tooltip")
     o.apply = function() MinidoracatQuest.Entry.applyOptions() end
@@ -98,11 +114,17 @@ function E.initBinds()
     if keyBinding == nil then return end
     table.insert(keyBinding, { value = "[MinidoracatQuest]" })
     table.insert(keyBinding, { value = E.BIND, key = (Keyboard and Keyboard.KEY_NONE) or 0 })
+    table.insert(keyBinding, { value = E.BIND_HUD, key = (Keyboard and Keyboard.KEY_NONE) or 0 })
 end
 
 function E.onKeyPressed(key)
     if key == nil or key == 0 then return end
-    if key == getCore():getKey(E.BIND) then MinidoracatQuest.Window.toggle() end
+    local core = getCore()
+    if key == core:getKey(E.BIND) then
+        MinidoracatQuest.Window.toggle()
+    elseif key == core:getKey(E.BIND_HUD) and MinidoracatQuest.Hud ~= nil then
+        MinidoracatQuest.Hud.toggleCollapsed()
+    end
 end
 
 -- ===== toasts (spec 17) =====
@@ -246,7 +268,10 @@ if first then
     Events.OnGameStart.Add(function()
         MinidoracatQuest.Entry.readOptions()
         MinidoracatQuest.Entry.registerDock()
-        if MinidoracatQuest.Hud ~= nil then MinidoracatQuest.Hud.show = MinidoracatQuest.Entry.showHud end
+        if MinidoracatQuest.Hud ~= nil then
+            MinidoracatQuest.Hud.show = MinidoracatQuest.Entry.showHud
+            MinidoracatQuest.Hud.opacity = MinidoracatQuest.Entry.hudOpacity / 100
+        end
     end)
 end
 

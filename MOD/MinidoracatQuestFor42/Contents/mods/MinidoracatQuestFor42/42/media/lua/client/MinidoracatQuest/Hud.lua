@@ -4,10 +4,15 @@
 --   pin, not counted); a Map button on its second line, an x on its first that takes this horde off the panel
 --   (C.hordeHidden; the next horde shows again). After a horde, while its pushed results wait for the player to be
 --   safe (HordeResult.pending), that row says so and has a Results button.
---   Drag to move; the arrow collapses it to the title row (both go to layout.ini); hovering a pin row shows an x
---   that unpins it. Hidden while there is nothing to show, the player is dead, the Esc menu is up or V hid the UI;
---   it stays while the main window is open, so a Track press shows up at once (user 2026-10-24), and windows draw
---   over it (backMost). It never shows itself while the UI is hidden: the vanilla V / Esc toggle restores what it hid.
+--   Drag to move; the arrow or the MinidoracatQuest_Hud key (Entry.lua) collapses it to the title row (both go to
+--   layout.ini); hovering a pin row shows an x that unpins it. Hidden while there is nothing to show, the player is
+--   dead, the Esc menu is up or V hid the UI; it stays while the main window is open, so a Track press shows up at
+--   once (user 2026-10-24), and windows draw over it (backMost). It never shows itself while the UI is hidden: the
+--   vanilla V / Esc toggle restores what it hid.
+--   Width (plan hud-width, user 2026-10-29): as wide as the widest row needs, between H.minWidth() and H.width(); a
+--   horde or results row takes all of H.width(). Dragging the right edge sets a smaller cap (layout.ini maxW), a
+--   double click or a drag past H.width() clears it; a panel in the right half keeps its right edge when the width
+--   changes. The background alpha is the HudOpacity MOD option; under 80 % the text gets a shadow (Draw.renderOps).
 --   Data: state.pins, state.trk and state.hordes, kept fresh by the server while the panel is on ("track"; Sync.lua).
 --   Texts and widths are laid out when the data changes; render only walks the op list (Draw canvas).
 
@@ -29,6 +34,10 @@ H.LAYOUT_KEY = "MinidoracatQuestHud"
 H.SYNC_MS = 500
 H.PAD = 8
 H.show = H.show ~= false     -- MOD option "ShowHud" (Entry.lua)
+H.opacity = H.opacity or 0.8 -- MOD option "HudOpacity" / 100 (Entry.lua); 0.8 is the framework's surface alpha
+H.SHADOW_BELOW = 0.8         -- a lighter background than this gives the text a shadow
+H.GRIP = 8                   -- the right edge that resizes
+H.DOUBLE_MS = 500            -- two presses on that edge this close: back to the automatic width
 
 -- ===== model (harness tests these) =====
 -- the live horde the panel shows: not the one the player took off it
@@ -117,11 +126,52 @@ function H.rows(state, defs, now)
 end
 
 -- ===== geometry =====
--- wider with the font and the screen (the spot name and line 2's count and Map button need the room), never
+-- the cap: wider with the font and the screen (the spot name and line 2's count and Map button need the room), never
 -- narrower than 0.3.1's min(360, 20 x font) (1024 wide at 16 px: 320, not 260; review 1029 r1, C3)
 function H.width()
     local fh = D.fontH()
     return math.max(260, math.min(360, 20 * fh), math.min(24 * fh, math.floor(getCore():getScreenWidth() / 4)))
+end
+-- the narrowest the panel gets, also the narrowest cap a drag sets (192 px at 16 px)
+function H.minWidth() return 12 * D.fontH() end
+function H.countText(r) return getText("IGUI_MQ_UI_Progress", D.num(math.min(r.prog, r.target)), D.num(r.target)) end
+-- the widest count of the open pin rows: the counts share one right-aligned column and every bar ends left of it
+function H.countW(rows)
+    local w = 0
+    for _, r in ipairs(rows) do
+        if not r.horde and not r.done then w = math.max(w, D.textW(H.countText(r))) end
+    end
+    return w
+end
+-- what the widest row needs, between H.minWidth() and the cap (H.width(), or maxW when the player dragged a smaller
+-- one; a maxW under the floor, saved with a smaller font or edited in layout.ini, is held to it). A horde or results
+-- row takes the whole cap: its layout was checked at H.width() in 12 languages (review 1029: long spot names). The
+-- sums follow H.layout: the title row (star 20, gap 8, arrow 16), line 1 of a row (chip, 6, name, 16 for the hover
+-- x), line 2 (a bar of 4 x font, 8, the count column), a done row (name, 24, points, 16)
+function H.fitWidth(rows, maxW)
+    local cap, fh, pad = H.width(), D.fontH(), H.PAD
+    local least = math.min(H.minWidth(), cap)
+    if maxW ~= nil then cap = math.max(least, math.min(cap, maxW)) end
+    if rows[1] ~= nil and rows[1].horde then return cap end
+    local need = 2 * pad + 44 + D.textW(getText("IGUI_MQ_UI_HudTitle"))
+        + D.textW(getText("IGUI_MQ_UI_Count", tostring(#rows), tostring(Q.Contract.LIMIT.MAX_PINS)))
+    local countW = H.countW(rows)
+    for _, r in ipairs(rows) do
+        local name = D.chipW(r.tag) + 6 + D.textW(r.name)
+        if r.done then
+            need = math.max(need, 2 * pad + name + 40 + D.textW(getText("IGUI_MQ_UI_PlusPoints", D.num(r.pts))))
+        else
+            need = math.max(need, 2 * pad + name + 16, 2 * pad + countW + 8 + 4 * fh)
+        end
+    end
+    return math.min(cap, math.max(least, need))
+end
+-- a new width: a panel in the right half keeps its right edge, except while the player drags that edge. A panel
+-- that was never moved sits at H.defaultXY(), in the left half
+function H.fit(p, w)
+    if w == p.width then return end
+    if p.sizing == nil and p.x + p.width / 2 > getCore():getScreenWidth() / 2 then p:setX(p.x + p.width - w) end
+    p:setWidth(w)
 end
 function H.titleH() return D.fontH() + 10 end
 -- an open row: tag + name, then bar + progress (long DE / FR / RU names keep the full width); a done row: one line.
@@ -226,6 +276,8 @@ function H.layout(p)
     local pins = rows[1] ~= nil and rows[1].horde and #rows - 1 or #rows
     p.rows, p.hits, p.mapHit, p.hideHit, p.resultHit = rows, {}, nil, nil, nil
     p.hordeTime = rows[1] ~= nil and rows[1].horde and rows[1].time or nil
+    H.fit(p, H.fitWidth(rows, p.maxW))
+    p.textShadow = H.opacity < H.SHADOW_BELOW
     local b = D.begin(p)
     local pad, w, lh = H.PAD, p.width, D.fontH()
     local th = H.titleH()
@@ -233,7 +285,8 @@ function H.layout(p)
     if not p.collapsed then
         for _, r in ipairs(rows) do h = h + H.rowH(r) end
     end
-    b:fill(0, 0, w, h, { r = 0, g = 0, b = 0, a = 0.78 })
+    local s = b.colors.surface
+    b:fill(0, 0, w, h, { r = s.r, g = s.g, b = s.b, a = H.opacity })
     b:border(0, 0, w, h, "border")
     b:icon(pad, pad - 1, 14, "markerStar", D.EXTRA.gold, "*")
     local tw = b:text(pad + 20, pad - 3, getText("IGUI_MQ_UI_HudTitle"), "text")
@@ -243,6 +296,7 @@ function H.layout(p)
     if not p.collapsed then
         local y = th
         local xRight = w - pad - 16   -- room for the hover x
+        local countW = H.countW(rows)
         for _, r in ipairs(rows) do
             local top = y
             local nameX = not r.horde and pad + b:chip(pad, y, r.tag, "textMuted") + 6
@@ -255,15 +309,16 @@ function H.layout(p)
             else
                 b:fitText(nameX, y + 3, r.name, xRight - nameX, "text")
                 local ly = y + D.chipH() + 2
-                local pw = b:textRight(w - pad, ly,
-                    getText("IGUI_MQ_UI_Progress", D.num(math.min(r.prog, r.target)), D.num(r.target)), "textMuted")
-                b:bar(pad, ly + math.floor((lh - 4) / 2), w - 2 * pad - pw - 8, 4, r.target > 0 and r.prog / r.target or 0,
+                b:textRight(w - pad, ly, H.countText(r), "textMuted")
+                b:bar(pad, ly + math.floor((lh - 4) / 2), w - 2 * pad - countW - 8, 4, r.target > 0 and r.prog / r.target or 0,
                     r.color or "accent")
             end
             y = y + H.rowH(r)
             if not r.horde then p.hits[#p.hits + 1] = { id = r.id, y0 = top - 2, y1 = y - 2, xx = w - pad - 12, ty = top + 3 } end
         end
     end
+    p.gripTip = getText("IGUI_MQ_UI_HudResize")
+    p.gripTipW = D.textW(p.gripTip) + 12
     p:setHeight(h)
     H.clamp(p)
 end
@@ -279,20 +334,34 @@ local function panelClass()
     function Panel:onMouseDown(x, y) return MinidoracatQuest.Hud.onMouseDown(self, x, y) end
     function Panel:onMouseUp(x, y) return MinidoracatQuest.Hud.onMouseUp(self, x, y, false) end
     function Panel:onMouseUpOutside(x, y) return MinidoracatQuest.Hud.onMouseUp(self, x, y, true) end
+    -- while the right edge is dragged the moves resize it; otherwise ISPanel moves the panel
+    function Panel:onMouseMove(dx, dy)
+        if self.sizing ~= nil then return MinidoracatQuest.Hud.onSizing(self) end
+        return ISPanel.onMouseMove(self, dx, dy)
+    end
+    function Panel:onMouseMoveOutside(dx, dy)
+        if self.sizing ~= nil then return MinidoracatQuest.Hud.onSizing(self) end
+        return ISPanel.onMouseMoveOutside(self, dx, dy)
+    end
     function Panel:onRightMouseDown() return false end
     function Panel:onRightMouseUp() return false end
     function Panel:SaveLayout(name, layout)
-        layout.x, layout.y = self.x, self.y
+        layout.x, layout.y, layout.width = self.x, self.y, self.width
         layout.moved = tostring(self.moved == true)
         layout.collapsed = tostring(self.collapsed == true)
+        layout.maxW = self.maxW   -- the dragged cap; nil (automatic) drops the key
     end
     function Panel:RestoreLayout(name, layout)
         self.collapsed = layout.collapsed == "true"
-        local x, y = tonumber(layout.x), tonumber(layout.y)
+        self.maxW = tonumber(layout.maxW)
+        local x, y, w = tonumber(layout.x), tonumber(layout.y), tonumber(layout.width)
         if layout.moved == "true" and x ~= nil and y ~= nil then
             self.moved = true
             self:setX(x)
             self:setY(y)
+            -- the width x was saved with (0.4.0 saved none: it was H.width(), what H.build made the panel), so
+            -- H.fit keeps a right-half panel's right edge
+            if w ~= nil then self:setWidth(w) end
         end
         MinidoracatQuest.Hud.dirty = true
     end
@@ -307,6 +376,29 @@ end
 
 local function inside(m, x, y) return m ~= nil and x >= m.x0 and x < m.x1 and y >= m.y0 and y < m.y1 end
 
+-- the right edge below the title row, outside the horde row's buttons: a drag sets the cap, a double click clears it
+function H.onGrip(p, x, y)
+    return not p.collapsed and x >= p.width - H.GRIP and y >= H.titleH()
+        and not inside(p.hideHit, x, y) and not inside(p.resultHit, x, y) and not inside(p.mapHit, x, y)
+end
+
+-- the handle, only while the mouse is on the edge or drags it (plan hud-width). On the edge a hover text beside the
+-- panel, on the side with room: the canvas tips draw inside the panel, which may be narrower than the text
+local function drawGrip(p)
+    local top = H.titleH()
+    local gh = math.min(2 * D.fontH(), p.height - top - H.PAD)
+    local c = p.theme.colors.text
+    if gh > 0 then p:drawRect(p.width - 5, top + math.floor((p.height - top - gh) / 2), 3, gh, 1, c.r, c.g, c.b) end
+    if p.sizing ~= nil or p.gripTip == nil then return end
+    local w, th = p.gripTipW, D.fontH()
+    local x = p.width + 6
+    if p.x + x + w > getCore():getScreenWidth() then x = -w - 6 end
+    local y = math.max(0, p:getMouseY() - math.floor(th / 2) - 3)
+    p:drawRect(x, y, w, th + 6, 0.95, 0.05, 0.05, 0.05)
+    p:drawRectBorder(x, y, w, th + 6, 1, 0.4, 0.4, 0.4)
+    p:drawText(p.gripTip, x + 6, y + 3, 1, 1, 1, 1, UIFont.Small)
+end
+
 function H.render(p)
     D.renderOps(p)
     if p.collapsed then return end
@@ -315,6 +407,10 @@ function H.render(p)
     local colors = p.theme.colors
     local hx = p.hideHit
     if hx ~= nil then drawX(p, hx.xx, hx.ty, over and inside(hx, mx, my) and colors.errorText or colors.textMuted) end
+    if p.sizing ~= nil or over and H.onGrip(p, mx, my) then
+        drawGrip(p)   -- a press here resizes: no red x that says it unpins
+        return
+    end
     if not over then return end
     for _, r in ipairs(p.hits or {}) do
         if my >= r.y0 and my < r.y1 then
@@ -326,9 +422,7 @@ end
 
 function H.onMouseDown(p, x, y)
     if y < H.titleH() and x >= p.width - H.PAD - 20 then
-        p.collapsed = not p.collapsed
-        H.layout(p)
-        H.persist()
+        H.toggleCollapsed(p)
         return true
     end
     if not p.collapsed then
@@ -345,6 +439,17 @@ function H.onMouseDown(p, x, y)
             D.showOnMap(0, m.x, m.y)
             return true
         end
+        if H.onGrip(p, x, y) then
+            local now = getTimestampMs()
+            if p.gripAt ~= nil and now - p.gripAt < H.DOUBLE_MS then
+                p.gripAt, p.maxW = nil, nil   -- a double click: the automatic width again
+                H.layout(p)
+                H.persist()
+            else
+                p.gripAt, p.sizing = now, { dx = p.width - x }
+            end
+            return true
+        end
         for _, r in ipairs(p.hits or {}) do
             if y >= r.y0 and y < r.y1 and x >= r.xx - 4 then
                 C.setPin(r.id, false)
@@ -357,7 +462,25 @@ function H.onMouseDown(p, x, y)
     return true
 end
 
+-- while the right edge is dragged: the cap follows the mouse, a drag past H.width() makes it automatic again; a
+-- release the panel missed (the button is up) ends it
+function H.onSizing(p)
+    if not isMouseButtonDown(0) then return H.endSizing(p) end
+    local cap, w = H.width(), math.floor(p:getMouseX() + p.sizing.dx)
+    if w >= cap then p.maxW = nil else p.maxW = math.max(math.min(H.minWidth(), cap), w) end
+    H.layout(p)
+end
+
+function H.endSizing(p)
+    p.sizing = nil
+    H.persist()
+end
+
 function H.onMouseUp(p, x, y, outside)
+    if p.sizing ~= nil then
+        H.endSizing(p)
+        return true
+    end
     local moving = p.moving
     if outside then ISPanel.onMouseUpOutside(p, x, y) else ISPanel.onMouseUp(p, x, y) end
     if moving and (p.x ~= p.dragX or p.y ~= p.dragY) then
@@ -430,6 +553,25 @@ function H.setShown(on)
     H.sync()
 end
 
+-- the arrow and the MinidoracatQuest_Hud key (Entry.lua): fold to the title row and back (layout.ini right away);
+-- the key does nothing while the panel is not shown
+function H.toggleCollapsed(p)
+    p = p or H.panel
+    if p == nil or not p:isVisible() then return false end
+    p.collapsed = not p.collapsed
+    H.layout(p)
+    H.persist()
+    return true
+end
+
+-- the HudOpacity MOD option (Entry.lua) as an alpha: the next layout repaints the background and turns the shadow on
+function H.setOpacity(a)
+    if a == H.opacity then return end
+    H.opacity = a
+    H.dirty = true
+    H.sync()
+end
+
 -- every 500 ms; a shown horde countdown lays the panel out again only when its text changed (once a second while it runs)
 function H.onTick()
     local now = getTimestampMs()
@@ -446,8 +588,7 @@ end
 function H.onResolutionChange()
     local p = H.panel
     if p == nil then return end
-    p:setWidth(H.width())   -- follows the screen width
-    H.dirty = true
+    H.dirty = true   -- the next layout takes the new H.width() (H.fitWidth)
     if not p.moved then
         local x, y = H.defaultXY()
         p:setX(x)

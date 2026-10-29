@@ -5,11 +5,13 @@
   "UI_MinidoracatQuest_ShowBroadcast": "サーバー全体の実績解除通知を表示",
   "UI_MinidoracatQuest_ShowBroadcast_tooltip": "他のプレイヤーが上位段階の実績を解除したときに表示される通知です。",
   "UI_MinidoracatQuest_ShowHud": "追跡パネルを表示",
-  "UI_MinidoracatQuest_ShowHud_tooltip": "カードの「追跡」で選んだクエストと実績の進行状況を画面左上に表示します。ドラッグで移動できます。",
+  "UI_MinidoracatQuest_ShowHud_tooltip": "カードの「追跡」で選んだクエストと実績の進行状況を画面左上に表示します。ドラッグで移動、右端をドラッグすると幅を制限できます。",
+  "UI_MinidoracatQuest_HudOpacity": "追跡パネルの背景の不透明度（%%）",
   "UI_MinidoracatQuest_ShowHeadTitles": "頭上に称号を表示",
   "UI_MinidoracatQuest_ShowHeadTitles_tooltip": "各プレイヤーの称号を名前の1行上に表示します。サーバーが名前を表示しないときは表示されません。オフにするとこのPCの描画負荷も減ります。",
   "UI_MinidoracatQuest_ShowChatTitles": "チャットに称号を表示",
   "UI_MinidoracatQuest_ShowChatTitles_tooltip": "チャットの発言者の名前の後ろに称号を表示します。",
   "UI_optionscreen_binding_MinidoracatQuest": "Minidoracat クエストと実績",
-  "UI_optionscreen_binding_MinidoracatQuest_Toggle": "クエストと実績を開く/閉じる"
+  "UI_optionscreen_binding_MinidoracatQuest_Toggle": "クエストと実績を開く/閉じる",
+  "UI_optionscreen_binding_MinidoracatQuest_Hud": "追跡パネルを折りたたむ/広げる"
 }

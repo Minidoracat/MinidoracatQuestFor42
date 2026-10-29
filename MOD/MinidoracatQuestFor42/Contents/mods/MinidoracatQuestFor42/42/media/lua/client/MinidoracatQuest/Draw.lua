@@ -393,9 +393,12 @@ end
 local OP_FILL, OP_BORDER, OP_TEXT, OP_TEXTR, OP_TEXTC, OP_TEX, OP_ICON, OP_RECT, OP_DOT, OP_ARROW =
     1, 2, 3, 4, 5, 6, 7, 8, 9, 10
 
+-- canvas.textShadow (the tracker panel on a lighter background than 80 %, Hud.lua): each text first in black, 1 px
+-- down and right, so it reads over bright ground
 local function drawOp(self, o, Skin, UI)
     local k, c = o.k, o.c
     if k == OP_TEXT then
+        if self.textShadow then self:drawText(o.s, o.x + 1, o.y + 1, 0, 0, 0, c.a or 1, o.f) end
         self:drawText(o.s, o.x, o.y, c.r, c.g, c.b, c.a or 1, o.f)
     elseif k == OP_FILL then
         Skin.fill(self, o.x, o.y, o.w, o.h, c, o.s)
@@ -404,8 +407,10 @@ local function drawOp(self, o, Skin, UI)
     elseif k == OP_RECT then
         self:drawRect(o.x, o.y, o.w, o.h, c.a or 1, c.r, c.g, c.b)
     elseif k == OP_TEXTR then
+        if self.textShadow then self:drawTextRight(o.s, o.x + 1, o.y + 1, 0, 0, 0, c.a or 1, o.f) end
         self:drawTextRight(o.s, o.x, o.y, c.r, c.g, c.b, c.a or 1, o.f)
     elseif k == OP_TEXTC then
+        if self.textShadow then self:drawTextCentre(o.s, o.x + 1, o.y + 1, 0, 0, 0, c.a or 1, o.f) end
         self:drawTextCentre(o.s, o.x, o.y, c.r, c.g, c.b, c.a or 1, o.f)
     elseif k == OP_TEX then
         self:drawTextureScaledAspect(o.s, o.x, o.y, o.w, o.h, 1, 1, 1, 1)

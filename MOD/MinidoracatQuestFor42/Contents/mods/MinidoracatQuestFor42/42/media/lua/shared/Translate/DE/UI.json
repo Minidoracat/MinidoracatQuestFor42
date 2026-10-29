@@ -5,11 +5,13 @@
   "UI_MinidoracatQuest_ShowBroadcast": "Serverweite Freischaltungen anzeigen",
   "UI_MinidoracatQuest_ShowBroadcast_tooltip": "Hinweise, wenn ein anderer Spieler eine hohe Erfolgsstufe freischaltet.",
   "UI_MinidoracatQuest_ShowHud": "Verfolgungsliste anzeigen",
-  "UI_MinidoracatQuest_ShowHud_tooltip": "Oben links: der Fortschritt der Quests und Erfolge, die du auf einer Karte mit \"Verfolgen\" markiert hast. Zum Verschieben ziehen.",
+  "UI_MinidoracatQuest_ShowHud_tooltip": "Oben links: der Fortschritt der Quests und Erfolge, die du auf einer Karte mit \"Verfolgen\" markiert hast. Zum Verschieben ziehen; am rechten Rand ziehen, um die Breite zu begrenzen.",
+  "UI_MinidoracatQuest_HudOpacity": "Deckkraft des Hintergrunds der Verfolgungsliste (%%)",
   "UI_MinidoracatQuest_ShowHeadTitles": "Titel über den Köpfen anzeigen",
   "UI_MinidoracatQuest_ShowHeadTitles_tooltip": "Der Titel, den ein Spieler trägt, eine Zeile über seinem Namen. Ausgeblendet, wenn der Server keine Namen zeigt. Ausschalten spart auf diesem Rechner auch das Zeichnen.",
   "UI_MinidoracatQuest_ShowChatTitles": "Titel im Chat anzeigen",
   "UI_MinidoracatQuest_ShowChatTitles_tooltip": "Der Titel des Schreibenden hinter seinem Namen in Chatzeilen.",
   "UI_optionscreen_binding_MinidoracatQuest": "Minidoracat Quests & Erfolge",
-  "UI_optionscreen_binding_MinidoracatQuest_Toggle": "Quests & Erfolge öffnen / schließen"
+  "UI_optionscreen_binding_MinidoracatQuest_Toggle": "Quests & Erfolge öffnen / schließen",
+  "UI_optionscreen_binding_MinidoracatQuest_Hud": "Verfolgungsliste ein-/ausklappen"
 }

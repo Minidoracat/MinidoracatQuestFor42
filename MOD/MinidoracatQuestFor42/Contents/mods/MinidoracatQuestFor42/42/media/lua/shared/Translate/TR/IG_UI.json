@@ -1393,7 +1393,7 @@
   "IGUI_MQ_Horde_SoonBanner": "Çıkabilir: %1. Başladığında biri %2, %3 noktasına 30 kare yakınsa sürü çevreden gelir.",
   "IGUI_MQ_Horde_HudSoon": "%1, %2 · başta 30 karede ol",
   "IGUI_MQ_Horde_HudWait": "%1, %2 · 30 kare içine gel",
-  "IGUI_MQ_Horde_HudRest": "%1. dalga kenarlardan gelir",
+  "IGUI_MQ_Horde_HudRest": "%1. dalga kenarlardan",
   "IGUI_MQ_Horde_Title_soon": "Sürü uyarısı: %1",
   "IGUI_MQ_Horde_Title_wait": "Sürü sizi bekliyor: %1",
   "IGUI_MQ_Horde_Title_active": "Sürü devam ediyor: %1",

@@ -1393,7 +1393,7 @@
   "IGUI_MQ_Horde_SoonBanner": "Pueden aparecer: %1. Si al empezar hay alguien a 30 casillas de %2, %3, la horda llega desde las afueras.",
   "IGUI_MQ_Horde_HudSoon": "%1, %2 · a 30 casillas al inicio",
   "IGUI_MQ_Horde_HudWait": "%1, %2 · acércate a 30 casillas",
-  "IGUI_MQ_Horde_HudRest": "La oleada %1 llega por los bordes",
+  "IGUI_MQ_Horde_HudRest": "Oleada %1 por los bordes",
   "IGUI_MQ_Horde_Title_soon": "Aviso de horda: %1",
   "IGUI_MQ_Horde_Title_wait": "La horda te espera: %1",
   "IGUI_MQ_Horde_Title_active": "Horda en curso: %1",

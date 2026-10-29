@@ -1393,7 +1393,7 @@
   "IGUI_MQ_Horde_SoonBanner": "Возможны: %1. Если к началу кто-то будет в 30 клетках от %2, %3, орда придёт с окраин.",
   "IGUI_MQ_Horde_HudSoon": "%1, %2 · будьте в 30 клетках к началу",
   "IGUI_MQ_Horde_HudWait": "%1, %2 · подойдите на 30 клеток",
-  "IGUI_MQ_Horde_HudRest": "Волна %1 придёт с окраин",
+  "IGUI_MQ_Horde_HudRest": "Волна %1 идёт с окраин",
   "IGUI_MQ_Horde_Title_soon": "Предупреждение об орде: %1",
   "IGUI_MQ_Horde_Title_wait": "Орда ждёт вас: %1",
   "IGUI_MQ_Horde_Title_active": "Орда идёт: %1",

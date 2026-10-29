@@ -1393,7 +1393,7 @@
   "IGUI_MQ_Horde_SoonBanner": "Possibles : %1. Si quelqu'un est à 30 cases de %2, %3 au début, la horde arrive des alentours.",
   "IGUI_MQ_Horde_HudSoon": "%1, %2 · à 30 cases au début",
   "IGUI_MQ_Horde_HudWait": "%1, %2 · venez à 30 cases",
-  "IGUI_MQ_Horde_HudRest": "La vague %1 arrive des bords",
+  "IGUI_MQ_Horde_HudRest": "Vague %1 par les bords",
   "IGUI_MQ_Horde_Title_soon": "Alerte de horde : %1",
   "IGUI_MQ_Horde_Title_wait": "La horde vous attend : %1",
   "IGUI_MQ_Horde_Title_active": "Horde en cours : %1",

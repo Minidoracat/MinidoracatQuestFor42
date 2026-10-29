@@ -164,11 +164,16 @@ function D.achName(a)
     return getText("IGUI_MQ_Ach_" .. a.id)
 end
 
--- description of reaching tier t (threshold as %1)
+-- description of reaching tier t (threshold as %1). Under MP NoFire no fire can start (IsoFire.CanAddFire), so the
+-- corpse achievement says bury only (owner 2026-10-29; NoFire does nothing in SP)
 function D.achDesc(a, tier)
     if a == nil then return "" end
     local th = D.num(a.tiers[tier] or a.tiers[#a.tiers] or 0)
-    if a.kind == "builtin" then return getText("IGUI_MQ_AchDesc_" .. a.id, th) end
+    if a.kind == "builtin" then
+        local key = "IGUI_MQ_AchDesc_" .. a.id
+        if a.id == "corpses" and isClient() and getServerOptions():getBoolean("NoFire") then key = key .. "_bury" end
+        return getText(key, th)
+    end
     if a.descKey ~= nil then return getText(a.descKey, th) end
     return getText("IGUI_MQ_UI_AchDescStat", D.statName(a.stat), th)
 end

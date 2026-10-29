@@ -113,6 +113,16 @@ function Cat.statKey(id)
     return "IGUI_MQ_Stat_" .. string.gsub(id, "%.", "_")
 end
 
+-- false for a stat nobody can earn on this server. An MP server with SleepAllowed off (the vanilla default,
+-- ServerOptions.java:120) has no Sleep in the bed menu (ISWorldObjectContextMenuLogic.java:1684) and resets fatigue
+-- (IsoGameCharacter.java:9955); clients get the option at connect. Owner 2026-10-29: the newbie track skips its
+-- sleep step and the achievements page leaves the sleep achievements out.
+local SLEEP_STATS = { ["sleep.indoor"] = true, ["sleep.outdoor"] = true }
+function Cat.statOn(stat)
+    if not SLEEP_STATS[stat] or not (isServer() or isClient()) then return true end
+    return getServerOptions():getBoolean("SleepAllowed") == true
+end
+
 -- Difficulty does not scale stats with a hard ceiling (skill levels, towns): x1.6 put their top tiers out of reach.
 function Cat.scalable(stat)
     local s = Cat.stats[stat]

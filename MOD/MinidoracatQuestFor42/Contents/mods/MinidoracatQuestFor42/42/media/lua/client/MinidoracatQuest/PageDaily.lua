@@ -207,9 +207,15 @@ local function newbie(b, x, y, w, s)
     local nb = s.newbie
     if type(nb) ~= "table" then return y end
     local steps = type(nb.steps) == "table" and nb.steps or {}
-    local defs = Q.Catalog and Q.Catalog.newbie or {}
-    local done = 0
-    for i = 1, 5 do if steps[i] == true then done = done + 1 end end
+    local defs = Q.Catalog.newbie
+    -- only the steps this server lets players do (no sleep step with SleepAllowed off, Catalog.statOn)
+    local shown, done = {}, 0
+    for i = 1, 5 do
+        if Q.Catalog.statOn((defs[i] or {}).stat) then
+            shown[#shown + 1] = i
+            if steps[i] == true then done = done + 1 end
+        end
+    end
     local lh = D.fontH()
     local cfg = C.defs().cfg.newbie or {}
     local title = getText("IGUI_MQ_UI_Newbie")
@@ -219,13 +225,13 @@ local function newbie(b, x, y, w, s)
     local foot = getText("IGUI_MQ_UI_NewbieFoot", D.num(nb.pts or cfg.pts or 0),
         cfg.title and D.titleText(cfg.title) or "")
     local footLines = D.wrap(b.UI, foot, w - 2 * CARD_PAD, UIFont.Small)
-    local h = CARD_PAD + D.chipH() + 6 + 5 * (lh + 6) + #footLines * (lh + 2) + CARD_PAD
+    local h = CARD_PAD + D.chipH() + 6 + #shown * (lh + 6) + #footLines * (lh + 2) + CARD_PAD
     b:card(x, y, w, h, D.EXTRA.gold)
     local cy = y + CARD_PAD
     local tw = b:text(x + CARD_PAD, cy + 3, title, D.EXTRA.gold)
-    b:chip(x + CARD_PAD + tw + 8, cy, getText("IGUI_MQ_UI_Count", tostring(done), "5"), "textMuted")
+    b:chip(x + CARD_PAD + tw + 8, cy, getText("IGUI_MQ_UI_Count", tostring(done), tostring(#shown)), "textMuted")
     cy = cy + D.chipH() + 6
-    for i = 1, 5 do
+    for _, i in ipairs(shown) do
         local ok = steps[i] == true
         local def = defs[i] or {}
         if ok then

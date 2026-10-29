@@ -55,6 +55,9 @@ function T.advance(ms) T.now = T.now + ms end
 T.mode = "server"   -- "server" (MP dedicated) | "client" (MP client) | "sp"
 function isServer() return T.mode == "server" end
 function isClient() return T.mode == "client" end
+-- the server options the MOD reads (MP: clients get every public option at connect); each boot resets them
+T.serverOptions = { SleepAllowed = true }
+function getServerOptions() return { getBoolean = function(_, k) return T.serverOptions[k] == true end } end
 
 T.logs, T.prints = {}, {}
 function writeLog(_, text) T.logs[#T.logs + 1] = text end
@@ -453,6 +456,7 @@ local function resetWorld(opts)
     T.unreadable = {}
     T.failWrites, T.silentWrites = false, false
     T.randQueue = {}
+    T.serverOptions = opts.serverOptions or { SleepAllowed = true }
     T.zombies, T.cellZombies, T.spawnCalls, T.spawnCap, T.staleOwner, T.staleUseless, T.spawnHealth = {}, {}, {}, nil, nil, nil, nil
     T.sounds, T.square = {}, nil   -- horde server mocks
     T.steam = opts.steam or false

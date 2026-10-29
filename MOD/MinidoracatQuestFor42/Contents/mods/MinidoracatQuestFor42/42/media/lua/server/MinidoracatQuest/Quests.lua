@@ -334,6 +334,26 @@ function Q.rollStreak(acc, user, now, cfg)
     MQ.Sync.dirty(user, "streak")
 end
 
+-- ---------- newbie (C18, C35) ----------
+
+-- every step this server lets players do is done: a step nobody can do here (sleeping with SleepAllowed off,
+-- Catalog.statOn) does not hold the track (owner 2026-10-29)
+local function newbieDone(nb)
+    for i, step in ipairs(MQ.Catalog.newbie or {}) do
+        if not nb.steps[i] and MQ.Catalog.statOn(step.stat) then return false end
+    end
+    return true
+end
+
+local function finishNewbie(acc, user, cfg)
+    acc.newbie = nil
+    MQ.Sync.dirty(user, "newbie")
+    MQ.Points.award(acc, user, cfg.newbie.pts, "newbie", "newbie")
+    if cfg.newbie.title then MQ.Store.grantTitle(acc, cfg.newbie.title, "newbie") end
+    acc.unseen = (acc.unseen or 0) + 1
+    MQ.Sync.toast(user, { kind = "newbie", pts = cfg.newbie.pts })
+end
+
 -- ---------- ensure ----------
 
 function Q.ensure(acc, user, now)
@@ -374,6 +394,11 @@ function Q.ensure(acc, user, now)
         acc.newbie = nil
         changed = true
         MQ.Sync.dirty(user, "newbie")
+    elseif nb and not MQ.Store.readOnly and newbieDone(nb) then
+        -- only steps this server turned off are left (a track at 4/5 from before the sleep rule): finish it now.
+        -- Not on a read-only store (newer schema): Points.award refuses there and the track would be spent unpaid
+        finishNewbie(acc, user, cfg)
+        changed = true
     end
     return changed
 end
@@ -527,29 +552,20 @@ function Q.onGoalStat(acc, user, stat, delta, opts)
     end
 end
 
--- ---------- newbie (C18, C35) ----------
-
 function Q.onNewbieStat(acc, user, stat, delta, opts)
     local nb = acc.newbie
     if not nb or (opts and opts.quiet) then return end
     local cfg = MQ.Config.get()
     if cfg.newbie.enabled == false then return end
-    local changed, all = false, true
+    local changed = false
     for i, step in ipairs(MQ.Catalog.newbie or {}) do
         if not nb.steps[i] and step.stat == stat and (acc.total[stat] or 0) >= step.target then
             nb.steps[i] = true
             changed = true
         end
-        if not nb.steps[i] then all = false end
     end
     if not changed then return end
-    MQ.Sync.dirty(user, "newbie")
-    if not all then return end
-    acc.newbie = nil
-    MQ.Points.award(acc, user, cfg.newbie.pts, "newbie", "newbie")
-    if cfg.newbie.title then MQ.Store.grantTitle(acc, cfg.newbie.title, "newbie") end
-    acc.unseen = (acc.unseen or 0) + 1
-    MQ.Sync.toast(user, { kind = "newbie", pts = cfg.newbie.pts })
+    if newbieDone(nb) then finishNewbie(acc, user, cfg) else MQ.Sync.dirty(user, "newbie") end
 end
 
 -- ---------- swap and preferences ----------

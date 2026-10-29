@@ -322,6 +322,62 @@ return function(T)
         T.check(type(accD.titleAt) == "table" and accD.titleAt.newbie ~= nil and accD.titleAt.newbie <= T.now,
             "the newbie title records when it came (titleAt, plan r13)")
         T.check(accD.titleSrc and accD.titleSrc.newbie == "newbie", "the newbie title records its source")
+        -- SleepAllowed off (the vanilla MP default): nobody can sleep, so the sleep step does not hold the track
+        -- (owner 2026-10-29); a player already at 4/5 when that rule came finishes at the next ensure
+        local e = T.player{ name = "erin", hours = 1 }
+        cmd(e, "hello")
+        local accE = Q.Store.account("erin")
+        for _, step in ipairs(Q.Catalog.newbie) do
+            if step.stat ~= "sleep.indoor" then push(Q, "erin", step.stat, step.target) end
+        end
+        T.check(accE.newbie ~= nil and accE.titles.newbie ~= true, "sleeping allowed: four steps leave the track open")
+        T.serverOptions.SleepAllowed = false
+        local nbPts = Q.Config.get().newbie.pts
+        local pE = { accE.points.season, accE.points.total, accE.points.balance }
+        Q.Store.readOnly = true
+        Q.Quests.ensure(accE, "erin", T.now)
+        Q.Store.readOnly = false
+        T.check(accE.newbie ~= nil and accE.titles.newbie ~= true and accE.points.total == pE[2],
+            "a read-only store (newer schema) leaves the track open: Points.award could not pay it")
+        Q.Quests.ensure(accE, "erin", T.now)
+        Q.Quests.ensure(accE, "erin", T.now)
+        local nbToasts = 0
+        for _, t in ipairs(T.sentTo(e, "toast")) do if t.kind == "newbie" then nbToasts = nbToasts + 1 end end
+        T.check(accE.newbie == nil and accE.titles.newbie == true and accE.titleSrc.newbie == "newbie" and nbToasts == 1
+            and accE.points.season - pE[1] == nbPts and accE.points.total - pE[2] == nbPts and accE.points.balance - pE[3] == nbPts,
+            "sleeping turned off: the next ensure finishes the four-step track once (one toast, the points once, the title)")
+        local f = T.player{ name = "fay", hours = 1 }
+        cmd(f, "hello")
+        local accF = Q.Store.account("fay")
+        local pf = accF.points.total
+        for _, step in ipairs(Q.Catalog.newbie) do
+            if step.stat ~= "sleep.indoor" then push(Q, "fay", step.stat, step.target) end
+        end
+        nbToasts = 0
+        for _, t in ipairs(T.sentTo(f, "toast")) do if t.kind == "newbie" and t.pts == nbPts then nbToasts = nbToasts + 1 end end
+        T.check(accF.newbie == nil and accF.titles.newbie == true and nbToasts == 1 and accF.points.total - pf >= nbPts,
+            "sleeping off from the start: the four other steps finish the track and pay once")
+        -- the 4/5 finish never pays a track that expired or was switched off (those branches come first in ensure)
+        local function fourOfFive(name)
+            cmd(T.player{ name = name, hours = 1 }, "hello")
+            T.serverOptions.SleepAllowed = true
+            for _, step in ipairs(Q.Catalog.newbie) do
+                if step.stat ~= "sleep.indoor" then push(Q, name, step.stat, step.target) end
+            end
+            T.serverOptions.SleepAllowed = false
+            return Q.Store.account(name)
+        end
+        local accG, accH = fourOfFive("gus"), fourOfFive("hana")
+        local pg, ph = accG.points.total, accH.points.total
+        accG.newbie.startMs = T.now - 8 * DAY
+        Q.Quests.ensure(accG, "gus", T.now)
+        Q.Config.apply({ { op = "set", path = "newbie.enabled", value = false } }, "off", "alice")
+        Q.Quests.ensure(accH, "hana", T.now)
+        Q.Config.apply({ { op = "set", path = "newbie.enabled", value = true } }, "on", "alice")
+        T.check(accG.newbie == nil and accG.titles.newbie ~= true and accG.points.total == pg
+            and accH.newbie == nil and accH.titles.newbie ~= true and accH.points.total == ph,
+            "a track at 4/5 that expired or was switched off ends without the points or the title")
+        T.serverOptions.SleepAllowed = true
 
         local r = admin(b, "event.add", { name = "x", theme = "all", mult = 2, startMs = T.now - 1000, endMs = T.now + DAY })
         T.check(r and r.code == "FORBIDDEN", "non-admin event.add refused")
@@ -356,6 +412,15 @@ return function(T)
         local q3 = accA.day.quests[3]
         T.check(q3.state == "active" and Q.Quests.stateDay(accA, "alice", T.now).quests[3].ptsNow == q3.pts,
             "no event running: ptsNow back to the base points")
+    end)
+
+    section("SleepAllowed is a multiplayer option (Catalog.statOn)", function()
+        local Q = boot({ sp = true, serverOptions = { SleepAllowed = false } })
+        T.check(Q.Catalog.statOn("sleep.indoor") and Q.Catalog.statOn("sleep.outdoor"),
+            "single player: sleeping counts whatever SleepAllowed says")
+        Q = boot({ serverOptions = { SleepAllowed = false } })
+        T.check(not Q.Catalog.statOn("sleep.indoor") and not Q.Catalog.statOn("sleep.outdoor") and Q.Catalog.statOn("zombie.kills"),
+            "dedicated server with SleepAllowed off: only the two sleep stats are off")
     end)
 
     -- ===================== Achievements / Import =====================

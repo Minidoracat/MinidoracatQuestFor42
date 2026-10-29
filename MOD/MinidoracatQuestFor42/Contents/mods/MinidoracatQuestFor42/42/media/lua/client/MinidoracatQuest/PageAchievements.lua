@@ -2,7 +2,8 @@
 --   with unlocked/total each (categories without achievements are hidden), one card per achievement: icon with a
 --   tier-colored frame, tier badge in text and color, next tier with threshold and points, progress bar from the
 --   records totals (scope "life" reads the this-life column); hidden achievements show only their hint until unlocked.
---   The horde category only where hordes run (state.hordes.on, the rule of the Hordes page; user 2026-10-26).
+--   The horde category only where hordes run (state.hordes.on, the rule of the Hordes page; user 2026-10-26); the
+--   sleep achievements only where players can sleep or once unlocked (Catalog.statOn; owner 2026-10-29).
 --   Icons: media/ui/MinidoracatQuest/ach/<icon>.png, missing -> framework icon tinted with the tier color.
 
 if isServer() then return end
@@ -34,14 +35,19 @@ function P.model(a, tier, row)
     return m
 end
 
--- the achievements this page lists: without hordes on this server the horde ones cannot be earned, so they stay out
--- of the cards, the chips and the counts (the catalog keeps them: toasts and the admin pages still find them)
-function P.visible(defs)
+-- the achievements this page lists: without hordes on this server the horde ones cannot be earned, nor the sleep ones
+-- with sleeping off, so they stay out of the cards, the chips and the counts (the catalog keeps them: toasts and the
+-- admin pages still find them). A sleep achievement already unlocked (achv = state.achv) stays: sleeping was turned
+-- off later, and a card vanishing would read as progress taken away
+function P.visible(defs, achv)
     local H = Q.PageHordes
-    if H == nil or H.shown() then return defs end
+    local hordes = H == nil or H.shown()
     local list = {}
     for _, a in ipairs(defs.achievements) do
-        if a.cat ~= "horde" then list[#list + 1] = a end
+        if (hordes or a.cat ~= "horde")
+            and (Q.Catalog.statOn(a.stat) or (tonumber(achv and achv[a.id]) or 0) >= 1) then
+            list[#list + 1] = a
+        end
     end
     return { achievements = list }
 end
@@ -176,8 +182,8 @@ function P.layout(page)
     local w = D.contentW(page) - 2 * PAD
     local x, y = PAD, PAD
     local s = C.state
-    local defs = P.visible(C.defs())
     local achv = s and type(s.achv) == "table" and s.achv or {}
+    local defs = P.visible(C.defs(), achv)
     local got, total, byCat = P.counts(defs, achv)
     y = b:header(x, y, x + w, getText("IGUI_MQ_UI_Achievements"),
         { { getText("IGUI_MQ_UI_Count", tostring(got), tostring(total)), D.EXTRA.gold } })

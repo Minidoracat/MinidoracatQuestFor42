@@ -378,6 +378,23 @@ return function(T)
     C.pending[dp.swapRid] = nil
     dp.swapRid = nil
     check(drew(dp, "pause"), "a grace day carries an icon, not only a color")
+    -- the newbie card lists only the steps this server allows: no sleep step with SleepAllowed off (owner 2026-10-29)
+    local gtNb = getText
+    getText = function(key, ...)
+        local s = key
+        for i = 1, select("#", ...) do s = s .. "|" .. tostring((select(i, ...))) end
+        return s
+    end
+    MQ.PageDaily.layout(dp)
+    local sleepOn = drew(dp, "IGUI_MQ_UI_Count|2|5") and drew(dp, "IGUI_MQ_UI_NewbieStep_5|1")
+    T.serverOptions.SleepAllowed = false
+    MQ.PageDaily.layout(dp)
+    local sleepOff = drew(dp, "IGUI_MQ_UI_Count|2|4") and drew(dp, "IGUI_MQ_UI_NewbieStep_4|1")
+        and not drew(dp, "IGUI_MQ_UI_NewbieStep_5|1")
+    T.serverOptions.SleepAllowed = true
+    getText = gtNb
+    MQ.PageDaily.layout(dp)
+    check(sleepOn and sleepOff, "newbie card: 5 steps while sleeping is allowed; without it no sleep step and n/4")
     local gtSep = getText
     getText = function(key, ...) if key == "IGUI_MQ_UI_ThousandSep" then return "\194\160" end return gtSep(key, ...) end
     local spaced = D.num(1234567)
@@ -544,6 +561,30 @@ return function(T)
     C.state.hordes = { on = true }
     check(MQ.PageHordes.shown(), "on: the page is in the nav")
     check(hordeCat(PA.visible(C.defs())), "on: the horde achievements are listed")
+    -- SleepAllowed off: nobody can sleep, so the two sleep achievements leave the page (owner 2026-10-29)
+    local function listed(defs, id)
+        for _, a in ipairs(defs.achievements) do if a.id == id then return true end end
+        return false
+    end
+    local _, sleepOnN = PA.counts(PA.visible(C.defs()), {})
+    T.serverOptions.SleepAllowed = false
+    local noSleep = PA.visible(C.defs())
+    local _, sleepOffN = PA.counts(noSleep, {})
+    local earned = PA.visible(C.defs(), { sleep_indoor = 2 })
+    T.serverOptions.SleepAllowed = true
+    check(not listed(noSleep, "sleep_indoor") and not listed(noSleep, "h_outdoor_sleep") and listed(noSleep, "zombie_kills")
+        and sleepOffN == sleepOnN - 2 and listed(PA.visible(C.defs()), "sleep_indoor"),
+        "sleeping off: the achievements page leaves out the two sleep achievements and their 2 from the count")
+    check(listed(earned, "sleep_indoor") and not listed(earned, "h_outdoor_sleep"),
+        "sleeping off: a sleep achievement the player already unlocked stays on the page")
+    -- NoFire on an MP server: no fire starts, so the corpse achievement says bury only (owner 2026-10-29)
+    local corpses = C.defs().achById.corpses
+    local plainDesc = D.achDesc(corpses, 1)
+    T.serverOptions.NoFire = true
+    local buryDesc = D.achDesc(corpses, 1)
+    T.serverOptions.NoFire = nil
+    check(plainDesc == "IGUI_MQ_AchDesc_corpses" and buryDesc == "IGUI_MQ_AchDesc_corpses_bury",
+        "the corpse achievement says burn or bury, and bury only under NoFire")
     local gtH = getText
     getText = function(key, ...)
         local s = key

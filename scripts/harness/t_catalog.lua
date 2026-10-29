@@ -31,13 +31,27 @@ return function(T)
         ISPickupFishAction = { complete = function() return true end }
         ISHutchGrabEgg = { animEvent = function() return "egg-event" end,
             update = function(self) self.lastTimer = self.lastTimer + 2 end }
-        -- milk()/shearAnimal take from the animal per tick; complete() returns true either way (ISMilkAnimal.lua:195-198)
-        ISMilkAnimal = { milk = function(self) self.animal.milk = self.animal.milk - (self.take or 0) end,
-            complete = function() return true end }
+        -- milk()/shearAnimal take from the animal per tick; complete() returns true either way (ISMilkAnimal.lua:195-198).
+        -- Single player stops the session inside the tick with the Lua forceStop instead: milk() returns right after it
+        -- (dry / full / stress, ISMilkAnimal.lua:60-113); update() can stop on stress and still shear that tick
+        -- (ISShearAnimal.lua:49-57). Instances need { __index = class } for self:forceStop()
+        ISMilkAnimal = { milk = function(self)
+                if self.dry then return self:forceStop() end
+                self.animal.milk = self.animal.milk - (self.take or 0)
+            end, complete = function() return true end, forceStop = function() end }
         ISShearAnimal = { animEvent = function(self) self.animal.wool = self.animal.wool - (self.take or 0) end,
-            update = function() end, complete = function() return true end }
+            update = function(self)
+                if self.scared then self:forceStop() end
+                self.animal.wool = self.animal.wool - (self.take or 0)
+            end, complete = function() return true end, forceStop = function() end }
         -- false when another character holds the hook (ISCutAnimalOnHook.lua:61-64)
         ISCutAnimalOnHook = { complete = function(self) return self.ok end }
+        -- complete() returns true and uses the petrol and the lighter whether or not a fire starts
+        -- (ISBurnCorpseAction.lua:61-68); the fake lights the corpse's square only when self.lights
+        ISBurnCorpseAction = { complete = function(self)
+            if self.lights then self.corpse.sq.fire = true end
+            return true
+        end }
     end
     local function logic(ok, name)
         local data = { luaCallOnCreate = function(d, who) d.created = who end }
@@ -330,9 +344,38 @@ return function(T)
     ISShearAnimal.animEvent(shearing, "update")
     ISShearAnimal.complete(shearing)
     T.check(tot("shear.count") == 1, "shearing counts only when wool was taken")
+    -- single player ends the session with the Lua forceStop inside the tick (milking has no duration, so SP never
+    -- reaches complete()); one count per session that took something, even if both ends run
+    local function sp(cls, take) return setmetatable(animalAction(take), { __index = cls }) end
+    local spMilk, never, both = sp(ISMilkAnimal, 0.1), sp(ISMilkAnimal, 0.1), sp(ISMilkAnimal, 0.1)
+    spMilk:milk()
+    spMilk.dry = true
+    spMilk:milk()                                             -- dry: stops, nothing taken this tick
+    never.dry = true
+    never:milk()                                              -- stopped before taking anything
+    both:milk()
+    both.dry = true
+    both:milk()
+    both:complete()
+    local scared = sp(ISShearAnimal, 1)
+    scared.scared = true
+    scared:update()                                           -- stress stops the first tick, which still shears
+    T.check(tot("milk.count") == 3 and tot("shear.count") == 2,
+        "a session ended by forceStop (single player) counts once when it took milk or wool")
     ISCutAnimalOnHook.complete({ character = p, ok = false })
     ISCutAnimalOnHook.complete({ character = p, ok = true })
     T.check(tot("butcher.count") == 1, "the first cut on a butchering hook counts as butchering (refused cut does not)")
+    -- burning counts only a fire this action started (owner 2026-10-29): NoFire, a safehouse without fire, water or a
+    -- square already burning start none (IsoFire.CanAddFire)
+    local function burn(lights, burning)
+        local sq = { fire = burning or nil, getFire = function(s) return s.fire end }
+        return { character = p, lights = lights, corpse = { sq = sq, getSquare = function(c) return c.sq end } }
+    end
+    T.check(ISBurnCorpseAction.complete(burn(false)) == true, "burn result passed through")
+    ISBurnCorpseAction.complete(burn(true, true))
+    T.check(tot("corpse.count") == 0, "a burn that starts no fire, or finds the square already burning, does not count")
+    ISBurnCorpseAction.complete(burn(true))
+    T.check(tot("corpse.count") == 1, "a burn that sets the corpse on fire counts")
     -- recorders run inside guard(): the error is swallowed but printed once per hook
     T.check(Tr.guard("T.hook", error, "boom") == false and Tr.guard("T.hook", error, "boom") == false, "guard swallows errors")
     local n = 0

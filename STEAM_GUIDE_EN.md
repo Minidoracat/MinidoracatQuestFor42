@@ -78,7 +78,7 @@ Daily and weekly quests, achievements, season leaderboards and titles; pair it w
 [h3]Newcomer quests[/h3]
 [list]
 [*] [b]Who gets them[/b]: new accounts, from their first appearance; accounts that had already survived more than 24 hours when the mod was added skip them.
-[*] [b]5 steps, any order[/b]: kill 5 zombies, craft 1 item, finish reading 1 book, leave your starting town with a weapon in hand, sleep indoors once.
+[*] [b]5 steps, any order[/b]: kill 5 zombies, craft 1 item, finish reading 1 book, leave your starting town with a weapon in hand, sleep indoors once. On a multiplayer server that does not allow sleeping (the vanilla multiplayer default) there is no sleep step, so 4 steps finish them.
 [*] [b]How long[/b]: shown at the top of the Daily quests page until all are done or 7 days pass.
 [*] [b]Reward[/b]: 100 points and the title "Rookie Survivor".
 [*] [b]Death[/b]: does not restart them; progress is kept.
@@ -157,10 +157,10 @@ Once the server has automatic hordes on or has had a horde, a "Hordes" page appe
 [table]
 [tr][th]Category[/th][th]Covers[/th][/tr]
 [tr][td]Combat[/td][td]Total kills, melee, firearms, vehicles, each weapon type, at night, indoors, hunting[/td][/tr]
-[tr][td]Survival[/td][td]Days survived in one life, total days survived, bandaging, medical care, sleeping indoors, barricading, clearing corpses, washing[/td][/tr]
+[tr][td]Survival[/td][td]Days survived in one life, total days survived, bandaging, medical care, sleeping indoors (listed where the server allows sleeping, or once unlocked), barricading, clearing corpses, washing[/td][/tr]
 [tr][td]Skills[/td][td]All 35 skills that can level up, total skill level, total XP[/td][/tr]
 [tr][td]Production & Building[/td][td]Crafting, building, cooking, tailoring, smithing, knapping, carving, vehicle repair, installing parts, connecting power, scrapping[/td][/tr]
-[tr][td]Farming & Wilds[/td][td]Planting, harvesting, fishing, foraging, trapping, butchering, milking, shearing, collecting eggs, chopping trees[/td][/tr]
+[tr][td]Farming & Wilds[/td][td]Planting, harvesting, fishing, foraging, trapping, butchering, milking, shearing, collecting eggs from henhouses, chopping trees[/td][/tr]
 [tr][td]Exploration[/td][td]Towns visited, walking, driving, reading, placing furniture[/td][/tr]
 [tr][td]Quests[/td][td]Daily, weekly, longest streak, server goals, seasons joined, achievement tiers[/td][/tr]
 [tr][td]Hordes[/td][td]Hordes cleared, horde kills, top killer (listed only on servers that run hordes)[/td][/tr]
@@ -546,6 +546,7 @@ https://github.com/Minidoracat/MinidoracatQuestFor42#給其他-mod-的-api
 [*] [b]The character who finishes an action comes from the client[/b]: which character crafting, building, repairs or fishing are credited to follows the character the client sent in the vanilla action; the server still verifies identity and applies per-minute limits.
 [*] [b]Distance is a straight line per minute[/b]: detours and back-and-forth count less; only the driver earns driving distance, not passengers; a jump too large for one minute (teleport) is ignored.
 [*] [b]Per-minute limits[/b]: each stat has a per-minute limit; anything above it does not count and is logged as an anomaly for admins.
+[*] [b]Corpses burnt on a campfire do not count[/b]: a campfire burns corpses on its square, but nobody can be credited with it; clearing corpses counts burials and corpses burnt with petrol and a lighter.
 [*] [b]Exchange is multiplayer only[/b]: the Economy mod supports dedicated servers only.
 [*] [b]Split screen[/b]: players 2-4 do not earn progress; the tracker panel and head titles are for player 1 only.
 [*] [b]Head titles approximate the vanilla rules[/b]: players in a vehicle get none. When the server shows names only on mouse-over (the vanilla default), the mod checks the floor square under the mouse and the squares around it, plus the player's body; vanilla uses the object under the mouse, so pointing at a wall or a tall object can differ by one square.
@@ -563,6 +564,8 @@ https://github.com/Minidoracat/MinidoracatQuestFor42#給其他-mod-的-api
 [list]
 [*] Progress counts from the moment the quest appears; earlier play does not count.
 [*] Split screen players 2-4 do not earn progress.
+[*] Burning a corpse counts only when the fire starts: with fire turned off on the server, in a safehouse that does not allow fire, on water or on a square already burning, the petrol and the lighter are used but it does not count.
+[*] Eggs count only when taken with "Grab Eggs" from a henhouse nest box; milking and shearing count when the action ends by itself after taking some (the animal has no more milk or wool, the container is full, or the animal gets scared and runs off), not when you cancel it.
 [*] On a multiplayer server, if you see "Your identity could not be verified", rejoin the server; if it continues, contact an admin.
 [/list]
 [h3]I added the mod to an old save. Does my earlier progress count?[/h3]

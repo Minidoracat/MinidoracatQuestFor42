@@ -245,17 +245,26 @@ end
 
 -- Milking / shearing: complete() returns true even when nothing was taken (milk(): stressed animal or full bucket
 -- force-completes first, ISMilkAnimal.lua:57-75; E2E quest-t2-1023c: shear counted while the ewe kept her 2 wool).
--- The per-tick method that takes milk / wool marks the action; complete() counts one session only if marked.
-local function marksTaken(amount)
+-- The per-tick method that takes milk / wool marks the action; the end of the session counts once if marked.
+local function sessionEnd(self, stat)
+    if self.mqTook and not self.mqCounted then
+        self.mqCounted = true
+        add(self.character, stat)
+    end
+end
+-- stat: the session can end inside this tick (single player forceStop, see below); count after the tick has taken
+local function marksTaken(amount, stat)
     return function(self, _, before)
         if before ~= nil and amount(self) < before then self.mqTook = true end
+        if stat ~= nil and self.mqStopped then sessionEnd(self, stat) end
     end, amount
 end
 local function sessionTaken(stat)
     return function(self, result)
-        if result ~= false and self.mqTook then add(self.character, stat) end
+        if result ~= false then sessionEnd(self, stat) end
     end
 end
+local function stopped(self) self.mqStopped = true end
 local function milkQty(self) return self.animal:getData():getMilkQuantity() end
 local function woolQty(self) return self.animal:getData():getWoolQuantity() end
 
@@ -303,12 +312,20 @@ function T.installActions()
     W("ISButcherAnimal", ISButcherAnimal, "complete", counter("butcher.count"))         -- carcass on the ground
     W("ISCutAnimalOnHook", ISCutAnimalOnHook, "complete", counter("butcher.count"))     -- first cut on a butchering hook
     -- one per milking / shearing session that took something: milk() runs per tick in SP update and MP server
-    -- animEvent (ISMilkAnimal.lua:131,203); shearAnimal runs in SP update / MP server animEvent (ISShearAnimal.lua:54,121)
-    W("ISMilkAnimal", ISMilkAnimal, "milk", marksTaken(milkQty))
+    -- animEvent (ISMilkAnimal.lua:131,203); shearAnimal runs in SP update / MP server animEvent (ISShearAnimal.lua:54,121).
+    -- The MP server ends a session with forceComplete -> complete(). Single player ends it with the Lua forceStop inside
+    -- the tick instead: the animal dry, the bucket full or the animal stressed (ISMilkAnimal.lua:60-113; getDuration -1,
+    -- so SP milking never reaches complete()), stress or no wool left (ISShearAnimal.lua:24-28,49-57: stress() can stop
+    -- the first tick before that same tick shears). forceStop only marks; the tick's wrapper counts once it has seen
+    -- what was taken. A player's cancel stops the action in Java (StopAllActionQueue -> stop(), IsoGameCharacter.java:5432-5446;
+    -- a hit reaction's BaseAction.forceStop -> stop(), :9020-9033), never through the Lua forceStop
+    W("ISMilkAnimal", ISMilkAnimal, "milk", marksTaken(milkQty, "milk.count"))
     W("ISMilkAnimal", ISMilkAnimal, "complete", sessionTaken("milk.count"))
-    W("ISShearAnimal", ISShearAnimal, "update", marksTaken(woolQty))
+    W("ISMilkAnimal", ISMilkAnimal, "forceStop", stopped)
+    W("ISShearAnimal", ISShearAnimal, "update", marksTaken(woolQty, "shear.count"))
     W("ISShearAnimal", ISShearAnimal, "animEvent", marksTaken(woolQty))
     W("ISShearAnimal", ISShearAnimal, "complete", sessionTaken("shear.count"))
+    W("ISShearAnimal", ISShearAnimal, "forceStop", stopped)
     -- eggs: one per egg; MP server takes them in animEvent("update") (ISHutchGrabEgg.lua:52-61), SP in update()
     local eggEvent = ISHutchGrabEgg and ISHutchGrabEgg.animEvent
     if type(eggEvent) == "function" then
@@ -355,7 +372,16 @@ function T.installActions()
     end)
     W("ISBarricadeAction", ISBarricadeAction, "complete", counter("barricade.count"))   -- vanilla UI no longer queues it; mods may
     W("ISBuryCorpse", ISBuryCorpse, "complete", counter("corpse.count"))
-    W("ISBurnCorpseAction", ISBurnCorpseAction, "complete", counter("corpse.count"))
+    -- a burn counts only when it set the corpse on fire (owner 2026-10-29): complete() returns true and uses the petrol
+    -- and the lighter either way (ISBurnCorpseAction.lua:61-68), while IsoFire.CanAddFire starts nothing under MP
+    -- NoFire, in a safehouse without fire, on water or on a square already burning (IsoFire.java:265-283).
+    -- StartFire adds the fire to the square at once (IsoFireManager.java:196-217), so complete() can look
+    W("ISBurnCorpseAction", ISBurnCorpseAction, "complete", function(self, result, sq)
+        if result ~= false and sq ~= nil and sq:getFire() ~= nil then add(self.character, "corpse.count") end
+    end, function(self)
+        local sq = self.corpse:getSquare()
+        if sq ~= nil and sq:getFire() == nil then return sq end
+    end)
     W("ISWashYourself", ISWashYourself, "complete", counter("wash.count"))
     W("ISWashClothing", ISWashClothing, "complete", counter("wash.count"))
     -- the action force-completes when the tree falls (ISChopTreeAction.lua:82-86)

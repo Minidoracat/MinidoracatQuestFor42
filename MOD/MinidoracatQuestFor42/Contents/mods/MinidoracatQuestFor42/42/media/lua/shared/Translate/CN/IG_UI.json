@@ -1522,5 +1522,5 @@
   "IGUI_MQ_UI_TitleCondNewbie": "%1 天内完成新手任务的每一步",
   "IGUI_MQ_UI_TitleCondRank": "第 %1 季积分%2",
   "IGUI_MQ_UI_TitleCondFirst": "第 %1 季「%2」榜第一",
-  "IGUI_MQ_WhatsNew": "尸潮打完，在场的人会看到结算（参加人数、排名、积分）；死亡与 MVP 会通知全服，追踪面板可以收起这一场。"
+  "IGUI_MQ_WhatsNew": "追踪面板改为只有内容那么宽，拖动右端还能再调窄；MOD 选项可调背景不透明度，也能设收起快捷键。"
 }

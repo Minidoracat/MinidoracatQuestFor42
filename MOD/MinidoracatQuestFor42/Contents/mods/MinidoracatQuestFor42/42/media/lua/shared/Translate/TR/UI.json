@@ -2,7 +2,7 @@
   "UI_MinidoracatQuest_Options": "Görevler ve Başarımlar",
   "UI_MinidoracatQuest_ShowDock": "Araç çubuğu girişini göster",
   "UI_MinidoracatQuest_ShowDock_tooltip": "Aile araç çubuğundaki Görevler ve Başarımlar düğmesi. Gizlendiğinde kısayol tuşu (Ayarlar > Tuş Ayarları > [MinidoracatQuest]) pencereyi yine açar.",
-  "UI_MinidoracatQuest_ShowBroadcast": "Sunucu geneli açılış bildirimlerini göster",
+  "UI_MinidoracatQuest_ShowBroadcast": "Sunucu açılış bildirimlerini göster",
   "UI_MinidoracatQuest_ShowBroadcast_tooltip": "Başka bir oyuncu yüksek bir başarım kademesini açtığında gelen bildirimler.",
   "UI_MinidoracatQuest_ShowHud": "Takip panelini göster",
   "UI_MinidoracatQuest_ShowHud_tooltip": "Sol üstte: bir kartta \"Takip et\" ile işaretlediğiniz görev ve başarımların ilerlemesi. Taşımak için sürükleyin; genişliği sınırlamak için sağ kenarını sürükleyin.",

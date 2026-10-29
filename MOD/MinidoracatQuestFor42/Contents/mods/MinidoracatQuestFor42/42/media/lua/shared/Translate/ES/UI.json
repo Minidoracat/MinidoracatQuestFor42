@@ -2,7 +2,7 @@
   "UI_MinidoracatQuest_Options": "Misiones y logros",
   "UI_MinidoracatQuest_ShowDock": "Mostrar el acceso en la barra",
   "UI_MinidoracatQuest_ShowDock_tooltip": "El botón de Misiones y logros en la barra de la familia de mods. Si está oculto, la tecla (Configuración de teclas > [MinidoracatQuest]) sigue abriendo la ventana.",
-  "UI_MinidoracatQuest_ShowBroadcast": "Mostrar avisos de desbloqueo del servidor",
+  "UI_MinidoracatQuest_ShowBroadcast": "Mostrar desbloqueos del servidor",
   "UI_MinidoracatQuest_ShowBroadcast_tooltip": "Avisos cuando otro jugador desbloquea un rango alto de logro.",
   "UI_MinidoracatQuest_ShowHud": "Mostrar el panel de seguimiento",
   "UI_MinidoracatQuest_ShowHud_tooltip": "Arriba a la izquierda: el progreso de las misiones y logros que marcaste con \"Seguir\" en una tarjeta. Arrástralo para moverlo; arrastra su borde derecho para limitar el ancho.",

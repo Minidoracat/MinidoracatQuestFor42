@@ -1522,5 +1522,5 @@
   "IGUI_MQ_UI_TitleCondNewbie": "Finir chaque étape des quêtes de débutant en %1 jours",
   "IGUI_MQ_UI_TitleCondRank": "Saison %1, points : %2",
   "IGUI_MQ_UI_TitleCondFirst": "Saison %1 : 1er du classement « %2 »",
-  "IGUI_MQ_WhatsNew": "Bilan de horde : participants, classement, points. Alertes de mort et MVP ; horde masquable du suivi."
+  "IGUI_MQ_WhatsNew": "Suivi ajusté au contenu ; tirez le bord droit pour le rétrécir. Options : opacité du fond, touche de repli."
 }

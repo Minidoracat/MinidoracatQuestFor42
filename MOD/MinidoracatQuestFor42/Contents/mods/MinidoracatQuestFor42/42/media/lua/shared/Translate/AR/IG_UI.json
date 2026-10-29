@@ -1522,5 +1522,5 @@
   "IGUI_MQ_UI_TitleCondNewbie": "Completar cada paso de las misiones de novato en %1 días",
   "IGUI_MQ_UI_TitleCondRank": "Temporada %1, puntos: %2",
   "IGUI_MQ_UI_TitleCondFirst": "Temporada %1: n.º 1 en \"%2\"",
-  "IGUI_MQ_WhatsNew": "Resumen de horda: participantes, puestos, puntos. Avisos de muertes y MVP; ocúltala del seguimiento."
+  "IGUI_MQ_WhatsNew": "Panel de seguimiento al ancho del contenido; estréchalo por el borde. Nuevo: opacidad y tecla de plegado."
 }

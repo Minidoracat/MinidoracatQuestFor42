@@ -1522,5 +1522,5 @@
   "IGUI_MQ_UI_TitleCondNewbie": "Alle Schritte der Neulingsquests innerhalb von %1 Tagen",
   "IGUI_MQ_UI_TitleCondRank": "Saison %1, Punkte: %2",
   "IGUI_MQ_UI_TitleCondFirst": "Saison %1: Platz 1 in \"%2\"",
-  "IGUI_MQ_WhatsNew": "Hordenergebnis: Teilnehmer, Rang, Punkte. Tode und MVP werden gemeldet; Horde ausblendbar."
+  "IGUI_MQ_WhatsNew": "Verfolgungsliste nur so breit wie nötig, rechter Rand ziehbar. Neu: Deckkraft und Einklapp-Taste."
 }

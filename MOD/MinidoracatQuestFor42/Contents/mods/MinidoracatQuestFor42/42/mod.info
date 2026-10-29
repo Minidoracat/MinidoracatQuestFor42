@@ -3,5 +3,5 @@ id=MinidoracatQuestFor42
 description=[B42]每日與每週任務、成就、賽季排行榜與稱號；可搭配經濟系統把積分換成倖存幣。By Minidoracat
 poster=poster.png
 require=MinidoracatUIFor42
-modversion=42.21.0-0.4.0
+modversion=42.21.0-0.5.0
 versionMin=42.21.0

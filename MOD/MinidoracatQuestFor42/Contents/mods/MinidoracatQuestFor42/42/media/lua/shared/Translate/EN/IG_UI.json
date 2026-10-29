@@ -1522,5 +1522,5 @@
   "IGUI_MQ_UI_TitleCondNewbie": "Finish every newcomer quest step within %1 days",
   "IGUI_MQ_UI_TitleCondRank": "Season %1 points: %2",
   "IGUI_MQ_UI_TitleCondFirst": "Season %1: #1 on \"%2\"",
-  "IGUI_MQ_WhatsNew": "Horde results: who joined, ranking, points. Death and MVP alerts; hide a horde from the tracker."
+  "IGUI_MQ_WhatsNew": "Tracker panel fits its content; drag the right edge to narrow it. New: background opacity, collapse key."
 }

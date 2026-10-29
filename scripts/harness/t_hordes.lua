@@ -2,7 +2,8 @@
 -- kinds, points, hp, cap, limitMin, restSec, maxAlive) and each window's lead / wait, kind mix, waves (size by players
 -- near, exits, maxAlive batches, lure, rest, the hp multiplier), kills and the capped kill-value payout, admin ops,
 -- boot, Config hordes.* validation, the 0.2.0 and presets migrations and config.json, the facade's
--- registerHordeKind, the "hordes" state part and delta.
+-- registerHordeKind, the "hordes" state part and delta; joined, deaths and their toasts, the MVP toast, the result
+-- (H.result, its push to the players there at the end, the hordeResult query).
 return function(T)
     local MIN, HOUR, DAY = 60000, 3600000, 86400000
     local TZ = 8
@@ -972,6 +973,196 @@ return function(T)
         cmd(alice, "records")
         T.check(#T.lastOf(alice, "records").hordes == H.RECENT, "at most H.RECENT rows")
         T.check(H.stateHordes(nil, "bob", T.now).on == true, "results to list: the page is in the nav")
+    end)
+
+    -- ===================== 2026-10-29: joined, deaths, death toasts =====================
+    -- position in p's outbox of the first horde toast ev (nil when none)
+    local function toastAt(p, ev)
+        for i, t in ipairs(T.sentTo(p, "toast")) do
+            if t.kind == "horde" and t.ev == ev then return i end
+        end
+        return nil
+    end
+    local function encoded(Q, v) return Q.Util.encode(v) or "" end
+    local function die(p, dx)
+        near(p, dx)
+        p.dead = true
+        T.fire("OnCharacterDeath", p)
+    end
+    local function revive(p)
+        p.dead = false
+        far(p)
+    end
+
+    section("deaths: near a spawned horde, once per account, at most DEATHS_MAX, toasts merged over 2 s", function()
+        local Q = boot()
+        local H = Q.Hordes
+        local root = Q.Store.root()
+        local admin = T.player{ name = "admin", admin = true }
+        local alice = T.player{ name = "alice" }
+        local bob = T.player{ name = "bob" }
+        local carol = T.player{ name = "carol" }
+        local dave = T.player{ name = "dave" }
+        local cow = T.player{ name = "cow" }
+        function cow:isAnimal() return true end
+        function cow:getAttackedBy() return nil end   -- Trackers.onCharacterDeath asks an animal for its hunter
+        for _, p in ipairs({ admin, alice, bob, carol, dave, cow }) do cmd(p, "hello") end
+        cmd(carol, "anon", { on = true })
+        apply(Q, { spots = { SPOT }, waves = { wave(2), wave(2) }, kinds = { vanilla = 100 } })
+        adm(admin, "horde.now")
+        local cur = root.hordes.cur
+        die(bob, 10)
+        T.check(cur.state == "waiting" and #cur.deaths == 0, "a death before the first spawn is not listed")
+        revive(bob)
+        near(alice)
+        step(Q)
+        T.check(cur.state == "active" and H.stateHordes(nil, "bob", T.now).cur.joined == 0, "spawned, no kill yet: 0 joined")
+        local zs = hordeZombies()
+        zs[1]:Kill(alice)
+        T.check(H.stateHordes(nil, "bob", T.now).cur.joined == 1, "a kill: 1 joined (players with 1+ kill)")
+
+        T.clearOutbox()
+        die(dave, 51)
+        die(cow, 0)
+        T.check(#cur.deaths == 0, "a death 51 tiles away, or of an animal, is not listed")
+        local t0 = T.now
+        die(bob, 50)
+        die(bob, 50)
+        T.advance(1000)
+        die(carol, 0)
+        T.check(#cur.deaths == 2 and cur.deaths[1].u == "bob" and cur.deaths[1].wave == 1 and cur.deaths[1].at == t0
+            and cur.deaths[2].u == "carol", "50 tiles away: listed once per account, with wave and time")
+        T.now = t0 + H.DEATH_MS - 1
+        step(Q)
+        T.check(#toasts(alice, "death") == 0, "no death toast before DEATH_MS")
+        T.now = t0 + H.DEATH_MS
+        step(Q)
+        local dt = toasts(alice, "death")
+        T.check(#dt == 1 and #dt[1].names == 1 and dt[1].names[1] == "bob" and dt[1].anon == 1 and dt[1].wave == 1
+            and dt[1].waves == 2 and dt[1].id == cur.id and dt[1].name == SPOT.name, "one toast for both: bob by name, carol anonymous")
+        T.check(not string.find(encoded(Q, dt[1]), "carol", 1, true), "the anonymous player's name is nowhere in the toast")
+        step(Q)
+        T.check(#toasts(alice, "death") == 1, "sent once")
+
+        zs[2]:Kill(alice)
+        step(Q)
+        T.check(cur.state == "rest", "wave 1 cleared: rest")
+        revive(dave)
+        die(dave, 0)
+        T.check(#cur.deaths == 3 and cur.deaths[3].u == "dave", "a death in the rest counts")
+        Q.Store.readOnly = true   -- a save newer than the code: H.tick stops, a queued toast would never go out
+        die(admin, 0)
+        Q.Store.readOnly = false
+        T.check(#cur.deaths == 3 and #H.deathQ.users == 1 and H.deathQ.users[1] == "dave",
+            "read-only store: a death is neither listed nor queued")
+        revive(admin)
+        for i = #cur.deaths + 1, H.DEATHS_MAX do cur.deaths[i] = { u = "x" .. i, wave = 1, at = T.now } end
+        die(admin, 0)
+        T.check(#cur.deaths == H.DEATHS_MAX, "at most DEATHS_MAX listed")
+
+        H.stop(cur.id, "admin", T.now)   -- dave's toast still waiting: it goes out before the fail toast
+        local dI, fI = toastAt(alice, "death"), toastAt(alice, "fail")
+        dt = toasts(alice, "death")
+        T.check(#dt == 2 and dt[2].names[1] == "dave" and dI ~= nil and fI ~= nil and toastAt(alice, "death") < fI
+            and T.sentTo(alice, "toast")[fI - 1].ev == "death", "the waiting deaths go out at the end, before the result")
+        T.check(#lastLog(Q).deaths == H.DEATHS_MAX and lastLog(Q).deaths[1].u == "bob", "the log keeps the deaths")
+        revive(bob)
+        die(bob, 0)
+        T.advance(H.DEATH_MS)
+        step(Q)
+        T.check(root.hordes.cur == nil and #toasts(alice, "death") == 2, "after the end: no death toast")
+    end)
+
+    section("result: MVP toast, log fields, rows and anonymity, who gets it, hordeResult", function()
+        local Q = boot()
+        local H = Q.Hordes
+        local root = Q.Store.root()
+        local admin = T.player{ name = "admin", admin = true }
+        local alice = T.player{ name = "alice" }
+        local bob = T.player{ name = "bob" }
+        local carol = T.player{ name = "carol" }
+        local dave = T.player{ name = "dave" }
+        local erin = T.player{ name = "erin", offline = true, x = SPOT.x, y = SPOT.y }
+        for _, p in ipairs({ admin, alice, bob, carol, dave }) do cmd(p, "hello") end
+        cmd(carol, "anon", { on = true })
+        apply(Q, { spots = { SPOT }, waves = { wave(6) }, kinds = { vanilla = 100 }, points = { vanilla = 5 } })
+        near(alice)
+        adm(admin, "horde.now")
+        local zs = hordeZombies()
+        zs[1]:Kill(alice)
+        zs[2]:Kill(alice)
+        zs[3]:Kill(carol)
+        zs[4]:Kill(carol)
+        zs[5]:Kill(bob)
+        die(bob, 20)
+        zs[6]:Kill(nil)
+        near(admin, 50)
+        near(dave, -50)
+        far(carol)
+        T.clearOutbox()
+        step(Q)
+        local e = lastLog(Q)
+        T.check(root.hordes.cur == nil and e.state == "success" and e.joined == 3 and #e.mvp == 2 and e.mvp[1] == "alice"
+            and e.mvp[2] == "carol" and #e.deaths == 1 and e.deaths[1].u == "bob", "log: joined, MVP (a tie) and deaths")
+        local mv = toasts(dave, "mvp")
+        T.check(#mv == 1 and #mv[1].names == 1 and mv[1].names[1] == "alice" and mv[1].anon == 1 and mv[1].kills == 2
+            and mv[1].id == e.id and toastAt(dave, "win") < toastAt(dave, "mvp"), "toast mvp after win: alice, 1 anonymous, 2 kills")
+        T.check(not string.find(encoded(Q, mv[1]), "carol", 1, true), "the anonymous MVP's name is nowhere in the toast")
+
+        local pa = T.sentTo(alice, "hordeResult")
+        local s = pa[1] or { rows = {}, deaths = {} }
+        local r1, r2, r3 = s.rows[1] or {}, s.rows[2] or {}, s.rows[3] or {}
+        T.check(#pa == 1 and s.push == true and s.id == e.id and s.state == "success" and s.joined == 3 and s.spawnAt == e.spawnAt
+            and s.endedAt == e.endedAt and s.pool == e.pool and s.capped == false and s.waves == 1 and s.cleared == 1
+            and s.killed == 6 and s.spawned == 6 and s.name == SPOT.name, "pushed result: the horde's numbers, push = true")
+        T.check(#s.rows == 3 and r1.r == 1 and r1.n == "alice" and r1.k == 2 and r1.p == e.paid.alice and r1.mvp == true
+            and r2.r == 2 and r2.anon == true and r2.n == nil and r2.a == nil and r2.k == 2 and r2.mvp == true
+            and r3.r == 3 and r3.n == "bob" and r3.k == 1 and r3.dead == true and r3.mvp == nil and r1.dead == nil,
+            "rows by kills, a tie by name; MVP and died marks; the anonymous one has no name")
+        T.check(s.me == 1 and #s.deaths == 1 and s.deaths[1].n == "bob" and s.deaths[1].wave == 1, "me and the deaths")
+        T.check(not string.find(encoded(Q, s), "carol", 1, true), "a player's result never names the anonymous one")
+        local sa = T.sentTo(admin, "hordeResult")[1] or { rows = {} }
+        T.check(sa.push == true and sa.rows[2] and sa.rows[2].a == "carol" and sa.rows[2].n == nil and sa.me == nil,
+            "an admin 50 tiles away gets it with the anonymous name in a")
+        local sd = T.sentTo(dave, "hordeResult")
+        T.check(#sd == 1 and sd[1].me == nil and #sd[1].rows == 3, "50 tiles away without a kill: pushed, me nil")
+        T.check(#T.sentTo(bob, "hordeResult") == 0 and #T.sentTo(carol, "hordeResult") == 0
+            and #T.sentTo(erin, "hordeResult") == 0, "not pushed to the dead, the far or the offline")
+
+        local rb = H.recent("bob", 1)[1] or {}
+        e.joined = nil
+        local old = H.recent("bob", 1)[1] or {}
+        e.joined = 3
+        T.check(rb.joined == 3 and old.joined == 3, "records rows carry joined (older logs: the accounts in kills)")
+
+        T.clearOutbox()
+        T.check(cmd(carol, "hordeResult", { id = e.id }) == nil, "hordeResult found: no result reply")
+        local q = T.lastOf(carol, "hordeResult") or { rows = {} }
+        T.check(q.push == nil and q.me == 2 and q.rows[2].anon == true and q.rows[2].n == nil and q.rows[2].a == nil,
+            "asked: no push flag, my own anonymous row")
+        local r = cmd(alice, "hordeResult", { id = 999 })
+        T.check(r and r.ok == false and r.code == "NOT_FOUND" and T.lastOf(alice, "hordeResult") == nil, "unknown id: NOT_FOUND")
+
+        local cfg = Q.Config.get().hordes
+        local cur = H.plan(cfg, T.now + 2 * HOUR, nil, win("19:00", "23:00", 0))
+        H.stop(cur.id, "admin", T.now)
+        r = cmd(alice, "hordeResult", { id = cur.id })
+        T.check(r and r.code == "NOT_FOUND", "a secret cancel: NOT_FOUND")
+        adm(admin, "horde.now", { lead = 5 })
+        H.stop(root.hordes.cur.id, "admin", T.now)
+        T.check(lastLog(Q).state == "cancelled" and #T.sentTo(alice, "hordeResult") == 0, "a cancel is not pushed")
+
+        -- RESULT_ROWS: the top 100, my row appended with its rank
+        local kills = { tb = 500, ta = 500, zero = 0 }
+        for i = 1, 105 do kills[string.format("u%03d", i)] = 200 - i end
+        local big = { id = 50, kills = kills, paid = {}, deaths = {}, mvp = {} }
+        local b1 = H.result(big, "u105", false)
+        T.check(b1.joined == 107 and #b1.rows == 101 and b1.rows[1].n == "ta" and b1.rows[2].n == "tb"
+            and b1.rows[100].r == 100 and b1.rows[101].r == 107 and b1.rows[101].n == "u105" and b1.me == 101,
+            "at most RESULT_ROWS; my row past them appended with its rank")
+        local b2 = H.result(big, "u010", false)
+        local b3 = H.result(big, "zero", false)
+        T.check(#b2.rows == 100 and b2.me == 12 and #b3.rows == 100 and b3.me == nil, "within them: me = my row; no kill: me nil")
     end)
 
     -- ===================== design r12: warning lead and the reminder =====================

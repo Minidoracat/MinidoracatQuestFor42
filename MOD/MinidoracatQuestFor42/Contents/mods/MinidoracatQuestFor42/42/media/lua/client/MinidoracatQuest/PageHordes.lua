@@ -1,7 +1,8 @@
 -- MinidoracatQuest/PageHordes.lua: the player Hordes page (design r12): the current horde (the daily page banner),
 --   my horde totals (stats horde.joined / wins / kills / mvp from the records query) and the recent results
 --   (records.hordes: the last announced ones on the server, newest first, each with my kills and points;
---   Hordes.recent). In the nav while automatic hordes are on or there are results (state.hordes.on).
+--   Hordes.recent), each one somebody joined with a View results button (the hordeResult query; it opens at once,
+--   anyone may look). In the nav while automatic hordes are on or there are results (state.hordes.on).
 
 if isServer() then return end
 
@@ -24,6 +25,7 @@ function P.shown()
 end
 
 function P.onRetry() Q.Client.requestRecords(true) end
+function P.onResult(page, btn) C.send("hordeResult", { id = btn.internal }) end
 
 -- ===== the current horde (the daily page banner and its Map button) =====
 local function now(page, b, x, y, w, s)
@@ -87,9 +89,11 @@ local function points(e)
     return "-", "textFaint"
 end
 
-local function recent(b, x, y, w)
+-- nothing while the records load or failed: the totals above say which (no "no horde has ended yet" before we know)
+local function recent(page, b, x, y, w)
+    if C.records == nil then return y end
     y = b:header(x, y, x + w, getText("IGUI_MQ_UI_HordesRecent"))
-    local list = C.records and C.records.hordes
+    local list = C.records.hordes
     local L = b:list(x, y, w)
     if type(list) ~= "table" or #list == 0 then
         return b:listEnd(L, b:para(x + 8, y + 6, getText("IGUI_MQ_UI_HordesEmpty"), w - 16, "textMuted") + 4) + GAP
@@ -97,12 +101,20 @@ local function recent(b, x, y, w)
     local hTime, hPlace, hRes = getText("IGUI_MQ_UI_ColTime"), getText("IGUI_MQ_UI_ColPlace"), getText("IGUI_MQ_UI_ColResult")
     local hMine, hPts = getText("IGUI_MQ_UI_ColMyKills"), getText("IGUI_MQ_UI_ColPoints")
     local rows, timeW, placeW, mineW, ptsW = {}, D.textW(hTime), D.textW(hPlace), D.textW(hMine), D.textW(hPts)
-    for _, e in ipairs(list) do
+    local btnW = 0
+    for i, e in ipairs(list) do
         if type(e) == "table" then
             local r = { D.dateTime(tonumber(e.endedAt) or 0), D.hordePlace(e) }
             r[3], r[4] = result(e)
             r[5], r[6] = mine(e)
             r[7], r[8] = points(e)
+            -- nobody killed anything (cancelled, nobody came, the spawn failed): no results to show
+            if (tonumber(e.joined) or 0) > 0 then
+                local btn = page.pool:button("res:" .. i, page.UI, page.theme, getText("IGUI_MQ_UI_ViewResult"), page,
+                    P.onResult)
+                btn.internal = e.id
+                btnW, r.btn = math.max(btnW, btn.width), btn
+            end
             timeW, placeW = math.max(timeW, D.textW(r[1])), math.max(placeW, D.textW(r[2]))
             mineW, ptsW = math.max(mineW, D.textW(r[5])), math.max(ptsW, D.textW(r[7]))
             rows[#rows + 1] = r
@@ -112,7 +124,7 @@ local function recent(b, x, y, w)
     local rh = D.fontH() + 8
     local placeX = x + 8 + timeW + 12
     local resX = placeX + placeW + 12
-    local ptsR = x + w - 8
+    local ptsR = x + w - 8 - (btnW > 0 and btnW + 12 or 0)
     local mineR = ptsR - ptsW - 12
     local resW = mineR - mineW - 12 - resX
     b:listHead(L, rh)
@@ -128,9 +140,15 @@ local function recent(b, x, y, w)
         b:fitText(placeX, y + 4, r[2], placeW, "text")
         b:textRight(mineR, y + 4, r[5], r[6])
         b:textRight(ptsR, y + 4, r[7], r[8])
+        local bottom = y + rh
+        if r.btn ~= nil then
+            r.btn:setX(x + w - 8 - r.btn.width)
+            r.btn:setY(y + 2)
+            bottom = math.max(bottom, y + r.btn.height + 4)
+        end
         -- the result wraps: ES "Falló en la oleada 2: se acabó el tiempo (1 despejadas)" lost the cleared waves
         -- to the cut (quest-hui-es-1027b); one line keeps the row at rh
-        y = math.max(y + rh, b:para(resX, y + 4, r[3], resW, r[4]) + 2)
+        y = math.max(bottom, b:para(resX, y + 4, r[3], resW, r[4]) + 2)
     end
     y = b:listEnd(L, y)
     return b:para(x, y + 6, getText("IGUI_MQ_UI_HordesNote"), w, "textMuted") + GAP
@@ -163,7 +181,7 @@ function P.layout(page)
     refresh(s)
     y = now(page, b, x, y, w, s)
     y = tiles(b, page, x, y, w)
-    y = recent(b, x, y, w)
+    y = recent(page, b, x, y, w)
     D.finish(page, y)
 end
 

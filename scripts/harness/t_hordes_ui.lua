@@ -1040,7 +1040,7 @@ return function(T)
     local function cur(state, extra)
         local c = { id = 3, name = "Gas", town = "muldraugh", x = 10620, y = 9810, z = 0, state = state, kinds = kinds,
             startMs = now + 15 * 60000, expireAt = now + 75 * 60000, endsAt = now + 600000, nextAt = now + 24000,
-            wave = 1, waves = 1, size = 30, left = 13, killed = 17, limitMin = 15, mine = 9, got = 0 }
+            wave = 1, waves = 1, size = 30, left = 13, killed = 17, limitMin = 15, mine = 9, got = 0, joined = 12 }
         for k, v in pairs(extra or {}) do c[k] = v end
         return c
     end
@@ -1054,11 +1054,11 @@ return function(T)
     T.section("horde tracker row")
     local r = Hd.rows({ pins = {}, hordes = { cur = cur("active") } }, defs, now)
     T.check(#r == 1 and r[1].horde and r[1].name == place and r[1].time == "IGUI_MQ_UI_Left|10:00" and r[1].prog == 17
-        and r[1].target == 30 and r[1].line == "IGUI_MQ_Horde_HudCleared|17|30" and r[1].mapX == nil,
-        "active: the place, 'left' to endsAt, cleared 17 / wave size 30, no Map button")
+        and r[1].target == 30 and r[1].line == "IGUI_MQ_Horde_HudActive|12|17|30" and r[1].mapX == 10620 and r[1].hordeId == 3,
+        "active: the place, 'left' to endsAt, who joined (1+ kill) and cleared / wave size, a Map button (plan-horde-result 1)")
     r = row("waiting")
-    T.check(r.name == place and r.time == "IGUI_MQ_UI_Left|1:15:00" and r.line == "IGUI_MQ_Horde_HudWait|10620|9810"
-        and r.target == nil and r.mapX == 10620 and r.mapY == 9810, "waiting: 'left' to expireAt, the spot first, Map button")
+    T.check(r.name == place and r.time == "IGUI_MQ_Horde_WaitLeft|1:15:00" and r.line == "IGUI_MQ_Horde_HudWait|10620|9810"
+        and r.target == nil and r.mapX == 10620 and r.mapY == 9810, "waiting: 'waiting' to expireAt (not 'left'), the spot first, Map button")
     r = row("announced", { waves = 3 })
     T.check(r.name == place and r.time == "IGUI_MQ_Horde_StartsIn|15:00" and r.line == "IGUI_MQ_Horde_HudSoon|10620|9810"
         and r.mapX == 10620, "announced: no wave prefix, 'starts in' countdown, the spot first, Map button")
@@ -1111,16 +1111,38 @@ return function(T)
     local countText = nil
     for i = 1, hp.n do if has(hp.ops[i].s, "IGUI_MQ_UI_Count|") then countText = hp.ops[i].s end end
     T.check(#hp.rows == 6 and hp.rows[1].horde and #hp.hits == 5 and countText == "IGUI_MQ_UI_Count|5|5"
-        and hp.hordeTime == "IGUI_MQ_UI_Left|10:00" and hp.mapHit == nil and drewOp("IGUI_MQ_UI_Map") == nil,
-        "five pins and an active horde: six rows, five unpin targets, the title still counts 5 / 5, no Map button")
+        and hp.hordeTime == "IGUI_MQ_UI_Left|10:00" and hp.mapHit ~= nil and drewOp("IGUI_MQ_UI_Map") ~= nil,
+        "five pins and an active horde: six rows, five unpin targets, the title still counts 5 / 5, a Map button")
+    local function barOnLine2()
+        for i = 1, hp.n do
+            local o = hp.ops[i]
+            if o.k == 8 and o.y > Hd.titleH() + D.chipH() and o.y < hp.mapHit.y1 then return o end
+        end
+        return nil
+    end
+    local narrow = hp.width
+    hp.width = 400   -- the harness font is wide (7 px a char): 300 px leave no 24 px for the bar
+    Hd.layout(hp)
+    local barOp, cntOp = barOnLine2(), drewOp("IGUI_MQ_Horde_HudActive|12|17|30")   -- right-aligned: x is its right edge
+    T.check(cntOp ~= nil and cntOp.x <= hp.mapHit.x0 - 6 and barOp ~= nil and barOp.x == Hd.PAD
+        and barOp.x + barOp.w + 8 <= cntOp.x - cntOp.w, "active line 2: the count left of the Map button, the bar takes what is left")
+    hp.width = 150
+    Hd.layout(hp)
+    local cut = drewOp("IGUI_MQ_Horde_HudActive|12|17|30")
+    T.check(barOnLine2() == nil and cut ~= nil and cut.k == 3 and cut.x == Hd.PAD and hp.mapHit ~= nil,
+        "a narrow panel: the count cut from the left edge (not right-aligned past it), no bar, the Map button (C5)")
+    hp.width = narrow
     Cl.state.hordes = { cur = cur("waiting") }
     Hd.layout(hp)
     local m, label = hp.mapHit, drewOp("IGUI_MQ_UI_Map")
     local tip = nil
     for _, t in ipairs(hp.tips) do if t.text == "IGUI_MQ_UI_ShowOnMap" then tip = t end end
     T.check(#hp.hits == 5 and m ~= nil and label ~= nil and m.x1 == hp.width - Hd.PAD and label.y > Hd.titleH() + D.chipH()
-        and tip ~= nil and tip.x == m.x0 and tip.y == m.y0,
+        and tip ~= nil and tip.x == m.x0 and tip.y == label.y - 1,
         "waiting: a Map button at the right of line 2 with its hover text; still five unpin targets")
+    local hx = hp.hideHit
+    T.check(m.y1 - m.y0 >= 24 and m.y1 <= hp.hits[1].y0 and hx ~= nil and hx.y1 <= m.y0,
+        "the Map hit box is 24 px tall, between the horde x above and the next row's unpin below (review 4)")
     local lineOp = drewOp("IGUI_MQ_Horde_HudWait|10620|9810")
     T.check(lineOp ~= nil and lineOp.x == Hd.PAD and lineOp.y == label.y, "line 2: the spot text left of the button")
     T.check(Hd.onMouseDown(hp, m.x0 + 2, m.y0 + 2) == true and #T.mapShown == 1 and T.mapShown[1].playerNum == 0
@@ -1153,11 +1175,11 @@ return function(T)
         "announced: place, kinds, the 30-tile rule, a 'starts in' countdown (not 'left') and the spot for the Map button")
     tok, title, body, right, spot = banner(cur("waiting", { waves = 3 }))
     T.check(title == "IGUI_MQ_Horde_Title_wait|IGUI_MQ_Horde_Wave|1|3|" .. place and body == "IGUI_MQ_Horde_WaitBody|10620|9810"
-        and has(right, "IGUI_MQ_UI_Left|") and spot ~= nil, "waiting: wave 1/3, where to go, the time left, Map")
+        and has(right, "IGUI_MQ_Horde_WaitLeft|") and spot ~= nil, "waiting: wave 1/3, where to go, 'waiting' (not 'left'), Map")
     tok, title, body, right, spot = banner(cur("active", { wave = 2, waves = 3 }))
     T.check(tok == D.EXTRA.horde and title == "IGUI_MQ_Horde_Title_active|IGUI_MQ_Horde_Wave|2|3|" .. place
-        and body == "IGUI_MQ_Horde_ActiveBody|17|30|9" and right == "IGUI_MQ_UI_Left|" .. D.duration(600000) and spot == nil,
-        "active: wave 2/3, cleared / wave size and my kills, no pool, no Map")
+        and body == "IGUI_MQ_Horde_ActiveBody|17|30|9" and right == "IGUI_MQ_UI_Left|" .. D.duration(600000) and spot ~= nil,
+        "active: wave 2/3, cleared / wave size and my kills, no pool, Map (plan-horde-result 1)")
     tok, title, body, right, spot = banner(cur("rest", { wave = 2, waves = 3, left = 0 }))
     T.check(tok == D.EXTRA.hordeSoon and title == "IGUI_MQ_Horde_Title_rest|2|3|" .. place
         and body == "IGUI_MQ_Horde_RestBody|3|10620|9810" and right == "IGUI_MQ_Horde_NextIn|" .. D.duration(24000)
@@ -1194,23 +1216,35 @@ return function(T)
         "the last result shows for 10 minutes only; nothing without a horde")
     T.check(banner(cur("planned"), lastWin) ~= nil and select(2, banner(cur("active"), lastWin)) == "IGUI_MQ_Horde_Title_active|" .. place,
         "a live horde wins over the last result")
-    -- the banner block (daily and Hordes pages): a pooled Map button at the bottom right while the spot matters
+    -- the banner block (daily and Hordes pages): pooled Map and tracker toggle buttons at the bottom right
     local par = setmetatable({}, { __index = Base })
     local pg = { UI = UI, theme = { colors = colors }, pool = D.pool(par) }
     local bb = D.begin({ UI = UI, theme = pg.theme })
     pg.pool:begin()
     local ny = PD.hordeBlock(pg, bb, 10, 20, 400, { hordes = { cur = cur("waiting") } })
     pg.pool:finish()
-    local mb = pg.pool.items.hordeMap
+    local mb, hb = pg.pool.items.hordeMap, pg.pool.items.hordeHud
     T.check(mb ~= nil and mb.visible ~= false and mb.opts.title == "IGUI_MQ_UI_Map" and mb.tooltip == "IGUI_MQ_UI_ShowOnMap"
-        and mb.x == 10 + 400 - 10 - mb.width and mb.y + mb.height + 6 + D.GAP == ny, "waiting: Map button inside the banner, bottom right")
+        and hb ~= nil and hb.opts.title == "IGUI_MQ_Horde_HideHud" and hb.x == 10 + 400 - 10 - hb.width
+        and mb.x == hb.x - 6 - mb.width and mb.y == hb.y and mb.y + mb.height + 6 + D.GAP == ny,
+        "waiting: Map, then Hide from tracker, inside the banner at the bottom right")
     mb.onclick(mb.target, mb)
     T.check(#T.mapShown == 1 and T.mapShown[1].x == 10620 and T.mapShown[1].y == 9810 and T.mapShown[1].playerNum == 0,
         "the banner's Map opens the world map on the spot")
     pg.pool:begin()
     T.check(PD.hordeBlock(pg, bb, 10, 20, 400, { hordes = { cur = cur("active") } }) ~= nil, "active: the banner")
     pg.pool:finish()
-    T.check(mb.visible == false, "active: no Map button")
+    T.check(mb.visible ~= false and hb.visible ~= false, "active: the Map button and the toggle (plan-horde-result 1)")
+    T.mapAllowed = false
+    pg.pool:begin()
+    PD.hordeBlock(pg, bb, 10, 20, 400, { hordes = { cur = cur("active") } })
+    pg.pool:finish()
+    T.check(mb.visible == false and hb.visible ~= false and hb.x == 10 + 400 - 10 - hb.width, "map not allowed: the toggle alone")
+    T.mapAllowed = true
+    pg.pool:begin()
+    PD.hordeBlock(pg, bb, 10, 20, 400, { hordes = { cur = nil, last = lastWin } })
+    pg.pool:finish()
+    T.check(mb.visible == false and hb.visible == false, "an ended horde: no Map, no toggle")
     T.check(PD.hordeBlock(pg, bb, 10, 20, 400, { hordes = {} }) == nil, "no horde: no banner")
     T.mapShown = {}
 
@@ -1270,13 +1304,18 @@ return function(T)
     Cl.receive("delta", { hordes = { cur = cur("announced"), last = nil } })
     local z1, m1 = M.zoneProvider(), M.markerProvider(0)
     local rc = z1[1] and z1[1].rects[1]
-    T.check(#z1 == 1 and rc.x1 == 10610 and rc.x2 == 10630 and rc.y1 == 9800 and rc.y2 == 9820 and z1[1].name == place
-        and m1.markers[1].x == 10620 and m1.markers[1].texture.path == M.TEX and M.markerProvider(1) == nil,
-        "a delta with an announced horde: zone +-10 around the spot, marker on it (first player)")
+    local soonTitle = "IGUI_MQ_Horde_Title_soon|" .. place
+    T.check(#z1 == 1 and rc.x1 == 10610 and rc.x2 == 10630 and rc.y1 == 9800 and rc.y2 == 9820 and z1[1].name == soonTitle
+        and m1.markers[1].x == 10620 and m1.markers[1].label == soonTitle and m1.markers[1].texture.path == M.TEX
+        and M.markerProvider(1) == nil,
+        "a delta with an announced horde: zone +-10 around the spot, marker on it (first player), labelled with its state")
     Cl.receive("delta", { hordes = { cur = cur("announced", { left = 5 }) } })
     T.check(M.zoneProvider() == z1 and M.markerProvider(0) == m1, "same view: the very same cached tables")
     Cl.receive("delta", { hordes = { cur = cur("active") } })
-    T.check(M.zoneProvider() ~= z1 and M.markerProvider(0).revision > m1.revision, "state changed: rebuilt")
+    T.check(M.zoneProvider() ~= z1 and M.markerProvider(0).revision > m1.revision
+        and M.markerProvider(0).markers[1].label == "IGUI_MQ_Horde_Title_active|" .. place
+        and M.zoneProvider()[1].name == "IGUI_MQ_Horde_Title_active|" .. place,
+        "state changed: rebuilt, the label says it runs (not only the red; review 1)")
     Cl.receive("delta", { hordes = { cur = cur("rest", { wave = 1, waves = 3 }) } })
     T.check(M.zoneProvider() ~= M.NONE and M.markerProvider(0).markers[1].x == 10620,
         "rest between waves: the spot stays on the map")
@@ -1288,6 +1327,391 @@ return function(T)
         registerMarkerProvider = function(owner, fn) reg.marker = { owner, fn } end }
     T.check(M.register() == true and reg.zone[1] == "MinidoracatQuestFor42" and reg.zone[2] == M.zoneProvider
         and reg.marker[2] == M.markerProvider, "MiniMap present: zone and marker providers registered")
+
+    -- ===== plan-horde-result 1029: the x (this horde only), quiet toasts, death / MVP toasts, results, View results =====
+    local shownToasts = {}
+    local realToast, realSend, realUI = D.toast, Cl.send, MinidoracatUI
+    D.toast = function(title, msg, border) shownToasts[#shownToasts + 1] = { title = title, msg = msg, border = border } end
+    local sends = {}
+    Cl.send = function(cmd, args) sends[#sends + 1] = { cmd = cmd, args = args }; return "rq" end
+
+    T.section("horde x: takes this horde off the panel, the next one shows again")
+    Cl.state = { pins = { "d1" }, day = { quests = quests }, hordes = { cur = cur("active") } }
+    Hd.layout(hp)
+    local hx = hp.hideHit
+    local hideTip, timeOp = nil, drewOp("IGUI_MQ_UI_Left|10:00")
+    for _, t in ipairs(hp.tips) do if t.text == "IGUI_MQ_Horde_Hide" then hideTip = t end end
+    T.check(hx ~= nil and hx.id == 3 and hx.x1 - hx.x0 >= 20 and hx.y1 - hx.y0 == D.chipH() and hideTip ~= nil
+        and hideTip.x == hx.x0 and timeOp ~= nil and timeOp.x <= hx.x0 - 4,
+        "an active row: the x at the right of line 1 (20 px x the line), its hover text, the countdown left of it")
+    T.check(drewOp("IGUI_MQ_Horde_Tag").c == D.EXTRA.horde and timeOp.c == D.EXTRA.horde, "active: chip and countdown in the horde red")
+    Cl.state.hordes = { cur = cur("waiting") }
+    Hd.layout(hp)
+    T.check(drewOp("IGUI_MQ_Horde_Tag").c == D.EXTRA.hordeSoon and drewOp("IGUI_MQ_Horde_WaitLeft|1:15:00").c == D.EXTRA.hordeSoon,
+        "waiting: chip and countdown in the orange, red only while it runs (review 3)")
+    T.check(Hd.onMouseDown(hp, hp.hideHit.x0 + 2, hp.hideHit.y0 + 2) == true and Cl.hordeHidden == 3
+        and Hd.rows(Cl.state, defs, now)[1].horde == nil and #T.mapShown == 0, "a click on the x hides horde 3: no horde row")
+    Hd.layout(hp)
+    T.check(hp.hideHit == nil and hp.mapHit == nil and #hp.hits == 1, "laid out again: the pin stays, the horde row is gone")
+    Cl.state.pins = {}
+    T.check(not Hd.wanted(), "no pins and the only horde hidden: no panel")
+    Cl.state.hordes = { cur = cur("announced", { id = 4 }) }
+    T.check(Hd.wanted() and Hd.rows(Cl.state, defs, now)[1].hordeId == 4, "the next horde (id 4) shows again")
+    -- the banner toggle (daily and Hordes pages)
+    Cl.state.hordes = { cur = cur("active") }
+    pg.pool:begin()
+    PD.hordeBlock(pg, bb, 10, 20, 400, Cl.state)
+    pg.pool:finish()
+    T.check(hb.visible ~= false and hb.opts.title == "IGUI_MQ_Horde_ShowHud", "hidden: the banner offers Show in tracker")
+    hb.onclick(hb.target, hb)
+    T.check(Cl.hordeHidden == nil and Hd.rows(Cl.state, defs, now)[1].hordeId == 3, "Show in tracker: the row is back")
+    pg.pool:begin()
+    PD.hordeBlock(pg, bb, 10, 20, 400, Cl.state)
+    pg.pool:finish()
+    hb.onclick(hb.target, hb)
+    T.check(hb.opts.title == "IGUI_MQ_Horde_HideHud" and Cl.hordeHidden == 3, "Hide from tracker: hidden again")
+
+    T.section("a hidden horde's server-wide toasts stay quiet; remind, paid and other hordes still show")
+    local function shows(t)
+        local n = #shownToasts
+        t.name, t.town = "Gas", "muldraugh"
+        E.onToast(t)
+        return #shownToasts > n
+    end
+    T.check(not shows({ kind = "horde", ev = "spawn", id = 3, wave = 1, waves = 1, size = 30, limitMin = 15 })
+        and not shows({ kind = "horde", ev = "death", id = 3, names = { "bob" }, anon = 0, wave = 1, waves = 1 })
+        and not shows({ kind = "horde", ev = "win", id = 3, waves = 1 }) and not shows({ kind = "horde", ev = "mvp", id = 3, names = { "kate" }, kills = 9 }),
+        "horde 3 hidden: spawn, death, win and MVP do not show")
+    T.check(shows({ kind = "horde", ev = "remind", id = 3, startMs = now + 120000 }), "remind still shows: the safety warning")
+    T.check(shows({ kind = "hordePaid", id = 3, pts = 5, kills = 2 }) and shows({ kind = "horde", ev = "soon", id = 4, startMs = now + 60000, waves = 1 }),
+        "the personal reward and the next horde's toasts still show")
+    Cl.hordeHidden = nil
+    T.check(shows({ kind = "horde", ev = "spawn", id = 3, wave = 1, waves = 1, size = 30, limitMin = 15 }), "shown again: its toasts show")
+
+    T.section("death and MVP toasts")
+    title, body, right = toast({ ev = "death", names = { "bob" }, anon = 0, wave = 2, waves = 3 })
+    T.check(title == "IGUI_MQ_Horde_Title_death|bob" and body == "IGUI_MQ_Horde_DeathBody|" .. place .. "|2|3" and right == nil,
+        "one death: the name, the place and wave 2/3, a plain grey frame")
+    title = toast({ ev = "death", names = {}, anon = 1, wave = 1, waves = 1 })
+    T.check(title == "IGUI_MQ_Horde_Title_death|IGUI_MQ_UI_Anonymous", "an anonymous player: 'anonymous', no name")
+    title, body = toast({ ev = "death", names = { "bob", "amy" }, anon = 1, wave = 2, waves = 3 })
+    T.check(title == "IGUI_MQ_Horde_Title_deathN|3"
+        and body == "IGUI_MQ_Horde_DeathBodyN|bobIGUI_MQ_UI_ListSepamyIGUI_MQ_UI_ListSepIGUI_MQ_UI_Anonymous|" .. place .. "|2|3",
+        "deaths merged: the count, the names and the anonymous one, the place and the wave")
+    title, body, right = toast({ ev = "mvp", names = { "kate" }, anon = 0, kills = 162 })
+    T.check(title == "IGUI_MQ_Horde_Title_mvp|kate" and body == "IGUI_MQ_Horde_MvpBody|162" and right == D.EXTRA.gold, "MVP: name, kills, gold")
+    title, body = toast({ ev = "mvp", names = { "kate" }, anon = 1, kills = 90 })
+    T.check(title == "IGUI_MQ_Horde_Title_mvp|kateIGUI_MQ_UI_ListSepIGUI_MQ_UI_Anonymous" and body == "IGUI_MQ_Horde_MvpBodyTie|90",
+        "a tie: every MVP, 'each'")
+
+    T.section("results: pushed ones wait until the player is safe, asked ones open at once")
+    local R = Q.HordeResult
+    local winUI = setmetatable({ API_MAJOR = 1, API_REVISION = 99,
+        CAPABILITIES = { window = true, controls = true, scrollPanel = true },
+        Theme = { create = function() return { colors = colors } end }, Icons = { draw = function() return true end },
+        Window = { new = widget({ contentTop = function() return 24 end, close = function(self) self.visible = false end,
+            addToUIManager = function(self) self.added = true end, bringToTop = function() end }) } }, { __index = UI })
+    MinidoracatUI = { v1 = winUI }
+    local alice = getSpecificPlayer(0)
+    local function result(extra)
+        local s = { id = 8, name = "Gas", town = "muldraugh", state = "success", spawnAt = now - 14 * 60000, endedAt = now,
+            waves = 3, cleared = 3, spawned = 40, killed = 40, pool = 100, capped = true, joined = 3, me = 2,
+            rows = { { r = 1, n = "kate", k = 20, p = 50, mvp = true }, { r = 2, n = "alice", k = 15, p = 37 },
+                { r = 3, anon = true, k = 5, p = 13, dead = true } },
+            deaths = { { anon = true, wave = 2 } } }
+        for k, v in pairs(extra or {}) do s[k] = v end
+        return s
+    end
+    local function opened() return R.win ~= nil and R.win:isVisible() end
+    local t0 = T.now
+    local function tick(sec) T.now = t0 + sec * 1000; R.tick(T.now) end
+    T.cellZombies = {}
+    local near = T.zombie({ x = alice.x + 12, y = alice.y + 12, cell = true })
+    T.zombie({ x = alice.x + 25, y = alice.y, cell = true })   -- 25 tiles: does not count
+    Cl.state = { pins = {}, hordes = {} }
+    local pushed = result({ push = true })
+    Cl.receive("hordeResult", pushed)
+    T.check(R.pending == pushed and not opened(), "pushed at the end: it waits, no window")
+    local rr = Hd.rows(Cl.state, defs, now)[1]
+    T.check(Hd.wanted() and rr ~= nil and rr.result == pushed and rr.name == "IGUI_MQ_Horde_HudDone_success|" .. place
+        and rr.line == "IGUI_MQ_Horde_HudResultWait", "the panel shows the wait row: cleared, the place, opens once safe")
+    Hd.layout(hp)
+    T.check(hp.resultHit ~= nil and drewOp("IGUI_MQ_Horde_ResultBtn") ~= nil and drewOp("IGUI_MQ_Horde_Tag").c == D.EXTRA.success
+        and hp.hideHit == nil, "the wait row: a green chip and a Results button, no x")
+    for s = 1, 5 do tick(s) end
+    T.check(R.pending == pushed and not opened() and R.calm == 0, "a live zombie 17 tiles away: still waiting after 5 s")
+    near.dead = true
+    tick(6); tick(7)
+    near.dead = false
+    tick(8)
+    near.dead = true
+    tick(9); tick(10)
+    T.check(R.pending == pushed and not opened(), "2 safe seconds, a zombie, 2 safe seconds: still waiting (3 in a row)")
+    tick(10.5)
+    T.check(not opened(), "checks run once a second")
+    tick(11)
+    T.check(opened() and R.s == pushed and R.pending == nil and Hd.rows(Cl.state, defs, now)[1] == nil,
+        "3 safe seconds in a row (the corpse does not count): the window opens, the wait row is gone")
+    R.close()
+    T.check(not opened(), "Close closes it")
+    -- 10 minutes, death
+    t0 = T.now
+    near.dead = false
+    Cl.receive("hordeResult", result({ push = true }))
+    tick(R.KEEP_MS / 1000 - 1)
+    T.check(R.pending ~= nil, "still waiting just before 10 minutes")
+    tick(R.KEEP_MS / 1000)
+    T.check(R.pending == nil and not opened(), "10 minutes: dropped without opening (the Hordes page still has it)")
+    t0 = T.now
+    Cl.receive("hordeResult", result({ push = true }))
+    alice.dead = true
+    tick(1)
+    T.check(R.pending == nil and not opened(), "the player died: dropped")
+    alice.dead = false
+    do
+    -- C1: an automatic open takes the keys and the gamepad (Window onShown): it waits for a free screen, a gamepad
+    -- player gets a toast
+    local joy = getJoypadData
+    near.dead = true
+    getJoypadData = function() return {} end
+    t0 = T.now
+    local nt = #shownToasts
+    Cl.receive("hordeResult", result({ push = true }))
+    tick(1); tick(2); tick(3)
+    T.check(not opened() and R.pending == nil and #shownToasts == nt + 1 and shownToasts[nt + 1].title == "IGUI_MQ_Horde_ResultTitle"
+        and shownToasts[nt + 1].msg == "IGUI_MQ_Horde_ResultHead_success|" .. place,
+        "a gamepad player, safe 3 s: one toast instead of the window, the results dropped (review C1)")
+    getJoypadData = joy
+    local other = { shown = true }
+    function other:isReallyVisible() return self.shown end
+    winUI.Focus = { activeRoot = other }
+    t0 = T.now
+    Cl.receive("hordeResult", result({ push = true }))
+    for s = 1, 5 do tick(s) end
+    T.check(not opened() and R.pending ~= nil, "another framework window holds the keys: safe 5 s, still waiting")
+    Hd.layout(hp)
+    T.check(hp.resultHit ~= nil, "meanwhile the panel's Results button is there")
+    other.shown = false
+    tick(6)
+    T.check(opened() and R.pending == nil, "that window closed: the next check opens it")
+    R.close()
+    winUI.Focus.activeRoot = R.win
+    local qwin = Q.Window.visible
+    Q.Window.visible = function() return true end
+    t0 = T.now
+    Cl.receive("hordeResult", result({ push = true }))
+    for s = 1, 4 do tick(s) end
+    T.check(not opened() and R.pending ~= nil, "the Quest window open (the results window itself the last root): waiting")
+    tick(R.KEEP_MS / 1000)
+    T.check(not opened() and R.pending == nil, "still busy after 10 minutes: dropped")
+    Q.Window.visible = qwin
+    t0 = T.now
+    Cl.receive("hordeResult", result({ push = true }))
+    tick(1); tick(2); tick(3)
+    T.check(opened(), "a free screen, no gamepad: opens")
+    R.close()
+    winUI.Focus = nil
+    near.dead = false
+    end
+    -- the Results button on the panel opens it at once
+    t0 = T.now
+    Cl.receive("hordeResult", result({ push = true }))
+    Hd.layout(hp)
+    T.check(Hd.onMouseDown(hp, hp.resultHit.x0 + 2, hp.resultHit.y0 + 2) == true and opened() and R.pending == nil,
+        "the panel's Results button opens it with a zombie near")
+    R.close()
+    -- asked from the Hordes page: no push, opens at once next to a live zombie
+    local asked = result({ id = 7 })
+    Cl.receive("hordeResult", asked)
+    T.check(opened() and R.s == asked and R.pending == nil, "asked for (no push): opens at once, no safety wait")
+
+    T.section("results window content")
+    local function listText(s)
+        for i = 1, R.list.n do if R.list.ops[i].s == s then return R.list.ops[i] end end
+        return nil
+    end
+    local function sumText(s)
+        for i = 1, R.canvas.n do if R.canvas.ops[i].s == s then return R.canvas.ops[i] end end
+        return nil
+    end
+    T.check(sumText("IGUI_MQ_Horde_ResultHead_success|" .. place) ~= nil
+        and sumText("IGUI_MQ_Horde_ResultMeta|" .. D.dateTime(now) .. "|3|3|14") ~= nil
+        and sumText("3") ~= nil and sumText("40") ~= nil and sumText("100") ~= nil and sumText("IGUI_MQ_Horde_ResultCapped") ~= nil,
+        "head, end time / waves / 14 minutes, joined / kills / paid, the cap note")
+    T.check(sumText("IGUI_MQ_Horde_MvpTag") ~= nil and sumText("kate") ~= nil and sumText("IGUI_MQ_Horde_MvpKills|20") ~= nil
+        and sumText("IGUI_MQ_Horde_DiedWave|IGUI_MQ_UI_Anonymous|2") ~= nil, "the MVP as a tag with kills, the deaths by wave")
+    local meOp = listText("IGUI_MQ_Horde_You|alice")
+    local frame = nil
+    for i = 1, R.list.n do local o = R.list.ops[i]; if o.k == 2 and o.c.token == "accent" then frame = o end end
+    T.check(meOp ~= nil and frame ~= nil and frame.y < meOp.y and frame.y + frame.h > meOp.y, "my row: '(you)' and a frame, not only a color")
+    T.check(listText("IGUI_MQ_UI_Anonymous") ~= nil and listText("IGUI_MQ_Horde_Died") ~= nil and listText("IGUI_MQ_Horde_MvpTag") ~= nil,
+        "the anonymous row has no name, the dead one says Died, the MVP has its tag")
+    T.check(sumText("IGUI_MQ_Horde_NoKillsYou") == nil and sumText("IGUI_MQ_Horde_ResultMore|0") == nil and R.sp.height == 3 * (D.fontH() + 8),
+        "3 rows: no scroll hint, the list as tall as its rows")
+    local many = {}
+    for i = 1, 14 do many[i] = { r = i, n = "p" .. i, k = 30 - i, p = 1 } end
+    many[15] = { r = 140, n = "alice", k = 0, p = 0 }
+    Cl.receive("hordeResult", result({ rows = many, me = 15 }))
+    T.check(sumText("IGUI_MQ_Horde_ResultMore|5") ~= nil and R.sp.height == R.ROWS * (D.fontH() + 8) and R.list.height == 15 * (D.fontH() + 8)
+        and listText("140") ~= nil and listText("IGUI_MQ_Horde_You|alice") ~= nil,
+        "15 rows: 10 shown, the rest scroll with '5 more', my row past the top 100 keeps its rank")
+    local notIn = result({ rows = { { r = 1, anon = true, a = "zed", k = 3, p = 2 } } })
+    notIn.me = nil   -- no kill: the server sends no me
+    Cl.receive("hordeResult", notIn)
+    T.check(sumText("IGUI_MQ_Horde_NoKillsYou") ~= nil and listText("IGUI_MQ_UI_AnonReal|zed") ~= nil,
+        "not in it: 'no kills'; an admin sees the anonymous account")
+    -- the window follows the font: CatLang's Small is 20 px high and DE "Gezahlte Punkte" needs 125 px there
+    local function tileLabelW()
+        local label = nil
+        for i = 1, R.canvas.n do if R.canvas.ops[i].s == "IGUI_MQ_Horde_ResultPaid" then label = R.canvas.ops[i] end end
+        for i = 1, R.canvas.n do
+            local o = R.canvas.ops[i]
+            if label ~= nil and o.k == 2 and o.x == label.x - 8 and o.y < label.y and o.y + o.h > label.y then return o.w - 16 end
+        end
+        return nil
+    end
+    T.check(R.win.width == 400 and tileLabelW() == math.floor((400 - 28 - 2 * D.GAP) / 3) - 16, "a 14 px font: 400 wide")
+    local tm = getTextManager
+    getTextManager = function()
+        return { MeasureStringX = function(_, _, s) return #tostring(s) * 7 end, getFontHeight = function() return 20 end }
+    end
+    Cl.receive("hordeResult", result())
+    T.check(R.win.width == 500 and R.sp.width == 500 - 28 and (tileLabelW() or 0) >= 125,
+        "a 20 px font (CatLang): 500 wide, each tile label gets 125 px and more")
+    getTextManager = tm
+    Cl.receive("hordeResult", result())
+    T.check(R.win.width == 400, "the font back at 14 px: 400 again on the next open")
+    do
+    do
+    -- C2 (review r2): Esc and gamepad B close it at once; a held Esc is eaten with its release (eatKeyPress), so neither
+    -- the pause menu nor a Dock above us gets it; B (Esc up) eats nothing
+    local kb, gk, fw = Keyboard, GameKeyboard, winUI.Focus
+    local escDown, eaten = true, {}
+    Keyboard = { KEY_ESCAPE = 1, isKeyDown = function(k) return k == 1 and escDown end }
+    GameKeyboard = { eatKeyPress = function(k) eaten[#eaten + 1] = k end }
+    -- the framework ledger (Focus.lua:90-107): eat on a handled press, release marks, consumed reads (and clears a
+    -- released hold)
+    local ledger, releasing = {}, {}
+    winUI.Focus = {
+        eat = function(k) ledger[k] = true end,
+        release = function(k) if ledger[k] then releasing[k] = true end end,
+        consumed = function(k)
+            local mine = ledger[k] == true
+            if releasing[k] then ledger[k], releasing[k] = nil, nil end
+            return mine
+        end,
+    }
+    -- Focus.onKeyPress: handle -> onEscape (escapeOverlay) answers true -> Focus.eat(key) (Focus.lua:963-965)
+    local function pressEsc()
+        local ok, took = pcall(R.win.onEscape, R.win)
+        if ok and took == true then winUI.Focus.eat(1) end
+        return ok and took
+    end
+    T.check(R.win.added and opened() and pressEsc() == true and not opened() and #eaten == 1 and eaten[1] == 1,
+        "Esc held: onEscape closes it at once, eats Esc's press and release once, answers true (review r2)")
+    T.check(ledger[1] == true, "right after: the framework ledger holds Esc (the engine eats the release, no UI sees it)")
+    escDown = false
+    R.tick(T.now)
+    T.check(winUI.Focus.consumed(1) == false and ledger[1] == nil and not R.escEaten,
+        "the next tick settles the ledger: the next Esc press reaches the game (E2E quest-hres-1029c)")
+    Cl.receive("hordeResult", result())
+    eaten, ledger[1] = {}, true   -- an Esc hold some other root owns: B must not settle it
+    -- the framework's B: Focus.onJoypadDown asks onEscape (escapeOverlay) and returns when it says true, no closeRoot
+    -- (Focus.lua:1101-1108): onEscape alone must close it
+    local ok, closedIt = pcall(R.win.onEscape, R.win)
+    T.check(ok and closedIt == true and not opened() and #eaten == 0 and not R.escEaten,
+        "gamepad B (Esc up): onEscape alone closes it, nothing eaten (the next Esc would be lost), nothing to settle")
+    R.tick(T.now)
+    T.check(ledger[1] == true and next(releasing) == nil, "B: the ledger is left alone (another root's hold stays)")
+    Keyboard, GameKeyboard, winUI.Focus = kb, gk, fw
+    end
+    -- C4: 50 deaths: 10 names and "+40"; the window stays on a 768 / 400 px high screen
+    local core = getCore
+    local function screen(w, h)
+        getCore = function() return { getScreenWidth = function() return w end, getScreenHeight = function() return h end } end
+    end
+    local dead50, many15 = {}, {}
+    for i = 1, 50 do dead50[i] = { n = "d" .. i, wave = 2 } end
+    for i = 1, 15 do many15[i] = { r = i, n = "p" .. i, k = 30 - i, p = 1 } end
+    local named, plus = 0, nil
+    screen(1366, 768)
+    Cl.receive("hordeResult", result({ deaths = dead50, rows = many15 }))
+    for i = 1, R.canvas.n do
+        local s = R.canvas.ops[i].s
+        if type(s) == "string" then
+            for _ in string.gmatch(s, "IGUI_MQ_Horde_DiedWave|") do named = named + 1 end
+            if has(s, "+40") then plus = s end
+        end
+    end
+    T.check(named == 10 and plus ~= nil and R.win.y + R.win.height <= 768 and R.sp.height == R.ROWS * (D.fontH() + 8),
+        "50 deaths on a 768 px screen: 10 names then +40, the window inside it, 10 rows")
+    screen(1366, 400)
+    R.layout()
+    local rh = D.fontH() + 8
+    T.check(R.win.y + R.win.height <= 400 and R.win.y >= 0 and R.sp.height < R.ROWS * rh and R.sp.height >= R.MIN_ROWS * rh
+        and sumText("IGUI_MQ_Horde_ResultMore|" .. math.floor(15 - R.sp.height / rh)) ~= nil,
+        "a 400 px screen: fewer rows (3 at least), the rest 'more below', the window and Close inside it")
+    -- C3: the tracker is never narrower than 0.3.1's min(360, 20 x font)
+    local tmgr = getTextManager
+    local function font(h)
+        getTextManager = function()
+            return { MeasureStringX = function(_, _, s) return #tostring(s) * 7 end, getFontHeight = function() return h end }
+        end
+    end
+    font(16); screen(1024, 768)
+    local w1024 = Hd.width()
+    font(20); screen(1366, 768)
+    local w1366 = Hd.width()
+    font(20); screen(1920, 1080)
+    local w1920 = Hd.width()
+    T.check(w1024 == 320 and w1366 == 360 and w1920 == 480,
+        "tracker width: 1024 at 16 px 320 (0.3.1), 1366 at 20 px 360 (0.3.1), 1920 at 20 px 480 (wider; review C3)")
+    getTextManager, getCore = tmgr, core
+    R.close()
+    end
+    Cl.receive("result", { ok = false, command = "hordeResult", code = "NOT_FOUND" })
+    T.check(shownToasts[#shownToasts].title == "IGUI_MQ_Horde_ResultGone", "asked for one no longer kept: 'only the last 20'")
+    MinidoracatUI = nil
+    local n0 = #shownToasts
+    Cl.receive("hordeResult", result())
+    T.check(#shownToasts == n0 + 1 and shownToasts[n0 + 1].title == "IGUI_MQ_Horde_ResultTitle"
+        and shownToasts[n0 + 1].msg == "IGUI_MQ_Horde_ResultHead_success|" .. place and not opened(),
+        "no framework: one toast instead of the window")
+
+    T.section("Hordes page: View results only where somebody joined; no 'none yet' while loading")
+    local hpg = { UI = UI, theme = { colors = colors }, parent = ISPanel:new(0, 0, 640, 480), width = 640, height = 480 }
+    D.scrollPage(hpg)
+    local PH = Q.PageHordes
+    local function pageText(s)
+        for i = 1, hpg.canvas.n do if hpg.canvas.ops[i].s == s then return hpg.canvas.ops[i] end end
+        return nil
+    end
+    Cl.state = { hordes = { on = true } }
+    Cl.records, Cl.recordsError = nil, nil
+    PH.layout(hpg)
+    T.check(pageText("IGUI_MQ_UI_HordesEmpty") == nil and pageText("IGUI_MQ_UI_HordesRecent") == nil and pageText("IGUI_MQ_UI_Loading") ~= nil,
+        "loading: the totals say so, no 'no horde has ended yet' (review 5)")
+    Cl.recordsError = "NO_REPLY"
+    PH.layout(hpg)
+    T.check(pageText("IGUI_MQ_UI_HordesEmpty") == nil and pageText("IGUI_MQ_UI_RecordsError") ~= nil, "failed: the error, still no 'none yet'")
+    Cl.records, Cl.recordsError = { rows = {}, hordes = {} }, nil
+    PH.layout(hpg)
+    T.check(pageText("IGUI_MQ_UI_HordesEmpty") ~= nil, "loaded and empty: 'no horde has ended yet'")
+    Cl.records = { rows = {}, hordes = {
+        { id = 8, name = "Gas", town = "muldraugh", state = "success", endedAt = now, waves = 3, cleared = 3, mine = 0, got = 0, joined = 3 },
+        { id = 6, name = "Gas", town = "muldraugh", state = "cancelled", endedAt = now - 1, waves = 1, cleared = 0, joined = 0 },
+        { id = 5, name = "Gas", town = "muldraugh", state = "failed", why = "nobody", endedAt = now - 2, waves = 1, cleared = 0 } } }
+    PH.layout(hpg)
+    local vb = hpg.pool.items["res:1"]
+    T.check(vb ~= nil and vb.visible ~= false and vb.opts.title == "IGUI_MQ_UI_ViewResult" and vb.internal == 8
+        and (hpg.pool.items["res:2"] == nil or hpg.pool.items["res:2"].visible == false)
+        and (hpg.pool.items["res:3"] == nil or hpg.pool.items["res:3"].visible == false),
+        "View results on the one somebody joined (I did not: anyone may look), none where nobody killed")
+    sends = {}
+    vb.onclick(vb.target, vb)
+    T.check(#sends == 1 and sends[1].cmd == "hordeResult" and sends[1].args.id == 8, "pressed: asks the server for horde 8")
+
+    D.toast, Cl.send, MinidoracatUI = realToast, realSend, realUI
 
     M.registered = nil
     for k, v in pairs(saved) do _G[k] = v end

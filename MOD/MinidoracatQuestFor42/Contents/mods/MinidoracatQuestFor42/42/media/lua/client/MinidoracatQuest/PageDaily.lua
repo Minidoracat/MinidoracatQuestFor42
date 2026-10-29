@@ -131,8 +131,8 @@ end
 
 -- horde banner (plan r10 state screens, hordes v2): announced / waiting / active / rest from state.hordes.cur, else
 -- the last result for LAST_MS after it ended (waves cleared, points, the cap note). Returns token, title, body,
--- rightText, spot | nil; spot (the cur) while the spot matters and the vanilla map is allowed: the caller adds the
--- Map button. The page ticks every 30 s, so the countdowns here are coarse (the tracker panel counts by the second).
+-- rightText, spot | nil; spot (the cur) while the vanilla map is allowed: the caller adds the Map button.
+-- The page ticks every 30 s, so the countdowns here are coarse (the tracker panel counts by the second).
 -- Announced counts down to the start and says the 30-tile rule, so players who stay away know when and how far
 -- (design r12; a clock read as the game time). The player Hordes page shows the same banner.
 P.LAST_MS = 600000
@@ -150,7 +150,7 @@ function P.hordeBanner(s, now)
         if st == "waiting" then
             return D.EXTRA.hordeSoon, getText("IGUI_MQ_Horde_Title_wait", D.hordeName(h)),
                 getText("IGUI_MQ_Horde_WaitBody", tostring(h.x), tostring(h.y)),
-                getText("IGUI_MQ_UI_Left", D.duration((tonumber(h.expireAt) or now) - now)), spot
+                getText("IGUI_MQ_Horde_WaitLeft", D.duration((tonumber(h.expireAt) or now) - now)), spot
         end
         if st == "rest" then
             local w = tonumber(h.wave) or 1
@@ -162,7 +162,7 @@ function P.hordeBanner(s, now)
         return D.EXTRA.horde, getText("IGUI_MQ_Horde_Title_active", D.hordeName(h)),
             getText("IGUI_MQ_Horde_ActiveBody", D.num(math.max(0, n - (tonumber(h.left) or 0))), D.num(n),
                 D.num(tonumber(h.mine) or 0)),
-            getText("IGUI_MQ_UI_Left", D.duration((tonumber(h.endsAt) or now) - now))
+            getText("IGUI_MQ_UI_Left", D.duration((tonumber(h.endsAt) or now) - now)), spot
     end
     local l = hs.last
     if type(l) ~= "table" or now - (tonumber(l.endedAt) or 0) >= P.LAST_MS then return nil end
@@ -187,19 +187,41 @@ function P.hordeBanner(s, now)
 end
 
 function P.onHordeMap(page, btn) D.showOnMap(0, btn.spotX, btn.spotY) end
+function P.onHordeHud(page, btn) C.setHordeHidden(btn.internal) end
 
--- the banner, with the Map button at its bottom right while the spot matters (design 5.3). Returns the y below,
--- or nil without a horde to show. The Hordes page draws it too.
+-- the banner, with its buttons at the bottom right (design 5.3): Map while the vanilla map is allowed, and while a
+-- horde is live the toggle that takes it off the tracker panel or puts it back (plan-horde-result 1; a framework
+-- Button, so keyboard and gamepad reach it). Returns the y below, or nil without a horde to show. The Hordes page
+-- draws it too.
 function P.hordeBlock(page, b, x, y, w, s)
     local token, title, body, right, spot = P.hordeBanner(s, C.serverNow())
     if token == nil then return nil end
-    if spot == nil then return b:banner(x, y, w, token, title, body, right) end
-    local btn = page.pool:button("hordeMap", page.UI, page.theme, getText("IGUI_MQ_UI_Map"), page, P.onHordeMap)
-    btn:setTooltip(getText("IGUI_MQ_UI_ShowOnMap"))
-    btn.spotX, btn.spotY = spot.x, spot.y
-    local ny = b:banner(x, y, w, token, title, body, right, btn.height + 4)
-    btn:setX(x + w - 10 - btn.width)
-    btn:setY(ny - D.GAP - 6 - btn.height)
+    local btns = {}
+    if spot ~= nil then
+        local btn = page.pool:button("hordeMap", page.UI, page.theme, getText("IGUI_MQ_UI_Map"), page, P.onHordeMap)
+        btn:setTooltip(getText("IGUI_MQ_UI_ShowOnMap"))
+        btn.spotX, btn.spotY = spot.x, spot.y
+        btns[#btns + 1] = btn
+    end
+    local live = D.hordeLive(s.hordes.cur)
+    if live ~= nil then
+        local hidden = C.hordeHidden ~= nil and live.id == C.hordeHidden
+        local btn = page.pool:button("hordeHud", page.UI, page.theme,
+            getText(hidden and "IGUI_MQ_Horde_ShowHud" or "IGUI_MQ_Horde_HideHud"), page, P.onHordeHud)
+        btn.internal = not hidden and live.id or nil
+        btns[#btns + 1] = btn
+    end
+    if #btns == 0 then return b:banner(x, y, w, token, title, body, right) end
+    local bh = 0
+    for _, btn in ipairs(btns) do bh = math.max(bh, btn.height) end
+    local ny = b:banner(x, y, w, token, title, body, right, bh + 4)
+    local bx = x + w - 10
+    for i = #btns, 1, -1 do
+        bx = bx - btns[i].width
+        btns[i]:setX(bx)
+        btns[i]:setY(ny - D.GAP - 6 - bh)
+        bx = bx - 6
+    end
     return ny
 end
 

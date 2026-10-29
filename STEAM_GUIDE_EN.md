@@ -121,19 +121,20 @@ Once an admin sets up spots, the server can start a horde during its time window
 [/olist]
 [h3]Where to see it[/h3]
 [list]
-[*] [b]Tracker panel[/b]: a horde row on top shows the place, "Wave W/N" when there is more than one, the countdown ("Starts in", "left" or "Next wave in") and "Cleared N/M". It does not use one of the 5 slots, has no ×, and shows even when you track nothing. "Show the tracker panel" in the mod options must be on.
-[*] [b]Daily quests page[/b]: a horde banner under the timed events shows the current state; for 10 minutes after the end it shows the result, the waves cleared, your kills and the points you got.
-[*] [b]Map button[/b]: before the start, while waiting for players and during a rest, the tracker row and the banner have a "Map" button that opens the world map on the spot. It is hidden when the server turns the world map off.
-[*] [b]Minimap[/b]: with Minidoracat MiniMap installed, the minimap marks the area around the spot.
-[*] [b]Notices[/b]: the warning, each wave appearing, the rest between waves, cleared, failed and cancelled go to everyone; the reminder 2 minutes before the start goes only to players near the spot; points you get come with a "Horde reward" notice and your kills in the cleared waves.
+[*] [b]Tracker panel[/b]: a horde row on top shows the place, "Wave W/N" when there is more than one, the countdown ("Starts in", "Waiting", "left" or "Next wave in") and "Cleared N/M"; while the horde is in progress it reads "N joined · N/M cleared", and one kill counts as joining. Only a horde in progress is red; before the start, while waiting for players and during a rest it is orange. It does not use one of the 5 slots and shows even when you track nothing. "Show the tracker panel" in the mod options must be on.
+[*] [b]Hide this horde[/b]: the ✕ at the right end of the horde row's first line hides this horde: the row goes away and this horde's server-wide notices (warning, waves, cleared, failed, cancelled, deaths, MVP) stop; the reminder 2 minutes before the start, your "Horde reward" and the results still come. The next horde shows again. Hiding is not saved, so it also shows again after you log in again.
+[*] [b]Daily quests page[/b]: a horde banner under the timed events shows the current state; for 10 minutes after the end it shows the result, the waves cleared, your kills and the points you got. "Hide from tracker" / "Show in tracker" on the banner hides this horde or brings it back, also with a keyboard or controller.
+[*] [b]Map button[/b]: before the start, while waiting for players, in progress and during a rest, the tracker row and the banner have a "Map" button that opens the world map on the spot. It is hidden when the server turns the world map off.
+[*] [b]Minimap[/b]: with Minidoracat MiniMap installed, the minimap marks the area around the spot, and the marker names the state (for example "Horde warning: …" or "Horde in progress: …").
+[*] [b]Notices[/b]: the warning, each wave appearing, the rest between waves, cleared, failed and cancelled go to everyone; the reminder 2 minutes before the start goes only to players near the spot; points you get come with a "Horde reward" notice and your kills in the cleared waves. Deaths in the horde and the horde MVP go to everyone too; see "Horde results and notices".
 [/list]
 [h3]Hordes page[/h3]
 {{img:15-hordes-en.jpg}}
 Once the server has automatic hordes on or has had a horde, a "Hordes" page appears on the left of the window.
 [list]
-[*] [b]Now[/b]: the same banner as on the daily quests page; with no horde it says so.
+[*] [b]Now[/b]: the same banner as on the daily quests page (with "Hide from tracker" / "Show in tracker"); with no horde it says so.
 [*] [b]My hordes[/b]: your totals for hordes joined, hordes cleared, horde kills and hordes where you were the top killer. One kill counts as joining.
-[*] [b]Recent hordes[/b]: the last 10 hordes on the server with time, place, result (waves cleared, or the wave it failed in), your kills and your points; older ones only count in your totals.
+[*] [b]Recent hordes[/b]: the last 10 hordes on the server with time, place, result (waves cleared, or the wave it failed in), your kills and your points; older ones only count in your totals. Hordes where someone got a kill have a "View results" button; anyone can press it, and it opens that horde's results at once (see "Horde results and notices").
 [/list]
 [h3]Reward[/h3]
 [list]
@@ -151,6 +152,24 @@ Once the server has automatic hordes on or has had a horde, a "Hordes" page appe
 [*] [b]Zombies that wander off[/b]: horde zombies that follow someone far away and get stored by the game become normal zombies; they no longer count for the horde, so there is no need to chase them.
 [/list]
 [b]Admins[/b]: spots, time windows and presets (waves, kinds and the reward) are set up as described in "Horde settings".
+=== 🧰 Horde results and notices
+When a horde ends, the players at the spot get its results; deaths during a horde and the MVP of a cleared horde are announced to everyone.
+[h3]Results[/h3]
+[list]
+[*] [b]Who gets them[/b]: players online, alive and within 50 tiles of the spot the moment the horde is cleared or fails. Everyone else presses "View results" on the Hordes page; the server keeps only the last 20 hordes, and an older one says "This horde is no longer kept (only the last 20)."
+[*] [b]When they open[/b]: never in the middle of a fight. They open once no living zombie has been within 20 tiles of you for 3 seconds in a row; if the quest window or another Minidoracat window is open then, they wait until you close it. Until then the tracker panel shows a "Cleared · …" or "Failed · …" row with "Opens once no zombie is within 20 tiles", and its "Results" button opens them at once. If they cannot open for 10 minutes (zombies stay around or the window stays open), or you die meanwhile, they no longer open on their own.
+[*] [b]Playing with a controller[/b]: no window opens on its own; a "Horde results" notice shows the result and place instead. For the details, press "View results" on the Hordes page.
+[*] [b]What they show[/b]: the result and place, when it ended, the waves cleared and the minutes it took; three numbers, Joined, Kills and Points paid (with a note when the points cap was reached and the points were shared by kills); the MVP; who died and in which wave (up to 10 names, then "+N").
+[*] [b]Ranking[/b]: rank, player, kills and points; your row is framed and marked "(you)", players who died are marked "Died", and with no kills you see "You had no kills in this horde." Up to 100 rows; if you rank lower, your row is added at the end. Scroll down for the rest of a long list; on a short screen fewer rows show, so the window stays on screen. Anonymous players show as "Anonymous survivor"; admins see "name (anonymous)".
+[*] [b]Close[/b]: Esc or "Close"; if you opened it with a controller ("View results"), press B. Only one is open at a time.
+[/list]
+[h3]Death and MVP notices[/h3]
+[list]
+[*] [b]Death notices[/b]: from the first wave until the horde ends, when anyone dies within 50 tiles of the spot, everyone gets a "… died in the horde" notice with the place and the wave; deaths within 2 seconds share one notice, "N players died in the horde". Only a player's first death in a horde counts.
+[*] [b]MVP notice[/b]: when a horde with 2 or more players is cleared, everyone gets "Horde MVP: …" with the kills; ties count for all.
+[*] [b]Anonymous players[/b]: show as "Anonymous survivor" in death and MVP notices, for admins too.
+[*] [b]A hidden horde[/b]: if you hid the horde from the tracker, its death and MVP notices stay quiet too; the results still come.
+[/list]
 === 🧰 Achievements and titles
 {{img:03-achievements-en.jpg}}
 [h3]Categories[/h3]
@@ -208,7 +227,7 @@ Once the server has automatic hordes on or has had a horde, a "Hordes" page appe
 [list]
 [*] [b]Add[/b]: press "Track" on a daily or weekly quest card or an achievement card (press again to stop), up to 5; with 5 tracked, pressing "Track" on another card tells you to untrack one first.
 [*] [b]What it shows[/b]: at the top left, next to the vanilla sidebar: quests show progress/target, achievements the next tier's target, a done quest gets a check mark and the points it paid.
-[*] [b]Hordes[/b]: during a horde an extra row sits on top; it does not use one of the 5 slots (see "Hordes").
+[*] [b]Hordes[/b]: during a horde an extra row sits on top; it does not use one of the 5 slots, and the ✕ on its right hides this horde. After a horde ends, a "Results" row waits there until the results open (see "Hordes" and "Horde results and notices").
 [*] [b]Move and fold[/b]: drag the panel to move it and the game remembers where; the arrow in its title row folds it to one line.
 [*] [b]Untrack[/b]: point at a row and press the × that appears on its right.
 [*] [b]Removed on its own[/b]: daily quests at the daily reset, weekly quests at the weekly reset, a swapped quest, and an achievement that reached its top tier.
@@ -515,7 +534,7 @@ Example: the daily quest "Kill N zombies" (d_kill) gets a target of 30 to 60 and
 === ⚙️ Data and backups
 [table]
 [tr][th]Contents[/th][th]Location[/th][/tr]
-[tr][td]Setting overrides, seasons, server-wide quest and server goal, timed events, hordes (the current one and the last 20 results), audit (last 500)[/td][td]Global ModData shared table MinidoracatQuest in the world save[/td][/tr]
+[tr][td]Setting overrides, seasons, server-wide quest and server goal, timed events, hordes (the current one and the last 20 results, each with everyone's kills, players joined, MVPs and deaths), audit (last 500)[/td][td]Global ModData shared table MinidoracatQuest in the world save[/td][/tr]
 [tr][td]Each account's stats, quests, points, achievements, titles, preferences, tracked items, exchange queue and last 10 exchanges[/td][td]Global ModData account tables MinidoracatQuest_A00-A15 (16 tables)[/td][/tr]
 [tr][td]Account to Steam account bindings[/td][td]Zomboid/Lua/MinidoracatQuest/<server name>/identity.txt[/td][/tr]
 [tr][td]Daily event log (one line per event)[/td][td]Same folder, events-YYYYMMDD.json, one per day[/td][/tr]
@@ -555,6 +574,9 @@ https://github.com/Minidoracat/MinidoracatQuestFor42#給其他-mod-的-api
 [*] [b]A server restart fails the wave in progress[/b]: zombies already out stay as normal zombies and that wave pays nothing; the waves cleared before it still pay. A horde that is not in the middle of a wave (planned, announced, waiting for players or resting) carries on.
 [*] [b]Wild zombies near the spot come too[/b]: horde zombies follow a sound from the spot every 5 seconds, and wild zombies nearby hear it as well; they do not count for the horde. The sound reaches at most 49 tiles, so it does not stir zombies farther away that are not loaded.
 [*] [b]Removed zombies can linger for a few seconds[/b]: when time runs out or an admin stops a horde, the player in charge of those zombies (usually the closest one) may still see them for up to about 8 seconds.
+[*] [b]Horde deaths do not look at the cause[/b]: from the first wave until the end, any death within 50 tiles of the spot counts for the death notice and the results, whether a bite, a fall or bleeding; deaths farther away do not. At most 50 deaths are kept per horde.
+[*] [b]Results open on their own only for players at the spot[/b]: only players online, alive and within 50 tiles when the horde ends get them; players who left, died or were offline press "View results" on the Hordes page. With a controller you get a notice instead of the window.
+[*] [b]Hiding a horde is not saved[/b]: "Hide this horde" lasts until you log out; after you log in again the horde shows again.
 [*] [b]Mid-save import is partial[/b]: only kills, days survived and skill levels; crafting, distance, fishing and the rest count from when the mod is added.
 [*] [b]Player identity[/b]: on Steam servers a name is bound to its Steam account the first time it comes online; switching Steam accounts makes you a different player, and there is no way to unbind yet. No-Steam servers cannot stop someone respawning under another player's name; a modified client may take a name that has not come online to be bound yet.
 [*] [b]Event logs keep growing[/b]: see "Data and backups".

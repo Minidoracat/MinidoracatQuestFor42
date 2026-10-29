@@ -1521,5 +1521,5 @@
   "IGUI_MQ_UI_TitleCondNewbie": "%1 天內完成新手任務的每一步",
   "IGUI_MQ_UI_TitleCondRank": "第 %1 季積分%2",
   "IGUI_MQ_UI_TitleCondFirst": "第 %1 季「%2」榜第一",
-  "IGUI_MQ_WhatsNew": "屍潮改成好幾波，隻數跟著到場人數增加，殭屍會從四面八方圍過來；屍潮橫幅多了「地圖」按鈕。"
+  "IGUI_MQ_WhatsNew": "屍潮打完，在場的人會看到結算（參加人數、排名、積分）；死亡與 MVP 會通知全服，追蹤面板可以收起這一場。"
 }

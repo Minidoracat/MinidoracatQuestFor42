@@ -1521,5 +1521,5 @@
   "IGUI_MQ_UI_TitleCondNewbie": "Acemi görevlerinin her adımını %1 gün içinde bitir",
   "IGUI_MQ_UI_TitleCondRank": "%1. sezon puanı: %2",
   "IGUI_MQ_UI_TitleCondFirst": "%1. sezon: \"%2\" tablosunda 1.",
-  "IGUI_MQ_WhatsNew": "Sürüler dalga dalga gelir, oyuncu sayısıyla büyür ve seni kuşatır. Sürü bandında Harita düğmesi var."
+  "IGUI_MQ_WhatsNew": "Sürü sonucu: katılanlar, sıralama, puanlar. Ölümler ve MVP duyurulur; sürü takipten gizlenebilir."
 }

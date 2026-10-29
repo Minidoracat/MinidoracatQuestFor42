@@ -1521,5 +1521,5 @@
   "IGUI_MQ_UI_TitleCondNewbie": "Concluir cada etapa das missões de iniciante em %1 dias",
   "IGUI_MQ_UI_TitleCondRank": "Temporada %1, pontos: %2",
   "IGUI_MQ_UI_TitleCondFirst": "Temporada %1: 1º em \"%2\"",
-  "IGUI_MQ_WhatsNew": "As hordas vêm em ondas, crescem com os jogadores e cercam você. O aviso de horda tem botão Mapa."
+  "IGUI_MQ_WhatsNew": "Resumo da horda: participantes, ranking, pontos. Avisos de mortes e MVP; dá para ocultar a horda."
 }

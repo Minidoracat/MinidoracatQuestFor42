@@ -1521,5 +1521,5 @@
   "IGUI_MQ_UI_TitleCondNewbie": "Ukończ każdy krok zadań nowicjusza w ciągu %1 dni",
   "IGUI_MQ_UI_TitleCondRank": "Sezon %1, punkty: %2",
   "IGUI_MQ_UI_TitleCondFirst": "Sezon %1: 1. miejsce w \"%2\"",
-  "IGUI_MQ_WhatsNew": "Hordy nadchodzą falami, rosną wraz z liczbą graczy i otaczają ze wszystkich stron. Baner hordy ma przycisk Mapa."
+  "IGUI_MQ_WhatsNew": "Po hordzie gracze na miejscu widzą wyniki: uczestników, ranking i punkty. Śmierci i MVP są ogłaszane; panel śledzenia może ukryć hordę."
 }

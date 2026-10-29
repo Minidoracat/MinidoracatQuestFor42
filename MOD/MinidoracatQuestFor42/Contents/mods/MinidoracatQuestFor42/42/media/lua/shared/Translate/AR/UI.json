@@ -6,7 +6,7 @@
   "UI_MinidoracatQuest_ShowBroadcast_tooltip": "Avisos cuando otro jugador desbloquea un rango alto de logro.",
   "UI_MinidoracatQuest_ShowHud": "Mostrar el panel de seguimiento",
   "UI_MinidoracatQuest_ShowHud_tooltip": "Arriba a la izquierda: el progreso de las misiones y logros que marcaste con \"Seguir\" en una tarjeta. Arrástralo para moverlo; arrastra su borde derecho para limitar el ancho.",
-  "UI_MinidoracatQuest_HudOpacity": "Opacidad del fondo del panel de seguimiento (%%)",
+  "UI_MinidoracatQuest_HudOpacity": "Opacidad del fondo del panel (%%)",
   "UI_MinidoracatQuest_ShowHeadTitles": "Mostrar títulos sobre las cabezas",
   "UI_MinidoracatQuest_ShowHeadTitles_tooltip": "El título que lleva cada jugador, una línea encima de su nombre. Se oculta si el servidor oculta los nombres. Desactivarlo también ahorra el dibujado en este equipo.",
   "UI_MinidoracatQuest_ShowChatTitles": "Mostrar títulos en el chat",

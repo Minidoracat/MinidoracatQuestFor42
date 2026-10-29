@@ -6,7 +6,7 @@
   "UI_MinidoracatQuest_ShowBroadcast_tooltip": "Avisos quando outro jogador desbloqueia um patamar alto de conquista.",
   "UI_MinidoracatQuest_ShowHud": "Mostrar o painel de acompanhamento",
   "UI_MinidoracatQuest_ShowHud_tooltip": "No canto superior esquerdo: o progresso das missões e conquistas marcadas com \"Acompanhar\" em um cartão. Arraste para mover; arraste a borda direita para limitar a largura.",
-  "UI_MinidoracatQuest_HudOpacity": "Opacidade do fundo do painel de acompanhamento (%%)",
+  "UI_MinidoracatQuest_HudOpacity": "Opacidade do fundo do painel (%%)",
   "UI_MinidoracatQuest_ShowHeadTitles": "Mostrar títulos acima das cabeças",
   "UI_MinidoracatQuest_ShowHeadTitles_tooltip": "O título que cada jogador usa, uma linha acima do nome. Fica oculto quando o servidor oculta os nomes. Desativar também poupa o desenho neste computador.",
   "UI_MinidoracatQuest_ShowChatTitles": "Mostrar títulos no chat",

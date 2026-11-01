@@ -202,9 +202,10 @@ end
 
 -- server-wide horde toasts (t.ev) and "remind", the personal one to players near the spot just before the start;
 -- the warning names the kinds that may appear and the number of waves, never how many zombies. Every wave has its
--- spawn toast ("Wave W/N - " in front when N > 1) and every cleared one but the last its rest toast; win and fail
--- say what the horde paid (fail: the cleared waves) and when the cap scaled the shares down. Deaths near the spot
--- (merged over 2 s) and the MVP of a cleared horde have their own toast, plain text kept short (plan-horde-result 4)
+-- spawn toast ("Wave W/N - " in front when N > 1; "resume" for a wave carried on after a server start, with what was
+-- left) and every cleared one but the last its rest toast; win and fail say what the horde paid (fail: the cleared
+-- waves) and when the cap scaled the shares down. Deaths near the spot (merged over 2 s) and the MVP of a cleared
+-- horde have their own toast, plain text kept short (plan-horde-result 4)
 function E.hordeToast(t)
     local place, ev = D.hordePlace(t), t.ev
     local waves = tostring(t.waves or 1)
@@ -220,6 +221,9 @@ function E.hordeToast(t)
     elseif ev == "spawn" then
         return getText("IGUI_MQ_Horde_Title_spawn", D.hordeName(t)),
             getText("IGUI_MQ_Horde_SpawnBody", tostring(t.limitMin or 0), D.num(t.size or 0)), D.EXTRA.horde
+    elseif ev == "resume" then
+        return getText("IGUI_MQ_Horde_Title_resume", D.hordeName(t)),
+            getText("IGUI_MQ_Horde_ResumeBody", tostring(t.limitMin or 0), D.num(t.left or 0)), D.EXTRA.horde
     elseif ev == "rest" then
         local w = tonumber(t.wave) or 1
         return getText("IGUI_MQ_Horde_Title_rest", tostring(w), waves, place),

@@ -49,8 +49,9 @@ local function shownHorde(state)
 end
 
 -- the horde row: { id = "horde", horde = true, hordeId, tag, name, time, line, prog?, target?, mapX?, mapY? } or nil.
--- Every countdown says what it counts to (design 1): announced "4:29 to the start", waiting "Waiting 52:10", active
--- "52:10 left", rest "0:24 to the next wave". When N > 1 the name is "Wave W/N - <spot>", the spot without its town
+-- Every countdown says what it counts to (design 1): announced "4:29 to the start", waiting "Waiting 52:10" (after a
+-- server start, until holdUntil: "Resumes in 9:30"), active "52:10 left", rest "0:24 to the next wave". When N > 1 the
+-- name is "Wave W/N - <spot>", the spot without its town
 -- (D.hordeName spotOnly; the design mock), so the prefix and the countdown leave room for the spot. Line 2 starts with
 -- the coordinates, so a long language cuts the rule, not the spot (design 5.2); active shows who joined (1+ kill) and
 -- cleared / wave size. mapX / mapY: the Map button (every live state, while the vanilla map is allowed)
@@ -67,8 +68,15 @@ function H.hordeRow(state, now)
         r.time = getText("IGUI_MQ_UI_Left", D.countdown((tonumber(h.endsAt) or now) - now))
         r.line = getText("IGUI_MQ_Horde_HudActive", D.num(tonumber(h.joined) or 0), D.num(r.prog), D.num(n))
     elseif st == "waiting" then
-        r.time = getText("IGUI_MQ_Horde_WaitLeft", D.countdown((tonumber(h.expireAt) or now) - now))
-        r.line = getText("IGUI_MQ_Horde_HudWait", tostring(h.x), tostring(h.y))
+        local hold = (tonumber(h.holdUntil) or 0) - now
+        r.time = hold > 0 and getText("IGUI_MQ_Horde_ResumesIn", D.countdown(hold))
+            or getText("IGUI_MQ_Horde_WaitLeft", D.countdown((tonumber(h.expireAt) or now) - now))
+        -- a wave a restart cut off (h.resume) says how many come back; none left: it clears as someone comes near
+        if hold > 0 and h.resume and (tonumber(h.left) or 0) > 0 then
+            r.line = getText("IGUI_MQ_Horde_HudResume", tostring(h.x), tostring(h.y), D.num(tonumber(h.left) or 0))
+        else
+            r.line = getText("IGUI_MQ_Horde_HudWait", tostring(h.x), tostring(h.y))
+        end
     elseif st == "rest" then
         r.time = getText("IGUI_MQ_Horde_NextIn", D.countdown((tonumber(h.nextAt) or now) - now))
         r.line = getText("IGUI_MQ_Horde_HudRest", tostring((tonumber(h.wave) or 1) + 1))

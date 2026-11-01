@@ -19,7 +19,7 @@ AM.RANGE = {
     hordeChance = { 0, 100, true }, hordePerDay = { 1, 24, true }, hordeLead = { 0, 120, true }, hordeWait = { 1, 240, true },
     hordeBase = { 1, 9999, true }, hordePerPlayer = { 0, 1000, true }, hordeRest = { 0, 600, true }, hordeAlive = { 10, 2000, true },
     hordeWeight = { 0, 100, true }, hordePoints = { 0, 1000, true }, hordeLimit = { 1, 120, true }, hordeCap = { 1, 1000000, true },
-    hordeHp = { 0.1, 10 },
+    hordeHp = { 0.1, 10 }, hordeResume = { 0, 60, true }, hordeCorpses = { 0, 5000, true }, hordeCorpseAfter = { 0, 240, true },
 }
 AM.MAX_SPOTS = 32
 AM.MAX_WINDOWS = 8   -- hordes.windows items (Config.SCHEMA.hordes)

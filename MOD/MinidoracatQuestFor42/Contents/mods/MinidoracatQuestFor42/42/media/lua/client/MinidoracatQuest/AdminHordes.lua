@@ -3,12 +3,13 @@
 -- Live status from horde.status (fetched each time the tab opens, after every action and by Refresh): the current
 -- horde (wave W / N, next wave time, its preset) with Cancel / Stop, today's count and next roll, Start a horde (an
 -- applied preset, its warning and wait minutes), the last 5 results (a list box). Below it the settings: spots (a
--- list box with a Map button; add = towns.here, the admin's own position), windows (days, clock, chance, preset,
--- warning and wait minutes per window), presets (the one the page edits, copy, delete, its name, the windows using
--- it), then that preset's waves (base and % per extra player, previews for 1 and 4 players), kinds (weight, computed
--- share, points per kill, toughness) and reward (the cap and an estimate for 1 / 4 / 8 players). Every setting goes
--- through the draft and the bottom Apply (cfg.preview / cfg.apply), so History and config.json carry it;
--- horde.now / horde.stop act at once (IGUI_MQ_Admin_ImmediateNote). The server re-checks everything.
+-- list box with a Map button; add = towns.here, the admin's own position), horde corpses (the most kept, the minutes
+-- after the end before the rest go), windows (days, clock, chance, preset, warning and wait minutes per window; the
+-- hordes per day and the wait after a server start), presets (the one the page edits, copy, delete, its name, the
+-- windows using it), then that preset's waves (base and % per extra player, previews for 1 and 4 players), kinds
+-- (weight, computed share, points per kill, toughness) and reward (the cap and an estimate for 1 / 4 / 8 players).
+-- Every setting goes through the draft and the bottom Apply (cfg.preview / cfg.apply), so History and config.json
+-- carry it; horde.now / horde.stop act at once (IGUI_MQ_Admin_ImmediateNote). The server re-checks everything.
 
 require "MinidoracatQuest/AdminPanel"
 
@@ -614,6 +615,19 @@ local function layoutWindows(P, pg, F, lw, ids)
     F:row({ add, maxLabel(F, "w:max", getText("IGUI_MQ_Admin_HordeWindowsMax", AM.MAX_WINDOWS), #list >= AM.MAX_WINDOWS) })
     formRow(F, "hordes.maxPerDay", A.fLabel("hordes.maxPerDay"), lw,
         { A.numField(P, pg, "hordes.maxPerDay", "hordes.maxPerDay", nil, "hordePerDay", numW("hordePerDay")) })
+    formRow(F, "hordes.resumeMin", A.fLabel("hordes.resumeMin"), lw,
+        { A.numField(P, pg, "hordes.resumeMin", "hordes.resumeMin", nil, "hordeResume", numW("hordeResume")) })
+    F:text("rmn", getText("IGUI_MQ_Admin_HordeResumeNote"), "textMuted")
+end
+
+-- ===== horde corpses (hordes.corpses; plan quest-horde-restart-corpses-1101) =====
+
+local function layoutCorpses(P, pg, F, lw)
+    F:head("hc", getText("IGUI_MQ_Admin_HordeCorpsesHead"))
+    F:text("cn", getText("IGUI_MQ_Admin_HordeCorpsesNote"), "textMuted")
+    for _, r in ipairs({ { "hordes.corpses.max", "hordeCorpses" }, { "hordes.corpses.afterMin", "hordeCorpseAfter" } }) do
+        formRow(F, r[1], A.fLabel(r[1]), lw, { A.numField(P, pg, r[1], r[1], nil, r[2], numW(r[2])) })
+    end
 end
 
 -- ===== presets section (plan-presets-1028 claim 1) =====
@@ -1043,7 +1057,8 @@ end
 -- ===== the tab =====
 
 -- every form label of the tab, one column (A.labelWidth; preset fields read as hordes.<field>, A.fLabel)
-local PATHS = { "hordes.maxPerDay", "hordes.name", "hordes.restSec", "hordes.limitMin", "hordes.maxAlive", "hordes.cap" }
+local PATHS = { "hordes.maxPerDay", "hordes.resumeMin", "hordes.corpses.max", "hordes.corpses.afterMin", "hordes.name",
+    "hordes.restSec", "hordes.limitMin", "hordes.maxAlive", "hordes.cap" }
 
 local function layout(P, pg, F)
     -- no page heading: the tab already says Hordes (review). Its notes wrap narrower (Flow:text)
@@ -1056,6 +1071,7 @@ local function layout(P, pg, F)
     for _, k in ipairs(kinds) do lw = math.max(lw, math.min(A.textW(kindName(k)) + A.GAP, 260)) end
     layoutStatus(P, pg, F)
     layoutSpots(P, pg, F, lw)
+    layoutCorpses(P, pg, F, lw)
     layoutWindows(P, pg, F, lw, ids)
     layoutPresets(P, pg, F, lw, ids)
     layoutWaves(P, pg, F, lw)

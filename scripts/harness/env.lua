@@ -12,15 +12,19 @@ Quick reference
       false); replies reach MinidoracatQuest.Client.receive and are also recorded in T.outbox.
   T.bootClient{}           MP client: loads shared+client (T.mode = "client").
   T.player{ name, admin, role, sid, x, y, z, num, oid, dead, noRole, offline }  online IsoPlayer (p.veh, p.hand)
-  T.zombie{ oid, outfit, attacker, inWorld, owner, useless, cell, x, y, health }  IsoZombie; addZombiesInOutfitArea makes these at (x1, y1) with T.spawnHealth (default 2) (T.spawnCap limits
+  T.zombie{ oid, outfit, attacker, inWorld, owner, useless, cell, x, y, z, health }  IsoZombie; addZombiesInOutfitArea makes these at (x1, y1) with T.spawnHealth (default 2) (T.spawnCap limits
       how many it returns, like unloaded squares; T.spawnCalls records the calls; they report isExistInTheWorld() false
       like fresh zombies on a dedicated server, quest-hz-1026e; T.staleOwner = p makes them still owned by p and
-      T.staleUseless = true keeps them useless, like a reused engine object); z:Kill(killer) fires OnZombieDead;
+      T.staleUseless = true keeps them useless, like a reused engine object); z:Kill(killer) fires OnZombieDead, then
+      leaves a corpse with a copy of the zombie's modData (die() -> becomeCorpse, IsoDeadBody.java:384);
       cell = true: also in getCell():getZombieList() (T.cellZombies, a client's list; removeFromWorld takes it out,
       z.unregistered after z:getEmitter():unregister()).
       T.boot{ sp = true }: online id -1 (only the dedicated server hands them out) and spawns join the cell's list.
       Spawns fire OnZombieCreate; T.reuseZombie(z): the engine hands the object out again (OnZombieCreate, back in the
-      cell's list, a new online id on the dedicated server)
+      cell's list, a new online id on the dedicated server, modData cleared: IsoZombie.java:4470-4471)
+  T.body{ x, y, z, modData } IsoDeadBody on that square (a player's corpse: the player's modData copied, :384);
+      T.bodiesAt(x, y, z), T.allBodies(), T.removed (removeCorpse calls { body, remote }); corpses stay over a
+      T.boot{ keepGmd = true } restart, like the world save keeps them
   T.square(x, y, z) -> nil | "water" | "solid" | other: getCell():getGridSquare for horde exits; T.sounds: addSound calls
   T.cmd(p, cmd, args, requestId)   fills protocol (+ requestId for mutations / admin mutation ops), advances 300 ms,
       fires OnClientCommand and returns the "result" or "admin" reply sent for it (nil when none).
@@ -286,11 +290,16 @@ function T.zombie(o)
     -- single player: no online id (VirtualZombieManager.java:207-221 sets it on GameServer only; quest-hsp-pre-1027a)
     local z = { __class = "IsoZombie", oid = o.oid or (T.mode == "sp" and -1 or T.nextZombieId), outfit = o.outfit or 655360, attacker = o.attacker,
         dead = false, inWorld = o.inWorld ~= false, onSquare = true, sprinter = false, owner = o.owner, ownerPlayer = o.owner,
-        x = o.x or 0, y = o.y or 0, useless = o.useless == true, health = o.health or 2 }
+        x = o.x or 0, y = o.y or 0, z = o.z or 0, useless = o.useless == true, health = o.health or 2 }
     T.nextZombieId = T.nextZombieId + 1
     function z:getOnlineID() return self.oid end
     function z:getX() return self.x end
     function z:getY() return self.y end
+    function z:getZ() return self.z end
+    function z:getModData()
+        self.modData = self.modData or {}
+        return self.modData
+    end
     function z:getPersistentOutfitID() return self.outfit end
     function z:isDead() return self.dead end
     function z:isExistInTheWorld() return self.inWorld end
@@ -315,10 +324,11 @@ function T.zombie(o)
     end
     function z:removeFromSquare() self.onSquare = false end
     function z:getEmitter() return { unregister = function() z.unregistered = true end } end
-    -- IsoGameCharacter.Kill: attacker set, then OnZombieDead (IsoZombie.onKilled)
+    -- IsoGameCharacter.Kill: attacker set, then OnZombieDead (IsoZombie.onKilled); die() then makes the corpse
     function z:Kill(killer)
         self.attacker, self.dead = killer, true
         T.fire("OnZombieDead", self)
+        T.body{ x = math.floor(self.x), y = math.floor(self.y), z = self.z, modData = T.deepcopy(self.modData) }
     end
     T.zombies[#T.zombies + 1] = z
     if o.cell then T.cellZombies[#T.cellZombies + 1] = z end
@@ -328,7 +338,7 @@ end
 -- then the cell's zombie list (:206) and, on the dedicated server, a new online id (:211-212)
 function T.reuseZombie(z)
     z:removeFromWorld()
-    z.dead, z.attacker, z.inWorld = false, nil, true
+    z.dead, z.attacker, z.inWorld, z.modData = false, nil, true, nil
     if T.mode ~= "sp" then z.oid, T.nextZombieId = T.nextZombieId, T.nextZombieId + 1 end
     T.fire("OnZombieCreate", z)
     T.cellZombies[#T.cellZombies + 1] = z
@@ -348,19 +358,54 @@ function addZombiesInOutfitArea(x1, y1, x2, y2, z, n, outfit, femaleChance)
     end
     return T.javaList(list)
 end
--- ===== horde server mocks (Hordes.lua exits and lure) =====
+-- ===== horde server mocks (Hordes.lua exits, lure and corpses) =====
 -- getCell():getGridSquare(x, y, z): the server's square (IsoCell.java:3190-3192, nil when the cell is not loaded).
 -- T.square(x, y, z) -> nil (not loaded) | "water" | "solid" | anything else (a free floor); default: every square free.
+-- Its corpses: getStaticMovingObjects (only size() is read), getDeadBodys (a copy, IsoGridSquare.java:3044),
+-- removeCorpse(body, bRemote) (:3010; records { body, remote } in T.removed).
 -- addSound (LuaManager.java:11753-11758) records { x, y, z, radius, volume } in T.sounds.
 T.sounds, T.square = {}, nil
+T.bodies, T.removed = {}, {}   -- "x,y,z" -> { IsoDeadBody }
+local function bodyKey(x, y, z) return x .. "," .. y .. "," .. (z or 0) end
+function T.body(o)
+    local b = { __class = "IsoDeadBody", x = o.x or 0, y = o.y or 0, z = o.z or 0, modData = o.modData }
+    -- IsoObject.java:1037: a table that is not empty
+    function b:hasModData() return self.modData ~= nil and next(self.modData) ~= nil end
+    function b:getModData()
+        self.modData = self.modData or {}
+        return self.modData
+    end
+    local key = bodyKey(b.x, b.y, b.z)
+    T.bodies[key] = T.bodies[key] or {}
+    table.insert(T.bodies[key], b)
+    return b
+end
+function T.bodiesAt(x, y, z) return T.bodies[bodyKey(x, y, z)] or {} end
+function T.allBodies()
+    local out = {}
+    for _, list in pairs(T.bodies) do for _, b in ipairs(list) do out[#out + 1] = b end end
+    return out
+end
 function getCell()
     return { getZombieList = function() return T.javaList(T.cellZombies) end, getGridSquare = function(_, x, y, z)
         local kind = "free"
         if T.square then kind = T.square(x, y, z) end
         if kind == nil then return nil end
+        local key = bodyKey(x, y, z)
         return {
             isFree = function() return kind ~= "solid" end,
             isWaterSquare = function() return kind == "water" end,
+            getStaticMovingObjects = function() return T.javaList(T.bodies[key] or {}) end,
+            getDeadBodys = function()
+                local copy = {}
+                for i, b in ipairs(T.bodies[key] or {}) do copy[i] = b end
+                return T.javaList(copy)
+            end,
+            removeCorpse = function(_, body, remote)
+                local list = T.bodies[key] or {}
+                for i, b in ipairs(list) do if b == body then table.remove(list, i) break end end
+                T.removed[#T.removed + 1] = { body = body, remote = remote }
+            end,
         }
     end }
 end
@@ -459,6 +504,8 @@ local function resetWorld(opts)
     T.serverOptions = opts.serverOptions or { SleepAllowed = true }
     T.zombies, T.cellZombies, T.spawnCalls, T.spawnCap, T.staleOwner, T.staleUseless, T.spawnHealth = {}, {}, {}, nil, nil, nil, nil
     T.sounds, T.square = {}, nil   -- horde server mocks
+    if not opts.keepGmd then T.bodies = {} end   -- the world save keeps corpses like Global ModData
+    T.removed = {}
     T.steam = opts.steam or false
     T.nextOnlineId = 0
     T.missing = {}

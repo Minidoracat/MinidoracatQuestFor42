@@ -450,11 +450,16 @@ Cat.DEFAULTS = {
     -- maxPerDay counts every window. presets: id -> { name ("" = the translated "Default"), waves: { base, perPlayer
     -- (% of base per extra player near the spot) }, kinds: kindId -> relative weight, points: kindId -> points per kill
     -- (no entry = points.vanilla), hp: kindId -> health multiplier (no entry = 1), limitMin per wave, restSec between
-    -- waves, maxAlive horde zombies at once, cap: the most one horde pays, split by kill value }
+    -- waves, maxAlive horde zombies at once, cap: the most one horde pays, split by kill value }. resumeMin: after a
+    -- server start the horde planned or running before it starts no wave for this long (players come back first;
+    -- owner 2026-11-01). corpses: horde corpses kept at most (0 = none removed) and the minutes after the end before
+    -- the rest at the spot go
     hordes = { enabled = false,
         windows = { { days = "1234567", from = "19:00", to = "23:00", chance = 30, preset = "default", leadMin = 15,
             waitMin = 60 } },
         maxPerDay = 1,
+        resumeMin = 10,
+        corpses = { max = 500, afterMin = 10 },
         presets = {
             default = { name = "", waves = { { base = 30, perPlayer = 50 } }, kinds = { vanilla = 80, runner = 20 },
                 points = { vanilla = 5, runner = 8 }, hp = {}, limitMin = 15, restSec = 30, maxAlive = 200, cap = 500 },

@@ -163,16 +163,25 @@ return function(T)
         and field(D0 .. ".restSec"):getText() == "30" and field(D0 .. ".maxAlive"):getText() == "200"
         and field(D0 .. ".limitMin"):getText() == "15" and field(D0 .. ".cap"):getText() == "500"
         and field(D0 .. ".name"):getText() == "" and field("hordes.maxPerDay"):getText() == "1"
+        and field("hordes.resumeMin"):getText() == "10" and field("hordes.corpses.max"):getText() == "500"
+        and field("hordes.corpses.afterMin"):getText() == "10"
         and field("hordes.enabled"):getChecked() == false, "every field shows Catalog.DEFAULTS.hordes; the page edits the default preset")
-    local order, prevY, inOrder = { "n", "hs", "hl", "hp", "hw", "hpre", "hv", "hk", "hr" }, -1, true
+    local order, prevY, inOrder = { "n", "hs", "hl", "hp", "hc", "hw", "hpre", "hv", "hk", "hr" }, -1, true
     for _, k in ipairs(order) do
         inOrder = inOrder and shown(k) and pool()[k].y > prevY
         prevY = pool()[k] and pool()[k].y or prevY
     end
     T.check(inOrder and pool()["h"] == nil and pool()["hpre"].lines[1] == "IGUI_MQ_Admin_HordePresetsHead"
+        and pool()["hc"].lines[1] == "IGUI_MQ_Admin_HordeCorpsesHead" and shown("cn")
         and pool()["hv"].lines[1] == "IGUI_MQ_Admin_HordeWavesHead|" .. DEF and pool()["hk"].lines[1] == "IGUI_MQ_Admin_HordeKindsHead|" .. DEF
         and pool()["hr"].lines[1] == "IGUI_MQ_Admin_HordeRewardHead|" .. DEF,
-        "no page heading; note, status, recent results, spots, windows, presets, then waves / kinds / reward named by the preset")
+        "no page heading; note, status, recent results, spots, horde corpses (plan 1101: under the spots), windows, "
+            .. "presets, then waves / kinds / reward named by the preset")
+    T.check(pool()["l:hordes.resumeMin"].lines[1] == "IGUI_MQ_Admin_F_hordes_resumeMin" and shown("rmn")
+        and pool()["rmn"].y > pool()["l:hordes.resumeMin"].y and pool()["l:hordes.resumeMin"].y > pool()["l:hordes.maxPerDay"].y
+        and pool()["l:hordes.corpses.max"].lines[1] == "IGUI_MQ_Admin_F_hordes_corpses_max"
+        and pool()["l:hordes.corpses.afterMin"].lines[1] == "IGUI_MQ_Admin_F_hordes_corpses_afterMin",
+        "the wait after a server start under the hordes per day, with its note; the corpse fields read like their settings")
     T.check(pool()["l:hordes.maxPerDay"].lines[1] == "IGUI_MQ_Admin_F_hordes_maxPerDay" and pool()["l:" .. D0 .. ".cap"].lines[1] == "IGUI_MQ_Admin_F_hordes_cap"
         and pool()["l:" .. D0 .. ".name"].lines[1] == "IGUI_MQ_Admin_F_hordes_name" and pool()["l:hordes.waitMin"] == nil
         and pool()["ks:th"].cells[2].text == "IGUI_MQ_Admin_ColWeight" and pool()["ks:th"].cells[3].text == "IGUI_MQ_Admin_HordeColShare"
@@ -1070,6 +1079,20 @@ return function(T)
         and row("active", { wave = 2, waves = 3 }).name == "IGUI_MQ_Horde_Wave|2|3|Gas"
         and row("waiting", { waves = 1 }).name == place and row("active", { waves = nil }).name == place,
         "'Wave W/N' and the spot without its town in front only when N > 1")
+    -- plan quest-horde-restart-corpses-1101 (design mock: "4:12 後繼續", "重啟過，剩 412 隻")
+    r = row("waiting", { holdUntil = now + 252000, resume = true, wave = 3, waves = 4, left = 412 })
+    T.check(r.name == "IGUI_MQ_Horde_Wave|3|4|Gas" and r.time == "IGUI_MQ_Horde_ResumesIn|4:12"
+        and r.line == "IGUI_MQ_Horde_HudResume|10620|9810|412" and r.mapX == 10620,
+        "after a restart, before holdUntil: 'resumes in', and a cut-off wave says how many come back")
+    r = row("waiting", { holdUntil = now + 60000 })
+    T.check(r.time == "IGUI_MQ_Horde_ResumesIn|1:00" and r.line == "IGUI_MQ_Horde_HudWait|10620|9810",
+        "held, a wave not started yet: 'resumes in' and where to go")
+    r = row("waiting", { holdUntil = now - 1, resume = true })
+    T.check(r.time == "IGUI_MQ_Horde_WaitLeft|1:15:00" and r.line == "IGUI_MQ_Horde_HudWait|10620|9810",
+        "holdUntil passed: 'waiting' to expireAt and where to go again")
+    r = row("waiting", { holdUntil = now + 60000, resume = true, left = 0 })
+    T.check(r.line == "IGUI_MQ_Horde_HudWait|10620|9810",
+        "a cut-off wave with none left (cleared as someone comes near): where to go, not '0 left'")
     T.mapAllowed = false
     T.check(row("announced").mapX == nil and row("waiting").mapX == nil and row("rest", { waves = 2 }).mapX == nil,
         "the sandbox turns the world map off: no Map button")
@@ -1181,6 +1204,10 @@ return function(T)
     tok, title, body, right, spot = banner(cur("waiting", { waves = 3 }))
     T.check(title == "IGUI_MQ_Horde_Title_wait|IGUI_MQ_Horde_Wave|1|3|" .. place and body == "IGUI_MQ_Horde_WaitBody|10620|9810"
         and has(right, "IGUI_MQ_Horde_WaitLeft|") and spot ~= nil, "waiting: wave 1/3, where to go, 'waiting' (not 'left'), Map")
+    tok, title, body, right, spot = banner(cur("waiting", { waves = 3, holdUntil = now + 9 * 60000, resume = true }))
+    T.check(title == "IGUI_MQ_Horde_Title_wait|IGUI_MQ_Horde_Wave|1|3|" .. place and body == "IGUI_MQ_Horde_HoldBody|10620|9810"
+        and right == "IGUI_MQ_Horde_ResumesIn|" .. D.duration(9 * 60000) and spot ~= nil,
+        "after a restart: everyone gets back first, 'resumes in' to holdUntil, Map")
     tok, title, body, right, spot = banner(cur("active", { wave = 2, waves = 3 }))
     T.check(tok == D.EXTRA.horde and title == "IGUI_MQ_Horde_Title_active|IGUI_MQ_Horde_Wave|2|3|" .. place
         and body == "IGUI_MQ_Horde_ActiveBody|17|30|9" and right == "IGUI_MQ_UI_Left|" .. D.duration(600000) and spot ~= nil,
@@ -1270,6 +1297,9 @@ return function(T)
     T.check(title == "IGUI_MQ_Horde_Title_spawn|" .. place and body == "IGUI_MQ_Horde_SpawnBody|15|75", "spawn: limit and size")
     title = toast({ ev = "spawn", wave = 2, waves = 3, size = 75, limitMin = 15 })
     T.check(title == "IGUI_MQ_Horde_Title_spawn|IGUI_MQ_Horde_Wave|2|3|" .. place, "spawn of wave 2/3")
+    title, body = toast({ ev = "resume", wave = 3, waves = 4, left = 412, endsAt = now + 900000, limitMin = 15 })
+    T.check(title == "IGUI_MQ_Horde_Title_resume|IGUI_MQ_Horde_Wave|3|4|" .. place and body == "IGUI_MQ_Horde_ResumeBody|15|412",
+        "resume: the wave carries on with its time limit and what was left")
     local nextAt = Cl.serverNow() + 30000
     title, body = toast({ ev = "rest", wave = 2, waves = 3, nextAt = nextAt })
     T.check(title == "IGUI_MQ_Horde_Title_rest|2|3|" .. place and body == "IGUI_MQ_Horde_RestToast|3|0:30",

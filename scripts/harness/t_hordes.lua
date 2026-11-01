@@ -1462,32 +1462,348 @@ return function(T)
         T.check(lastLog(Q).state == "failed" and lastLog(Q).why == "admin" and lastLog(Q).paid.alice == 8,
             "rest -> failed admin, the cleared wave paid")
 
-        -- a restart in rest carries on
+        -- a restart in rest carries on; no wave starts before hordes.resumeMin (default 10) after the boot
         adm(admin, "horde.now")
         cur = root.hordes.cur
         killAlive(Q, cur.id, alice)
         step(Q)
-        local id, nextAt = cur.id, cur.nextAt
+        local id = cur.id
         Q = boot({ keepGmd = true, keepFiles = true })
+        local bootAt = T.now
         H, root = Q.Hordes, Q.Store.root()
         cur = root.hordes.cur
-        T.check(cur ~= nil and cur.id == id and cur.state == "rest", "a restart in rest: the horde carries on")
+        T.check(cur ~= nil and cur.id == id and cur.state == "rest" and cur.holdUntil == bootAt + 10 * MIN
+            and cur.nextAt == cur.holdUntil, "a restart in rest: the horde carries on; the next wave 10 min after the boot")
         alice = T.player{ name = "alice" }
         cmd(alice, "hello")
         near(alice)
-        T.now = nextAt
+        T.now = cur.holdUntil - 1000
         step(Q)
-        T.check(cur.state == "active" and cur.wave == 2, "after the rest wave 2 starts")
+        T.check(cur.state == "rest", "no wave before holdUntil, a player near or not")
+        T.now = cur.holdUntil
+        step(Q)
+        T.check(cur.state == "active" and cur.wave == 2, "at holdUntil wave 2 starts")
 
-        -- a restart while active: failed restart, the cleared waves paid
-        zs = hordeZombies()
+        -- a restart while active: the same wave waits again with what was left (alive at the save + not spawned);
+        -- the kills before it still pay when the wave is cleared
+        killAlive(Q, cur.id, alice, 1)
+        local left, got = cur.left, cur.waveGot.alice
+        T.check(left == 3 and got == 2, "wave 2: 1 of 4 killed before the restart")
+        Q = boot({ keepGmd = true, keepFiles = true })
+        bootAt = T.now
+        H, root = Q.Hordes, Q.Store.root()
+        cur = root.hordes.cur
+        T.check(cur ~= nil and cur.id == id and cur.state == "waiting" and cur.resume == true and cur.wave == 2
+            and cur.left == 3 and cur.killed == 1 and cur.waveGot.alice == 2 and cur.totalSpawned == 5,
+            "a restart while active: wave 2 waits again (resume), its kills kept, the 3 alive out of the spawned total")
+        T.check(cur.expireAt == bootAt + 10 * MIN + cur.waitMin * MIN, "its waiting time counts from holdUntil")
+        local st = H.stateHordes(nil, "alice", T.now).cur
+        T.check(st.state == "waiting" and st.holdUntil == cur.holdUntil and st.resume == true and st.left == 3,
+            "the hordes part says waiting until holdUntil, a resumed wave with 3 left")
+        alice = T.player{ name = "alice" }
+        cmd(alice, "hello")
+        near(alice)
+        T.now = cur.holdUntil - 1000
+        step(Q)
+        T.check(cur.state == "waiting" and #T.spawnCalls == 0, "no spawn before holdUntil")
+        T.now = cur.holdUntil
+        T.clearOutbox()
+        step(Q)
+        local rt = toasts(alice, "resume")
+        T.check(cur.state == "active" and cur.wave == 2 and cur.size == 4 and cur.resume == nil and aliveOf(Q, id) == 3
+            and cur.queued == 0 and cur.endsAt == T.now + cur.limitMin * MIN, "at holdUntil the 3 left come again, the full time limit")
+        T.check(#rt == 1 and rt[1].left == 3 and rt[1].wave == 2 and #toasts(alice, "spawn") == 0,
+            "toast resume (3 left), not spawn")
+        killAlive(Q, id, alice)
+        step(Q)
+        local e = lastLog(Q)
+        T.check(root.hordes.cur == nil and e.id == id and e.state == "success" and e.paid.alice == 16 and e.spawned == 8
+            and e.killed == 8, "wave 2 cleared after the restart: success, both waves paid (the kill before it too)")
+        T.check(root.hordes.seq == id, "ids keep counting across the restart")
+    end)
+
+    -- plan quest-horde-restart-corpses-1101: what passed while the server was down starts again from holdUntil
+    section("restart: deadlines from holdUntil, resumeMin 0, single player", function()
+        local Q = boot()
+        apply(Q, { spots = { SPOT }, waves = { wave(4) }, kinds = { vanilla = 100 } })
+        local w30 = win("19:00", "23:00", 0, nil, { waitMin = 30 })
+        Q.Hordes.plan(Q.Config.get().hordes, T.now + 20 * MIN, nil, w30)
+        T.now = T.now + 2 * HOUR   -- down past its start
+        Q = boot({ keepGmd = true, keepFiles = true })
+        local cur, hold = Q.Store.root().hordes.cur, T.now + 10 * MIN
+        T.check(cur.holdUntil == hold and cur.startMs == hold and cur.announceAt == hold - 15 * MIN
+            and cur.expireAt == hold + 30 * MIN and cur.state == "announced",
+            "planned, its start passed while down: the start and the wait from holdUntil, announced at once")
+        T.now = cur.startMs
+        step(Q)
+        T.check(cur.state == "waiting", "waiting from the new start")
+        T.now = cur.expireAt + HOUR   -- down past its waiting time
+        Q = boot({ keepGmd = true, keepFiles = true })
+        cur = Q.Store.root().hordes.cur
+        T.check(cur ~= nil and cur.state == "waiting" and cur.expireAt == T.now + 40 * MIN,
+            "waiting, its time ran out while down: it waits again from holdUntil (not failed nobody)")
+        local admin = T.player{ name = "admin", admin = true }
+        adm(admin, "horde.stop", { id = cur.id })
+        cur = Q.Hordes.plan(Q.Config.get().hordes, T.now + 2 * HOUR, nil, w30)
+        local s, a = cur.startMs, cur.announceAt
+        Q = boot({ keepGmd = true, keepFiles = true })
+        cur = Q.Store.root().hordes.cur
+        T.check(cur.startMs == s and cur.announceAt == a and cur.expireAt == s + 30 * MIN and cur.state == "planned",
+            "a start after holdUntil stays")
+        apply(Q, { resumeMin = 0 })
+        T.now = s + 31 * MIN
+        Q = boot({ keepGmd = true, keepFiles = true })
+        cur = Q.Store.root().hordes.cur
+        T.check(cur.holdUntil == T.now and cur.startMs == T.now and cur.state == "waiting",
+            "resumeMin 0: no wait after the boot, the late start is now")
+
+        local S = boot({ sp = true })
+        apply(S, { spots = { SPOT } })
+        S.Hordes.plan(S.Config.get().hordes, T.now + 20 * MIN, nil, w30)
+        T.now = T.now + HOUR
+        S = boot({ sp = true, keepGmd = true, keepFiles = true })
+        cur = S.Store.root().hordes.cur
+        T.check(cur.holdUntil == T.now and cur.startMs == T.now and cur.state == "waiting",
+            "single player: nobody to wait for, the late start is now")
+    end)
+
+    -- review 2026-11-02: the wave was all killed before the save, nobody near to clear it then: no "0 left" toast
+    section("restart: a wave with none left clears at once, no resume toast", function()
+        local Q = boot()
+        local root = Q.Store.root()
+        local admin = T.player{ name = "admin", admin = true }
+        local alice = T.player{ name = "alice" }
+        cmd(alice, "hello")
+        near(alice)
+        apply(Q, { spots = { SPOT }, waves = { wave(4) }, kinds = { vanilla = 100 }, points = { vanilla = 2 } })
+        adm(admin, "horde.now")
+        local id = root.hordes.cur.id
+        far(alice)
+        killAlive(Q, id, alice)
+        step(Q)
+        local cur = root.hordes.cur
+        T.check(cur.state == "active" and cur.left == 0 and cur.queued == 0, "all 4 killed, nobody near: not cleared yet")
         Q = boot({ keepGmd = true, keepFiles = true })
         root = Q.Store.root()
-        local e = root.hordes.log[#root.hordes.log]
-        T.check(root.hordes.cur == nil and e.id == id and e.state == "failed" and e.why == "restart" and e.cleared == 1
-            and e.paid.alice == 8, "a restart fails the active horde (restart); wave 1 is paid")
-        T.check(zs[#zs].oid ~= -1 and zs[#zs].onSquare == true, "its zombies stay in the world as normal zombies (not cleared)")
-        T.check(root.hordes.seq == id, "ids keep counting across the restart")
+        cur = root.hordes.cur
+        T.check(cur.state == "waiting" and cur.resume == true and cur.left == 0, "after the boot: waiting, resumed, none left")
+        alice = T.player{ name = "alice" }
+        cmd(alice, "hello")
+        near(alice)
+        T.now = cur.holdUntil
+        T.clearOutbox()
+        step(Q)
+        local e = lastLog(Q)
+        T.check(#toasts(alice, "resume") == 0 and root.hordes.cur == nil and e.id == id and e.state == "success"
+            and e.paid.alice == 8, "at holdUntil with a player near: no resume toast, cleared and paid at once")
+    end)
+
+    -- a crash takes Global ModData back to the last save; the event log and the horde-seq files stay (quest-rs-1101a)
+    section("crash: a save from before a horde does not give its id out again", function()
+        local Q = boot()
+        local admin = T.player{ name = "admin", admin = true }
+        apply(Q, { spots = { SPOT } })
+        local saved = T.deepcopy(T.gmd)   -- the last world save
+        adm(admin, "horde.now")
+        local id = Q.Store.root().hordes.cur.id
+        local function file(n) return T.files["MinidoracatQuest/servertest/" .. Q.Hordes.SEQ_FILES[n % 2 + 1]] end
+        T.check(file(id).lines[1] == tostring(id), "the id is in its horde-seq file")
+        T.gmd = T.deepcopy(saved)
+        Q = boot({ keepGmd = true, keepFiles = true })
+        T.check(Q.Store.root().hordes.cur == nil and (Q.Store.root().hordes.seq or 0) == id - 1, "the save has no horde")
+        admin = T.player{ name = "admin", admin = true }
+        adm(admin, "horde.now")
+        T.check(Q.Store.root().hordes.cur.id == id + 1, "the next horde takes the id after the file's")
+        T.check(file(id + 1).lines[1] == tostring(id + 1) and file(id).lines[1] == tostring(id),
+            "the next id goes to the other file")
+        -- a crash while the file of id + 2 is rewritten: opened (cut to nothing), not written yet
+        T.gmd = T.deepcopy(saved)
+        file(id + 2).lines = {}
+        Q = boot({ keepGmd = true, keepFiles = true })
+        admin = T.player{ name = "admin", admin = true }
+        adm(admin, "horde.now")
+        T.check(Q.Store.root().hordes.cur.id == id + 2, "the other file still holds id + 1: id + 2, never handed out")
+        -- a write that does not land: the id is not handed out (review 2026-11-02, Codex R2)
+        adm(admin, "horde.stop", { id = id + 2 })
+        T.silentWrites = true
+        local r = adm(admin, "horde.now")
+        T.silentWrites = false
+        local h = Q.Store.root().hordes
+        T.check(r and r.ok == false and r.code == "FILE_ERROR" and h.cur == nil and h.seq == id + 2
+            and T.printed("horde id file not written"), "the id file read back wrong: FILE_ERROR, no horde, the id not used")
+        adm(admin, "horde.now")
+        T.check(h.cur ~= nil and h.cur.id == id + 3, "written this time: id + 3, handed out once")
+    end)
+
+    section("an automatic roll whose id file is not written: no horde, the day not counted", function()
+        local Q = boot()
+        local h = Q.Store.root().hordes
+        local d = today() + 2
+        apply(Q, { enabled = true, windows = { win("19:00", "23:00", 100) }, maxPerDay = 2, spots = { SPOT },
+            waves = { wave(4) } })
+        T.now = at(d, 18, 45)
+        T.silentWrites = true
+        step(Q)
+        T.silentWrites = false
+        T.check(h.cur == nil and (h.perDay[keyOf(Q, d)] or 0) == 0 and (h.seq or 0) == 0
+            and T.printed("horde id file not written"), "slot 0 hit but its id file read back wrong: nothing planned or counted")
+        T.now = at(d, 19, 45)
+        step(Q)
+        T.check(h.cur ~= nil and h.cur.id == 1 and h.perDay[keyOf(Q, d)] == 1, "slot 1 hits and is written: id 1, counted")
+    end)
+
+    -- plan quest-horde-restart-corpses-1101, owner 2026-11-01: only the corpses of zombies Quest spawned for a horde go
+    section("corpses: the tag, the cap, the sweep; players' and other corpses stay", function()
+        local Q = boot()
+        local H, root = Q.Hordes, Q.Store.root()
+        local TAG = H.CORPSE_TAG
+        local admin = T.player{ name = "admin", admin = true }
+        local alice = T.player{ name = "alice" }
+        cmd(alice, "hello")
+        near(alice)
+        apply(Q, { spots = { SPOT }, waves = { wave(7) }, kinds = { vanilla = 100 }, corpses = { max = 3, afterMin = 10 } })
+        local X, Y = SPOT.x, SPOT.y
+        local function present(b)
+            for _, x in ipairs(T.allBodies()) do if x == b then return true end end
+            return false
+        end
+        -- not the horde's, all near the spot: a player's corpse (the player's modData copied, another mod's data in
+        -- it), a vanilla zombie's, an empty one
+        local keep = { T.body{ x = X + 11, y = Y, z = 0, modData = { SomeMod = { hp = 3 } } } }
+        T.zombie{ x = X + 2, y = Y }:Kill(alice)
+        keep[2] = T.bodiesAt(X + 2, Y, 0)[1]
+        keep[3] = T.body{ x = X + 3, y = Y, z = 0 }
+        T.check(keep[2] ~= nil and not keep[2]:hasModData(), "a vanilla zombie's corpse has no tag")
+        adm(admin, "horde.now")
+        local id = root.hordes.cur.id
+        local zs = {}
+        for z, t in pairs(H.live) do if t.horde == id then zs[#zs + 1] = z end end
+        table.sort(zs, function(a, b) return a.oid < b.oid end)
+        T.check(#zs == 7, "7 spawned")
+        -- a horde zombie the engine handed out again before it died: no longer ours, no tag
+        T.reuseZombie(zs[6])
+        zs[6].x, zs[6].y = X + 4, Y
+        zs[6]:Kill(alice)
+        keep[4] = T.bodiesAt(X + 4, Y, 0)[1]
+        T.check(keep[4] ~= nil and not keep[4]:hasModData(), "a reused zombie's corpse has no tag")
+        -- one that stopped counting (virtualised: online id -1) before it died: no tag either
+        zs[7]:removeFromWorld()
+        zs[7].x, zs[7].y = X + 5, Y
+        zs[7]:Kill(alice)
+        keep[5] = T.bodiesAt(X + 5, Y, 0)[1]
+        T.check(keep[5] ~= nil and not keep[5]:hasModData(), "a horde zombie that stopped counting (online id -1): no tag")
+        -- the 5 horde zombies die in a row at X+11 .. X+15, the first on the player's corpse square
+        local hb = {}
+        for i = 1, 5 do
+            zs[i].x, zs[i].y = X + 10 + i, Y
+            zs[i]:Kill(alice)
+            local list = T.bodiesAt(X + 10 + i, Y, 0)
+            hb[i] = list[#list]
+        end
+        T.check(hb[1] ~= keep[1] and hb[1]:getModData()[TAG] == id, "a horde zombie's corpse carries the horde id")
+        T.check(#root.hordes.corpses == 5 and root.hordes.corpses[1].x == X + 11 and root.hordes.corpses[1].h == id,
+            "5 listed, oldest first")
+        step(Q)
+        local e = lastLog(Q)
+        T.check(root.hordes.cur == nil and e.state == "success", "the wave is cleared")
+        T.check(#T.removed == 2 and T.removed[1].body == hb[1] and T.removed[2].body == hb[2]
+            and T.removed[1].remote == false and T.removed[2].remote == false and #root.hordes.corpses == 3,
+            "over max 3 the 2 oldest go, sent to the clients (bRemote false)")
+        T.check(present(keep[1]) and #T.bodiesAt(X + 11, Y, 0) == 1, "the player's corpse on that square stays")
+        local sw = root.hordes.sweeps[1]
+        T.check(#root.hordes.sweeps == 1 and sw.h == id and sw.at == e.endedAt + 10 * MIN,
+            "one sweep of the spot 10 min (afterMin) after the end")
+
+        -- a restart keeps the corpses (the world save), the list and the sweep
+        Q = boot({ keepGmd = true, keepFiles = true })
+        H, root = Q.Hordes, Q.Store.root()
+        T.check(#root.hordes.corpses == 3 and #root.hordes.sweeps == 1 and present(hb[3]), "kept over a restart")
+        local newer = T.body{ x = X - 5, y = Y + 5, z = 0, modData = { [TAG] = id + 1 } }
+        local far = T.body{ x = X + 61, y = Y, z = 0, modData = { [TAG] = id } }
+        local unloaded = T.body{ x = X - 30, y = Y - 30, z = 0, modData = { [TAG] = id } }
+        for _ = 1, 3 do T.body{ x = X, y = Y, z = 0, modData = { [TAG] = id } } end
+        T.now = sw.at - 1000
+        step(Q)
+        T.check(#T.removed == 0, "nothing before the sweep is due")
+        T.now = sw.at
+        T.square = function() return nil end
+        step(Q)
+        T.check(#T.removed == 0 and #root.hordes.sweeps == 1, "the spot not loaded (nobody near): the sweep waits")
+        T.square = function(x, y) if x == X - 30 and y == Y - 30 then return nil end return "free" end
+        H.CORPSE_BATCH = 2
+        local most = 0
+        -- steps (T.now stays) until the sweep is gone or its pass is over (tries went up)
+        local function pass()
+            local s = root.hordes.sweeps[1]
+            local tries = s.tries or 0
+            for _ = 1, 60 do
+                local n0 = #T.removed
+                step(Q)
+                most = math.max(most, #T.removed - n0)
+                if #root.hordes.sweeps == 0 or (s.tries or 0) > tries then return end
+            end
+        end
+        pass()
+        local s = root.hordes.sweeps[1]
+        T.check(#T.removed == 6 and most == 2,
+            "the sweep removes the horde's 6 corpses left in the area, at most CORPSE_BATCH (2) a tick")
+        T.check(s ~= nil and s.tries == 1 and s.row == 0 and s.miss == 0 and s.at == T.now + H.SWEEP_RETRY_MS
+            and present(unloaded) and #root.hordes.corpses == 3,
+            "a square was not loaded: the whole area again a minute later, the list entries stay")
+        T.square = nil
+        T.now = s.at - 1000
+        step(Q)
+        T.check(#T.removed == 6, "nothing before the next pass is due")
+        T.now = s.at
+        pass()
+        T.check(#root.hordes.sweeps == 0 and #T.removed == 7 and not present(unloaded),
+            "loaded now: the next pass takes the corpse it missed and ends the sweep")
+        T.check(#root.hordes.corpses == 0, "a whole pass: the list entries in the area go with it")
+        local stay = present(newer) and present(far)
+        for _, b in ipairs(keep) do stay = stay and present(b) end
+        T.check(stay, "kept: the player's, the vanilla zombie's, the empty, the reused and the virtualised zombies' "
+            .. "corpses, a newer horde's and one 61 tiles away")
+
+        -- a part that never loads: given up after SWEEP_TRIES passes; its list entry stays for the oldest-first cut
+        local lost = T.body{ x = X - 30, y = Y - 30, z = 0, modData = { [TAG] = id } }
+        root.hordes.corpses = { { x = X - 30, y = Y - 30, z = 0, h = id } }
+        root.hordes.sweeps = { { x = X, y = Y, z = 0, h = id, at = T.now, row = 0 } }
+        T.square = function(x, y) if x == X - 30 and y == Y - 30 then return nil end return "free" end
+        H.SWEEP_TRIES = 1
+        pass()
+        T.now = root.hordes.sweeps[1].at
+        pass()
+        T.check(#root.hordes.sweeps == 0 and present(lost) and #root.hordes.corpses == 1,
+            "still not loaded after SWEEP_TRIES passes: given up, the list entry stays")
+        H.SWEEP_TRIES = 30
+        T.square = nil
+
+        -- a spot upstairs (z = 1): a loaded chunk has only the built squares there, the rest is nil but not "not
+        -- loaded" (its z = 0 square is there): one pass ends the sweep (review 2026-11-02, Claude R2)
+        local up = T.body{ x = X + 3, y = Y, z = 1, modData = { [TAG] = id } }
+        root.hordes.corpses = { { x = X + 3, y = Y, z = 1, h = id } }
+        root.hordes.sweeps = { { x = X, y = Y, z = 1, h = id, at = T.now, row = 0 } }
+        T.square = function(x, y, z)
+            if z ~= 0 and not ((x == X or x == X + 3) and y == Y) then return nil end
+            return "free"
+        end
+        pass()
+        T.check(#root.hordes.sweeps == 0 and not present(up) and #root.hordes.corpses == 0,
+            "a spot at z 1: squares never built up there are no misses, one pass removes its corpse and ends the sweep")
+        T.square = nil
+
+        -- off (max 0): nothing listed or swept, nothing removed
+        H.CORPSE_BATCH = 100
+        local before = #T.removed
+        apply(Q, { corpses = { max = 0, afterMin = 10 } })
+        admin, alice = T.player{ name = "admin", admin = true }, T.player{ name = "alice" }
+        cmd(alice, "hello")
+        near(alice)
+        adm(admin, "horde.now")
+        killAlive(Q, root.hordes.cur.id, alice)
+        step(Q)
+        T.check(root.hordes.cur == nil and #root.hordes.corpses == 0 and #root.hordes.sweeps == 0
+            and #T.removed == before, "max 0: no list, no sweep, nothing removed")
     end)
 
     -- ===================== status, provider, delta =====================
@@ -1610,6 +1926,8 @@ return function(T)
             { P .. "hp", {} }, { P .. "name", "" }, { P .. "name", string.rep("x", 32) }, { "presets.p2.name", "Hard" },
             { "presets.p2.hp.runner", 3 }, { "presets.p2", Q.Catalog.DEFAULTS.hordes.presets.default },
             { "presets.p2", { limitMin = 5 } }, { "spots", {} },
+            { "resumeMin", 0 }, { "resumeMin", 60 }, { "corpses.max", 0 }, { "corpses.max", 5000 },
+            { "corpses.afterMin", 0 }, { "corpses.afterMin", 240 }, { "corpses", { max = 500, afterMin = 10 } },
             { "spots", spots(32) }, { "spots", spots(1, { z = -32 }) }, { "spots", spots(1, { z = 31, x = 100000 }) },
         }
         for _, g in ipairs(good) do T.check(ok(g[1], g[2]), "valid hordes." .. g[1]) end
@@ -1629,6 +1947,8 @@ return function(T)
             { "windows", wins(1, { preset = "_a" }) },
             { "windows", { 1 } }, { "windows", { a = win("19:00", "23:00", 30) } }, { "windows.1.from", "20:00" },
             { "maxPerDay", 0 }, { "maxPerDay", 25 },
+            { "resumeMin", -1 }, { "resumeMin", 61 }, { "resumeMin", 2.5 }, { "corpses.max", -1 }, { "corpses.max", 5001 },
+            { "corpses.afterMin", 241 }, { "corpses.afterMin", 1.5 }, { "corpses", { max = 5, foo = 1 } }, { "corpses", 5 },
             { P .. "waves", {} }, { P .. "waves", waves(11) }, { P .. "waves", waves(1, { base = 0 }) },
             { P .. "waves", waves(1, { base = 10000 }) }, { P .. "waves", waves(1, { perPlayer = -1 }) },
             { P .. "waves", waves(1, { perPlayer = 1001 }) }, { P .. "waves", waves(1, { base = 2.5 }) },
@@ -1968,6 +2288,24 @@ return function(T)
         T.now = cur.startMs
         step(Q)
         T.check(cur.state == "active" and cur.spawned == 3, "and it runs")
+
+        -- a 0.2.0 horde cut by a restart (it spawned all 5 at once, 2 killed): the resumed wave is out of those 5
+        root = Q.Store.root()
+        root.hordes.cur = { id = 6, auto = true, actor = "auto", name = "Old", x = SPOT.x, y = SPOT.y, z = 0, town = "muldraugh",
+            mix = { { kind = "vanilla", n = 5, nameKey = "IGUI_MQ_Horde_Kind_vanilla" } }, count = 5, perZombie = 5,
+            split = "share", limitMin = 15, waitMin = 60, state = "active", announceAt = T.now - 20 * MIN,
+            startMs = T.now - 5 * MIN, expireAt = T.now + 55 * MIN, spawnAt = T.now - 2 * MIN, endsAt = T.now + 13 * MIN,
+            spawned = 5, left = 3, killed = 2, kills = { alice = 2 }, tries = 0 }
+        Q = boot({ keepGmd = true })
+        cur = Q.Store.root().hordes.cur
+        T.check(cur.state == "waiting" and cur.resume == true and cur.size == 5 and cur.left == 3 and cur.totalSpawned == 2,
+            "an old active horde cut by a restart: waits again, its size what it spawned")
+        alice = T.player{ name = "alice" }
+        near(alice)
+        T.now = cur.holdUntil
+        step(Q)
+        T.check(cur.state == "active" and cur.size == 5 and cur.spawned == 5 and cur.queued == 0 and cur.left == 3,
+            "and its 3 left come again: 2 of 5 cleared, not 0 of 0")
     end)
 
     section("config.json round trip of hordes", function()

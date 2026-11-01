@@ -148,6 +148,13 @@ function P.hordeBanner(s, now)
                 getText("IGUI_MQ_Horde_StartsIn", D.duration((tonumber(h.startMs) or now) - now)), spot
         end
         if st == "waiting" then
+            -- after a server start the horde carried over starts no wave before holdUntil: the players come back first
+            local hold = (tonumber(h.holdUntil) or 0) - now
+            if hold > 0 then
+                return D.EXTRA.hordeSoon, getText("IGUI_MQ_Horde_Title_wait", D.hordeName(h)),
+                    getText("IGUI_MQ_Horde_HoldBody", tostring(h.x), tostring(h.y)),
+                    getText("IGUI_MQ_Horde_ResumesIn", D.duration(hold)), spot
+            end
             return D.EXTRA.hordeSoon, getText("IGUI_MQ_Horde_Title_wait", D.hordeName(h)),
                 getText("IGUI_MQ_Horde_WaitBody", tostring(h.x), tostring(h.y)),
                 getText("IGUI_MQ_Horde_WaitLeft", D.duration((tonumber(h.expireAt) or now) - now)), spot

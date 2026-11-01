@@ -65,6 +65,8 @@ local function fillRoot(r, t)
     ensure(h, "roll", {})
     ensure(h, "perDay", {})
     ensure(h, "log", {})
+    ensure(h, "corpses", {})                 -- tagged horde corpses, oldest first (Hordes.corpseTick)
+    ensure(h, "sweeps", {})                  -- one pending corpse sweep per spot (Hordes.sweepAdd)
     -- results from before 2026-10-27 had one wave, a pool of perZombie x spawned whatever the result, pay only on a
     -- win and "each" paying that pool to everyone: one wave, cleared on a win, pool = what was actually paid
     for _, e in ipairs(h.log) do

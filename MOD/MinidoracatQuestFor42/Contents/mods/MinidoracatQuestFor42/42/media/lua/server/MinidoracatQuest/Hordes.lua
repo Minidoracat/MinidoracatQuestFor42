@@ -17,8 +17,12 @@
 -- IsoZombie objects are reused by the engine (VirtualZombieManager.java:728-742), so H.live is memory only and an
 -- entry counts while the zombie keeps the online id it spawned with (single player: while the cell lists it, see
 -- same): removeFromWorld (virtualised, walked away) sets it to -1 and a reuse hands out a new one; a reused object
--- also loses its entry at OnZombieCreate (H.onZombieCreate). Those stop counting and stay as normal zombies. A restart
--- fails an active horde ("restart"); planned / announced / waiting / rest ones carry on.
+-- also loses its entry at OnZombieCreate (H.onZombieCreate). Those stop counting and stay as normal zombies. A boot
+-- (a restart, or a crash back to the last save) carries a horde on: an active wave waits again with what was left,
+-- and on a dedicated server that horde starts no wave for hordes.resumeMin (H.boot, H.hold; plan
+-- quest-horde-restart-corpses-1101). A horde planned after the boot keeps its own lead.
+-- Corpses (hordes.corpses): a horde zombie is tagged as it dies and its corpse copies the tag; over max the oldest
+-- go, afterMin after the end a sweep of the spot removes the rest (H.corpseTick). Untagged corpses are never removed.
 -- Kinds: built-in vanilla and runner (z:doSprinter() at spawn, IsoZombie.java:5563; never doZombieSpeed(1), which
 -- rolls); other mods add "<modId>:<id>" kinds through v1.registerHordeKind. Quest owns timing, counting, clearing.
 -- Manual starts (horde.now, design r12 and plan-presets-1028) play a preset (default "default"), announce lead minutes
@@ -79,6 +83,15 @@ H.REMIND_MS = 2 * MIN     -- the personal reminder to players near the spot come
 H.HP_MAX = 30             -- spawn health cap: the zombie packet sends health x 1000 as a short, so above 32.767 it
                           -- wraps negative on the clients (42.21.0 NetworkZombieAI.java:169, NetworkZombiePacker.java:243)
 H.MAX_PER_MOD, H.MAX_PACK = 8, 32
+H.CORPSE_TAG = "MinidoracatQuestHorde"   -- modData key a horde zombie gets as it dies (its IsoDeadBody copies it)
+H.CORPSE_BATCH = 100      -- tagged corpses removed per tick at most: one burst of 2,750 held a client frame 461 ms
+                          -- (quest-cperf-main-1101a)
+H.SWEEP_R, H.SWEEP_ROWS = 60, 6   -- a sweep reads the (2 x SWEEP_R + 1)^2 squares around the spot, rows per tick
+H.SWEEPS = 32             -- pending sweeps kept (one per spot)
+H.SWEEP_RETRY_MS, H.SWEEP_TRIES = MIN, 30   -- a pass that met squares not loaded goes again this much later, this
+                          -- many times at most
+H.SEQ_FILES = { "horde-seq-1.txt", "horde-seq-2.txt" }   -- the highest horde id, the two files in turn: Global
+                          -- ModData goes back with a crash, these files do not
 H.kinds = H.kinds or {}   -- id -> { id, nameKey, spawn = fn(x, y, z, n) -> ArrayList | Lua array, modId? }
 H.live = H.live or {}     -- IsoZombie -> { horde, onlineId, kind }; memory only
 H.lastTick = H.lastTick or 0
@@ -281,9 +294,8 @@ function H.roll(now, cfg, tz)
                     -- a whole minute in [max(slot start, now + lead), slot end): the announcement keeps its lead
                     local lo = math.ceil(math.max(s, now + win.leadMin * MIN) / MIN)
                     local hi = math.ceil(e / MIN) - 1
-                    if hi >= lo then
+                    if hi >= lo and H.plan(cfg, (lo + ZombRand(hi - lo + 1)) * MIN, nil, win) ~= nil then
                         countDay(h, dk)
-                        H.plan(cfg, (lo + ZombRand(hi - lo + 1)) * MIN, nil, win)
                     end
                 end
             end
@@ -339,13 +351,36 @@ function H.presetOf(cfg, id)
     return cfg.presets[id] or cfg.presets.default
 end
 
+-- the highest horde id in the private files (0 when none): h.seq is in Global ModData and goes back with a crash,
+-- the event log does not (quest-rs-1101a: ref horde:1 twice). Ids go to the two files in turn: a crash while one is
+-- rewritten (emptied, not written yet) leaves the previous id in the other, and that + 1 is the id being written,
+-- which was never handed out (H.plan hands an id out only once it is read back).
+local function seqFile()
+    local best = 0
+    for _, f in ipairs(H.SEQ_FILES) do
+        local lines = MQ.Store.readLines(MQ.Store.path(f), 1)
+        if type(lines) == "table" then best = math.max(best, math.floor(tonumber(lines[1]) or 0)) end
+    end
+    return best
+end
+
 -- win = { preset, leadMin, waitMin }: the window that rolled it, or horde.now's; actor nil = an automatic roll. The
 -- preset's knobs are copied so later setting changes leave it alone; cur.preset is its name ("" = the default one).
+-- Returns the new cur, or nil, CODE.FILE_ERROR when its id did not reach its file: an id handed out without it could
+-- come again after a crash before the next world save (review 2026-11-02).
 function H.plan(cfg, startMs, actor, win)
     local h, p = hordes(), H.presetOf(cfg, win.preset)
     local spot = cfg.spots[ZombRand(#cfg.spots) + 1]
-    h.seq = (h.seq or 0) + 1
-    h.cur = { id = h.seq, auto = actor == nil, actor = actor or "auto", name = spot.name, x = spot.x, y = spot.y,
+    local id = math.max(h.seq or 0, seqFile()) + 1
+    -- getFileWriter swallows write errors (Store.writeLines): read it back
+    local f = MQ.Store.path(H.SEQ_FILES[id % 2 + 1])
+    local back = MQ.Store.writeLines(f, { tostring(id) }, false) and MQ.Store.readLines(f, 1)
+    if type(back) ~= "table" or back[1] ~= tostring(id) then
+        U.log("horde not planned, horde id file not written: " .. f)
+        return nil, CODE.FILE_ERROR
+    end
+    h.seq = id
+    h.cur = { id = id, auto = actor == nil, actor = actor or "auto", name = spot.name, x = spot.x, y = spot.y,
         z = spot.z, town = MQ.Towns.at(spot.x, spot.y), state = "planned", preset = p.name,
         announceAt = startMs - win.leadMin * MIN, startMs = startMs, expireAt = startMs + win.waitMin * MIN,
         waves = U.copy(p.waves), wave = 1, weights = U.copy(p.kinds), points = U.copy(p.points), hp = U.copy(p.hp or {}),
@@ -358,14 +393,15 @@ function H.plan(cfg, startMs, actor, win)
 end
 
 -- A horde planned before the waves update (0.2.0, no cur.waves; it has its limitMin and waitMin) carries on as one
--- wave of its count; what it did not copy comes from today's default preset, at health x 1.
+-- wave of its count; one cut by a restart keeps what it spawned (all at once in 0.2.0) as its size, so the resumed
+-- wave counts kills out of it. What it did not copy comes from today's default preset, at health x 1.
 local function upgrade(cur)
     local p = H.presetOf(settings(), "default")
     local weights = {}
     for _, m in ipairs(cur.mix or {}) do weights[m.kind] = m.n end
     cur.waves = { { base = math.max(1, cur.count or 1), perPlayer = 0 } }
     cur.wave, cur.weights, cur.points, cur.cap, cur.hp, cur.preset = 1, weights, U.copy(p.points), p.cap, {}, p.name
-    cur.restSec, cur.maxAlive, cur.size, cur.queued, cur.queue, cur.angle = p.restSec, p.maxAlive, 0, 0, {}, 0
+    cur.restSec, cur.maxAlive, cur.size, cur.queued, cur.queue, cur.angle = p.restSec, p.maxAlive, cur.spawned or 0, 0, {}, 0
     cur.totalSpawned, cur.totalKilled, cur.cleared = cur.spawned or 0, cur.killed or 0, 0
     cur.firstSpawnAt, cur.kills, cur.waveGot, cur.got = cur.spawnAt, cur.kills or {}, {}, {}
     cur.waveKills, cur.gotKills = {}, {}
@@ -598,8 +634,32 @@ local function lure(cur, now)
     end
 end
 
--- waiting -> active: the wave's size by the players near now, its kind mix and a fresh exit angle
+-- n zombies over the kinds of mix, by their counts there: a resumed wave's queue (what was left at the restart)
+local function queueOf(mix, n)
+    local ids, weights, q = {}, {}, {}
+    for i, m in ipairs(mix) do ids[i], weights[m.kind] = m.kind, m.n end
+    for _, m in ipairs(MQ.Catalog.hordeMix(ids, weights, n)) do q[m.kind] = (q[m.kind] or 0) + m.n end
+    return q
+end
+
+-- waiting -> active: the wave's size by the players near now, its kind mix and a fresh exit angle. A wave resumed
+-- after a boot (cur.resume, H.boot) keeps its size, kills and waveGot; what was left comes again.
 local function startWave(cur, now, players)
+    if cur.resume then
+        cur.resume = nil
+        cur.queue = queueOf(cur.mix, cur.left)
+        cur.queued, cur.spawned, cur.tries = cur.left, cur.size - cur.left, 0
+        cur.angle = ZombRand(360)
+        cur.state, cur.endsAt = "active", now + cur.limitMin * MIN
+        H.lureAt = 0
+        -- none left (all killed before the save, nobody near to clear it then): active clears it this tick
+        if cur.left > 0 then
+            toast(cur, "resume", { wave = cur.wave, waves = #cur.waves, left = cur.left, endsAt = cur.endsAt,
+                limitMin = cur.limitMin })
+        end
+        dirty()
+        return
+    end
     local w = cur.waves[cur.wave]
     cur.size = MQ.Catalog.hordeWaveSize(w.base, w.perPlayer, players)
     cur.mix = H.mix(cur.weights, cur.size)
@@ -722,8 +782,9 @@ local function mvp(cur, users)
     return tops, top
 end
 
--- result "success" | "failed" | "cancelled"; why for failed: time | nobody | admin | restart | spawn. Any result pays
--- the cleared waves (a failed wave's kills count for stats, not points).
+-- result "success" | "failed" | "cancelled"; why for failed: time | nobody | admin | spawn (restart: older log
+-- entries, when a restart still failed the horde). Any result pays the cleared waves (a failed wave's kills count for
+-- stats, not points).
 function H.finish(result, why, now)
     local h = hordes()
     local cur = h.cur
@@ -799,6 +860,8 @@ function H.finish(result, why, now)
     log[#log + 1] = e
     while #log > H.LOG do table.remove(log, 1) end
     dirty()
+    -- the corpses left at the spot go afterMin later (H.corpseTick)
+    if cur.firstSpawnAt ~= nil then H.sweepAdd(cur, now) end
     -- the result pops up only for the ones there at the end (2026-10-29): online, alive, within CLEAR_RANGE; the
     -- others open it from the Hordes page (hordeResult)
     if result ~= "cancelled" and cur.firstSpawnAt ~= nil then
@@ -841,24 +904,51 @@ function H.step(now)
     end
     if cur.state == "waiting" then
         if now >= cur.expireAt then return H.finish("failed", "nobody", now) end
-        local n = H.nearCount(cur)
-        if n > 0 then startWave(cur, now, n) end
+        -- after a boot the horde carried over starts no wave before holdUntil (H.hold)
+        if now >= (cur.holdUntil or 0) then
+            local n = H.nearCount(cur)
+            if n > 0 then startWave(cur, now, n) end
+        end
     end
     if cur.state == "active" then active(cur, now) end
 end
 
--- first tick after the store is ready: the zombies of an active horde were not kept across the restart; a rest has
--- none, so it carries on
+-- After a boot the players reconnect and come back first (owner 2026-11-01: 10 minutes by default): the horde carried
+-- over starts no wave before holdUntil = now + hordes.resumeMin, and its deadlines that passed while the server was
+-- down start again from there. A horde planned after the boot keeps its own lead. Single player has nobody to wait for.
+function H.hold(cur, now)
+    local mins = isServer() and (tonumber(settings().resumeMin) or 0) or 0
+    local hold = now + mins * MIN
+    cur.holdUntil = hold
+    if cur.state == "planned" or cur.state == "announced" then
+        local late = math.max(0, hold - cur.startMs)
+        cur.startMs, cur.announceAt = cur.startMs + late, cur.announceAt + late
+        cur.expireAt = cur.startMs + cur.waitMin * MIN
+    elseif cur.state == "waiting" then
+        cur.expireAt = hold + cur.waitMin * MIN
+    elseif cur.state == "rest" then
+        cur.nextAt = math.max(cur.nextAt, hold)
+    end
+    dirty()
+end
+
+-- First tick after the store is ready: a restart, or a crash back to the last save (Global ModData is written only
+-- by a world save, quit included: ServerMap.java:409, quest-rs-1101a). The zombies of an active wave were not kept
+-- (H.live is memory; the engine brings them back as normal ones, ZombiePopulationManager.java:638-696), so that
+-- wave waits again with what was left (alive at the save + not spawned); its kills stay in waveGot until it clears.
 function H.boot(now)
     H.booted = true
     H.live = {}
     local cur = hordes().cur
     if cur == nil then return end
-    if cur.waves == nil then
-        upgrade(cur)
-        dirty()
+    if cur.waves == nil then upgrade(cur) end
+    if cur.state == "active" then
+        -- the ones alive at the save come again: out of the spawned total until they do
+        local alive = math.max(0, (cur.left or 0) - (cur.queued or 0))
+        cur.totalSpawned = math.max(0, (cur.totalSpawned or 0) - alive)
+        cur.state, cur.resume = "waiting", true
     end
-    if cur.state == "active" then H.finish("failed", "restart", now) end
+    H.hold(cur, now)
 end
 
 function H.tick(now)
@@ -867,6 +957,7 @@ function H.tick(now)
     if not H.booted then H.boot(now) end
     H.roll(now, settings(), MQ.Sandbox.get("TimezoneOffset"))
     H.step(now)
+    H.corpseTick(now)
 end
 
 -- OnZombieCreate (VirtualZombieManager.java:203, its only trigger): the engine hands out a zombie, maybe an object that
@@ -880,8 +971,14 @@ function H.onZombieDead(z)
     local t = z ~= nil and H.live[z] or nil
     if t == nil then return end   -- not ours, or the second event of a burning death
     H.live[z] = nil
+    if not same(z, t) then return end   -- a reused object: no longer the one Quest spawned
+    -- The same die() copies the zombie's modData into its IsoDeadBody right after this event (becomeCorpse,
+    -- IsoDeadBody.java:384); the tag stays through a save, a drag and a pick-up, and a reused zombie object loses it
+    -- (IsoZombie.java:4470-4471). Only zombies Quest spawned are tagged: a player's corpse never is.
+    z:getModData()[H.CORPSE_TAG] = t.horde
+    H.corpseAdd(t.horde, z:getX(), z:getY(), z:getZ())
     local cur = hordes().cur
-    if cur == nil or cur.id ~= t.horde or cur.state ~= "active" or not same(z, t) then return end
+    if cur == nil or cur.id ~= t.horde or cur.state ~= "active" then return end
     cur.killed, cur.totalKilled = cur.killed + 1, cur.totalKilled + 1
     if cur.left > 0 then cur.left = cur.left - 1 end
     -- Kill() sets the attacker before the event fires; fire deaths have none: cleared, no kill
@@ -926,6 +1023,134 @@ function H.onDeath(c)
     q.users[#q.users + 1] = user
 end
 
+-- ---------- horde corpses (hordes.corpses; plan quest-horde-restart-corpses-1101) ----------
+
+local function corpsesOn()
+    local c = settings().corpses
+    return type(c) == "table" and (tonumber(c.max) or 0) > 0, c
+end
+
+-- a horde zombie died at x, y, z: its corpse joins root.hordes.corpses (oldest first) while clearing is on
+function H.corpseAdd(id, x, y, z)
+    if not corpsesOn() then return end
+    local list = hordes().corpses
+    list[#list + 1] = { x = math.floor(x), y = math.floor(y), z = math.floor(z), h = id }
+end
+
+-- Removes at most budget corpses of sq whose H.CORPSE_TAG is a horde id from lo to hi; returns how many.
+-- getDeadBodys is a copy (IsoGridSquare.java:3044), so removing while walking it is safe. removeCorpse(body, false) on
+-- the server sends RemoveCorpseFromMap to the clients near (IsoGridSquare.java:3010-3032); removeFromWorld does not.
+-- The corpse's items go with it, as with the sandbox corpse removal.
+function H.removeTagged(sq, lo, hi, budget)
+    local smo = sq:getStaticMovingObjects()
+    if smo == nil or smo:size() == 0 then return 0 end
+    local n = 0
+    each(sq:getDeadBodys(), function(b)
+        if n < budget and b:hasModData() then
+            local tag = tonumber(b:getModData()[H.CORPSE_TAG])
+            if tag ~= nil and tag >= lo and tag <= hi then
+                sq:removeCorpse(b, false)
+                n = n + 1
+            end
+        end
+    end)
+    return n
+end
+
+-- the end of a spawned horde: one sweep of its spot afterMin later, replacing an earlier one at the same spot. It
+-- removes the corpses of this horde and older ones, not those of a newer horde started there meanwhile.
+function H.sweepAdd(cur, now)
+    local on, c = corpsesOn()
+    if not on then return end
+    local sweeps = hordes().sweeps
+    for i = #sweeps, 1, -1 do
+        local s = sweeps[i]
+        if s.x == cur.x and s.y == cur.y and s.z == cur.z then table.remove(sweeps, i) end
+    end
+    sweeps[#sweeps + 1] = { x = cur.x, y = cur.y, z = cur.z, h = cur.id, at = now + (tonumber(c.afterMin) or 0) * MIN,
+        row = 0 }
+    while #sweeps > H.SWEEPS do table.remove(sweeps, 1) end
+end
+
+-- SWEEP_ROWS rows of s's area while budget lasts (s.row, s.col say where it stopped); returns the budget left and
+-- whether the pass is over. A square not loaded adds to s.miss: H.corpseTick sends the pass again. A loaded chunk
+-- has every z = 0 square (IsoChunk.java:2404-2406) but above or below only the built ones, so off z = 0 a missing
+-- square counts only when its z = 0 one is missing too.
+local function sweepStep(s, budget, cell)
+    local R = H.SWEEP_R
+    for _ = 1, H.SWEEP_ROWS do
+        local y = s.y - R + s.row
+        for x = s.col or (s.x - R), s.x + R do
+            local sq = cell:getGridSquare(x, y, s.z)
+            if sq == nil then
+                if s.z == 0 or cell:getGridSquare(x, y, 0) == nil then s.miss = (s.miss or 0) + 1 end
+            else budget = budget - H.removeTagged(sq, 1, s.h, budget) end
+            if budget <= 0 then
+                s.col = x   -- this square again next tick: it may hold more
+                return budget, false
+            end
+        end
+        s.col, s.row = nil, s.row + 1
+        if s.row > 2 * R then return budget, true end
+    end
+    return budget, false
+end
+
+-- Each tick: the oldest corpses over max, then the first due sweep whose spot is loaded (a player near); at most
+-- CORPSE_BATCH removals in all. A list entry whose corpse is gone (dragged away, not loaded) is just dropped; the
+-- sweep finds a dragged one if it stayed near the spot. Off (max 0): nothing is kept or pending.
+function H.corpseTick(now)
+    local h = hordes()
+    local on, c = corpsesOn()
+    if not on then
+        if #h.corpses > 0 then h.corpses = {} end
+        if #h.sweeps > 0 then h.sweeps = {} end
+        return
+    end
+    local cell, budget = getCell(), H.CORPSE_BATCH
+    local list, max = h.corpses, math.floor(tonumber(c.max) or 0)
+    local i = 0
+    -- at most 2 x CORPSE_BATCH entries a tick: the ones whose corpse is gone cost no budget
+    while #list - i > max and budget > 0 and i < 2 * H.CORPSE_BATCH do
+        i = i + 1
+        local e = list[i]
+        local sq = cell:getGridSquare(e.x, e.y, e.z)
+        if sq ~= nil then budget = budget - H.removeTagged(sq, e.h, e.h, 1) end
+    end
+    if i > 0 then
+        local rest = {}
+        for k = i + 1, #list do rest[#rest + 1] = list[k] end
+        h.corpses = rest
+    end
+    for k, s in ipairs(h.sweeps) do
+        if budget <= 0 then return end
+        if now >= s.at and cell:getGridSquare(s.x, s.y, s.z) ~= nil then
+            local done
+            budget, done = sweepStep(s, budget, cell)
+            if done and (s.miss or 0) > 0 and (s.tries or 0) < H.SWEEP_TRIES then
+                -- part of the area was not loaded: the server loads about 48 tiles around a player
+                -- (ServerMap.java:260, onlineChunkGridWidth / 2 x 8), the area reaches 60 from the spot.
+                -- ponytail: the whole area again; keep the rows not loaded if the passes cost shows
+                s.row, s.miss, s.tries, s.at = 0, 0, (s.tries or 0) + 1, now + H.SWEEP_RETRY_MS
+            elseif done then
+                table.remove(h.sweeps, k)
+                -- a whole pass: the list entries of the horde and older ones in that area are gone with it. Given
+                -- up with squares not loaded: the entries stay, so the oldest-first cut still finds those corpses.
+                if (s.miss or 0) == 0 then
+                    local R, keep = H.SWEEP_R, {}
+                    for _, e in ipairs(h.corpses) do
+                        if e.h > s.h or e.z ~= s.z or math.abs(e.x - s.x) > R or math.abs(e.y - s.y) > R then
+                            keep[#keep + 1] = e
+                        end
+                    end
+                    h.corpses = keep
+                end
+            end
+            return
+        end
+    end
+end
+
 -- ---------- state part, admin ops ----------
 
 -- players with 1+ kill: a horde (cur.kills) or a result (older logs have no joined)
@@ -948,7 +1173,7 @@ function H.stateHordes(acc, user, now)
             kinds = kindsOf(cur), announceAt = cur.announceAt, startMs = cur.startMs, expireAt = cur.expireAt,
             endsAt = cur.endsAt, nextAt = cur.nextAt, wave = cur.wave, waves = #cur.waves, size = cur.size,
             left = cur.left, killed = cur.killed, limitMin = cur.limitMin, mine = cur.kills[user] or 0,
-            got = cur.got[user] or 0, joined = joinedOf(cur) }
+            got = cur.got[user] or 0, joined = joinedOf(cur), holdUntil = cur.holdUntil, resume = cur.resume }
     end
     local e = h.log[#h.log]
     if e ~= nil and e.announced ~= false and now - e.endedAt < H.LAST_MS then
@@ -1048,8 +1273,9 @@ function H.startNow(actor, now, lead, presetId, wait)
     if h.cur ~= nil then return false, CODE.HORDE_BUSY end
     if #cfg.spots == 0 then return false, CODE.NO_SPOTS end
     lead = lead or 0
-    local cur = H.plan(cfg, now + lead * MIN, actor, { preset = presetId or "default", leadMin = lead,
+    local cur, err = H.plan(cfg, now + lead * MIN, actor, { preset = presetId or "default", leadMin = lead,
         waitMin = wait or 60 })
+    if cur == nil then return false, err end
     MQ.Config.addHistory(actor, "horde.now " .. cur.id .. " " .. cur.name, {}, false)
     H.step(now)
     return true, cur.id

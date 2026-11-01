@@ -259,7 +259,8 @@ Cf.SCHEMA = {
     -- multiplier; windows, waves and spots are whole-set only. validateAll checks the result: at most
     -- C.LIMIT.MAX_PRESETS presets, each but "default" whole (hp may be left out) with a name of its own, and every
     -- window's preset exists.
-    hordes = { enabled = bool, windows = hordeWindows, maxPerDay = int(1, 24),
+    hordes = { enabled = bool, windows = hordeWindows, maxPerDay = int(1, 24), resumeMin = int(0, 60),
+        corpses = { max = int(0, 5000), afterMin = int(0, 240) },
         presets = { ["*id"] = { name = presetName, waves = hordeWaves, kinds = { ["*"] = int(0, 100) },
             points = { ["*"] = int(0, 1000) }, hp = { ["*"] = num(0.1, 10) }, limitMin = int(1, 120),
             restSec = int(0, 600), maxAlive = int(10, 2000), cap = int(1, 1000000) } },

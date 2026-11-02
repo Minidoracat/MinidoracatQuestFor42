@@ -4,6 +4,8 @@
 --   MiniMap calls both providers every frame, so they only return cached tables; the tables are built again when a
 --   state / delta push changes the horde view (id, state, wave, spot, name, town). MiniMap is not a require of this
 --   mod: the providers are registered when its API is there (file load, else OnGameStart); without it, nothing.
+--   The player's own marked corpse (CorpseMark.lua) is one more marker of the same provider: MiniMap keeps one per
+--   owner (registering again replaces it). Its square is the server's last known one, faded while it walks (walker).
 
 if isServer() then return end
 
@@ -37,24 +39,32 @@ function M.refresh()
     local hs = C.state and C.state.hordes
     local h = D.hordeLive(type(hs) == "table" and hs.cur or nil)
     local x, y = h and tonumber(h.x), h and tonumber(h.y)
+    local cm = Q.CorpseMark and Q.CorpseMark.mark
     local key = x and y and table.concat({ tostring(h.id), h.state, tostring(h.wave), x, y, tostring(h.name), tostring(h.town) }, "|")
-        or nil
+        or ""
+    if cm then key = key .. "|" .. tostring(cm.state) .. "|" .. cm.x .. "|" .. cm.y end
     if key == M.key then return end
     M.key = key
-    if key == nil then
-        M.zones, M.markers = M.NONE, nil
-        return
+    M.zones, M.markers = M.NONE, nil
+    local list, tex = {}, texture()
+    if x and y then
+        local c = h.state == "active" and D.EXTRA.horde or D.EXTRA.hordeSoon
+        local col = { r = c.r, g = c.g, b = c.b }
+        local _, title = Q.PageDaily.hordeBanner(C.state, C.serverNow())
+        local label, r = title or D.hordePlace(h), M.ZONE_R
+        M.zones = { { id = "mq_horde", name = label, rects = { { x1 = x - r, y1 = y - r, x2 = x + r, y2 = y + r } },
+            fill = col, fillAlpha = 0.22, border = col, borderAlpha = 0.9 } }
+        if tex then
+            list[1] = { id = "mq_horde", x = x, y = y, texture = tex, r = c.r, g = c.g, b = c.b, label = label, state = "live" }
+        end
     end
-    local c = h.state == "active" and D.EXTRA.horde or D.EXTRA.hordeSoon
-    local col = { r = c.r, g = c.g, b = c.b }
-    local _, title = Q.PageDaily.hordeBanner(C.state, C.serverNow())
-    local label, r = title or D.hordePlace(h), M.ZONE_R
-    M.zones = { { id = "mq_horde", name = label, rects = { { x1 = x - r, y1 = y - r, x2 = x + r, y2 = y + r } },
-        fill = col, fillAlpha = 0.22, border = col, borderAlpha = 0.9 } }
+    if cm and tex then
+        list[#list + 1] = { id = "mq_corpse", x = cm.x, y = cm.y, texture = tex, r = 1, g = 0.85, b = 0.2,
+            label = getText("IGUI_MQ_MyCorpse"), state = cm.state == "walker" and "stale" or "live" }
+    end
+    if key == "" then return end
     M.revision = M.revision + 1
-    local tex = texture()
-    M.markers = { revision = M.revision, markers = tex and { { id = "mq_horde", x = x, y = y, texture = tex,
-        r = c.r, g = c.g, b = c.b, label = label, state = "live" } } or {} }
+    M.markers = { revision = M.revision, markers = list }
 end
 
 function M.zoneProvider() return M.zones end
@@ -83,7 +93,7 @@ end
 
 if first then
     M.register()
-    for _, ev in ipairs({ "state", "delta" }) do
+    for _, ev in ipairs({ "state", "delta", "corpseMark" }) do
         C.on(ev, "hordemap", function() MinidoracatQuest.HordeMap.refresh() end)
     end
     Events.OnGameStart.Add(function() MinidoracatQuest.HordeMap.register() end)

@@ -581,6 +581,9 @@ function H.toast(p) C.emit("toast", p) end
 -- opens once the player is safe) or the answer to the Hordes page's View results (opens at once)
 function H.hordeResult(p) if Q.HordeResult ~= nil then Q.HordeResult.receive(p) end end
 
+-- { mark } or { mark = false }: this player's own corpse mark (CorpseMark.lua)
+function H.corpseMark(p) if Q.CorpseMark ~= nil then Q.CorpseMark.receive(p) end end
+
 -- { full, map = { user -> titleId } } at hello, { u, t } on a change (Titles.lua keeps the table)
 function H.titles(p) C.emit("titles", p) end
 

@@ -30,7 +30,10 @@ local only = arg and arg[1]
 local ran = 0
 for _, name in ipairs(SCENARIOS) do
     if only == nil or string.find(name, only, 1, true) then
-        local chunk = loadfile("scripts/harness/" .. name .. ".lua")
+        local chunk, loadErr = loadfile("scripts/harness/" .. name .. ".lua")
+        if loadErr ~= nil and not string.find(loadErr, "No such file", 1, true) then
+            T.check(false, name .. " does not load: " .. loadErr)   -- a syntax error must not pass as "not there yet"
+        end
         if chunk then
             ran = ran + 1
             io.write("\n== " .. name .. " ==\n")

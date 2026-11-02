@@ -19,7 +19,7 @@ https://steamcommunity.com/sharedfiles/filedetails/?id=3827762894
 [list]
 [*] [b]必裝[/b]：[url=https://steamcommunity.com/sharedfiles/filedetails/?id=3789836701]Minidoracat UI Library[/url]
 [*] [b]選用[/b]：[url=https://steamcommunity.com/sharedfiles/filedetails/?id=3801482125]Minidoracat Economy[/url]，在多人伺服器把積分換成倖存幣。
-[*] [b]選用[/b]：[url=https://steamcommunity.com/sharedfiles/filedetails/?id=3763913359]Minidoracat MiniMap[/url]，在小地圖標出屍潮的範圍。
+[*] [b]選用[/b]：[url=https://steamcommunity.com/sharedfiles/filedetails/?id=3763913359]Minidoracat MiniMap[/url]，在小地圖標出屍潮的範圍與自己在屍潮中的屍體。
 [/list]
 [h3]在哪裡能用[/h3]
 [list]
@@ -156,6 +156,7 @@ https://steamcommunity.com/sharedfiles/filedetails/?id=3827762894
 [list]
 [*] [b]會自動清掉[/b]：屍潮殭屍的屍體最多留 500 具，超過時從最舊的清；一場結束 10 分鐘後，清掉地點周圍其餘的屍潮屍體，屍體上的東西一起清掉。想搜屍要趁這段時間。
 [*] [b]玩家的屍體不動[/b]：只清本 MOD 為屍潮生成的殭屍屍體；玩家的屍體、一般殭屍的屍體都不會被清。
+[*] [b]找得到自己的屍體[/b]：第一波出現後、這一場結束前，在地點 50 格內死掉，你的屍體會加上金色外框與淡紅色，隔著牆也看得到外框；裝了 Minidoracat MiniMap 時，地圖上也有「我的屍體」標記。只有你自己看得到。屍體屍變時，地圖標記停在最後的位置、變淡；那隻殭屍被打倒後，標記換到它倒下的地方。死後 24 小時（現實時間）或屍體不見了，標記就消失，不能自己關掉。屍體上的東西誰都能拿。
 [/list]
 [b]管理員[/b]：地點、時段、方案（波次、種類與獎勵）怎麼設，見「屍潮設定」。
 === 🧰 屍潮結算與通知

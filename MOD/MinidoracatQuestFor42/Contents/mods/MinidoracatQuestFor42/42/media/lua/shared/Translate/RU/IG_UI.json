@@ -1405,6 +1405,7 @@
   "IGUI_MQ_Horde_Title_soon": "Предупреждение об орде: %1",
   "IGUI_MQ_Horde_Title_wait": "Орда ждёт вас: %1",
   "IGUI_MQ_Horde_Title_active": "Орда идёт: %1",
+  "IGUI_MQ_MyCorpse": "Мой труп",
   "IGUI_MQ_Horde_Title_spawn": "Орда здесь: %1",
   "IGUI_MQ_Horde_Title_win": "Орда зачищена: %1",
   "IGUI_MQ_Horde_Title_fail": "Орда провалена: %1",

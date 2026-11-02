@@ -19,7 +19,7 @@ Daily and weekly quests, achievements, season leaderboards and titles; pair it w
 [list]
 [*] [b]Required[/b]: [url=https://steamcommunity.com/sharedfiles/filedetails/?id=3789836701]Minidoracat UI Library[/url]
 [*] [b]Optional[/b]: [url=https://steamcommunity.com/sharedfiles/filedetails/?id=3801482125]Minidoracat Economy[/url], to exchange points for Survivor Coins on multiplayer servers.
-[*] [b]Optional[/b]: [url=https://steamcommunity.com/sharedfiles/filedetails/?id=3763913359]Minidoracat MiniMap[/url], to show the horde area on the minimap.
+[*] [b]Optional[/b]: [url=https://steamcommunity.com/sharedfiles/filedetails/?id=3763913359]Minidoracat MiniMap[/url], to show the horde area and your own corpse from a horde on the minimap.
 [/list]
 [h3]Where it works[/h3]
 [list]
@@ -156,6 +156,7 @@ Once the server has automatic hordes on or has had a horde, a "Hordes" page appe
 [list]
 [*] [b]Removed on their own[/b]: at most 500 horde corpses are kept, the oldest go first; 10 minutes after a horde ends, the rest around the spot are removed with everything on them. Loot them before that.
 [*] [b]Player corpses stay[/b]: only the corpses of zombies this mod spawned for a horde are removed; player corpses and other zombies' corpses are never removed.
+[*] [b]Find your own corpse[/b]: die within 50 tiles of the spot after the first wave has appeared and before the horde ends, and your corpse gets a gold outline and a light red tint; the outline shows through walls. With Minidoracat MiniMap installed, the maps also show a "My corpse" marker. Only you see them. If the corpse reanimates, the marker stays at its last place, faded; once that zombie is killed, the marker moves to where it fell. The mark goes 24 hours (real time) after the death or once the corpse is gone, and cannot be turned off. Anyone can loot the corpse.
 [/list]
 [b]Admins[/b]: spots, time windows and presets (waves, kinds and the reward) are set up as described in "Horde settings".
 === 🧰 Horde results and notices

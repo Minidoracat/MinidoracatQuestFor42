@@ -1405,6 +1405,7 @@
   "IGUI_MQ_Horde_Title_soon": "Alerte de horde : %1",
   "IGUI_MQ_Horde_Title_wait": "La horde vous attend : %1",
   "IGUI_MQ_Horde_Title_active": "Horde en cours : %1",
+  "IGUI_MQ_MyCorpse": "Mon cadavre",
   "IGUI_MQ_Horde_Title_spawn": "La horde est là : %1",
   "IGUI_MQ_Horde_Title_win": "Horde éliminée : %1",
   "IGUI_MQ_Horde_Title_fail": "Horde échouée : %1",

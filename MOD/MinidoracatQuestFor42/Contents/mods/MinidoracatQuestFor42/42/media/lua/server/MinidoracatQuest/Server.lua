@@ -361,6 +361,9 @@ S.define("hello", { kind = "query", run = function(ctx)
     Q.Net.send(ctx.player, "catalog", Q.Sync.catalog())
     Q.Net.send(ctx.player, "state", Q.Sync.state(ctx.user, acc))
     Q.Net.send(ctx.player, "titles", { full = true, map = Q.Sync.titles() })
+    -- the player's own corpse mark (Hordes.lua, a private file); none: false clears the client's (an empty table would
+    -- reach the client as nil, GameServer.java:3501)
+    Q.Net.send(ctx.player, "corpseMark", { mark = Q.Hordes and Q.Hordes.markOf(ctx.user) or false })
     Q.Sync.titleChanged(ctx.user, acc)
     return true
 end })

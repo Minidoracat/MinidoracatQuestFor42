@@ -58,6 +58,10 @@ C.POINT_KINDS = { quest = true, shared = true, week = true, goal = true, streak 
 -- Built-in horde kinds (Hordes.lua spawns them); other mods add "<modId>:<id>" kinds through v1.registerHordeKind.
 C.HORDE_KINDS = { "vanilla", "runner" }
 
+-- modData key of a player's marked corpse (Hordes.lua corpse marks, plan quest-corpse-highlight-1102): the server
+-- writes it on the dying player, the corpse and its reanimated zombie copy it; the client matches it after a reload
+C.MARK_KEY = "MinidoracatQuestMark"
+
 function C.isFinite(n)
     return type(n) == "number" and n * 0 == 0
 end

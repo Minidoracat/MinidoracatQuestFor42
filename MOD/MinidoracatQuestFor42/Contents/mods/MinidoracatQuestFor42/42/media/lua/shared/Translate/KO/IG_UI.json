@@ -1405,6 +1405,7 @@
   "IGUI_MQ_Horde_Title_soon": "좀비 떼 예고: %1",
   "IGUI_MQ_Horde_Title_wait": "좀비 떼가 기다리는 중: %1",
   "IGUI_MQ_Horde_Title_active": "좀비 떼 진행 중: %1",
+  "IGUI_MQ_MyCorpse": "내 시체",
   "IGUI_MQ_Horde_Title_spawn": "좀비 떼 출현: %1",
   "IGUI_MQ_Horde_Title_win": "좀비 떼 소탕: %1",
   "IGUI_MQ_Horde_Title_fail": "좀비 떼 실패: %1",

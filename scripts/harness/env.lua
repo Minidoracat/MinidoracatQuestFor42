@@ -22,9 +22,12 @@ Quick reference
       T.boot{ sp = true }: online id -1 (only the dedicated server hands them out) and spawns join the cell's list.
       Spawns fire OnZombieCreate; T.reuseZombie(z): the engine hands the object out again (OnZombieCreate, back in the
       cell's list, a new online id on the dedicated server, modData cleared: IsoZombie.java:4470-4471)
-  T.body{ x, y, z, modData } IsoDeadBody on that square (a player's corpse: the player's modData copied, :384);
+  T.body{ x, y, z, modData, oid } IsoDeadBody on that square (a player's corpse: the player's modData copied, :384);
+      oid = its ObjectID (default a new one; server and client share it); highlight setters record into b.lit.
       T.bodiesAt(x, y, z), T.allBodies(), T.removed (removeCorpse calls { body, remote }); corpses stay over a
       T.boot{ keepGmd = true } restart, like the world save keeps them
+  T.die(p): OnCharacterDeath, then p's corpse with a copy of p's modData (IsoDeadBody.java:384); returns it.
+  T.reanimate(b): the corpse leaves its square, a zombie in the cell's list takes its modData (:1989); returns it.
   T.square(x, y, z) -> nil | "water" | "solid" | other: getCell():getGridSquare for horde exits; T.sounds: addSound calls
   T.cmd(p, cmd, args, requestId)   fills protocol (+ requestId for mutations / admin mutation ops), advances 300 ms,
       fires OnClientCommand and returns the "result" or "admin" reply sent for it (nil when none).
@@ -161,6 +164,11 @@ T.failWrites = false
 T.silentWrites = false   -- opens and closes fine but writes nothing (PrintWriter swallows IOException)
 T.unreadable = {}
 function getFileWriter(path, createIfNull, append)
+    -- Kahlua hands nil to a Java boolean parameter as null: NullPointerException (quest-hrs-chl-1102c, Store.writeLines
+    -- called without append), so a nil flag fails here too
+    if type(createIfNull) ~= "boolean" or type(append) ~= "boolean" then
+        error("getFileWriter: createIfNull and append must be booleans (Kahlua passes nil as null: NPE)")
+    end
     if T.failWrites then return nil end
     local f = T.files[path]
     if f == nil or not append then
@@ -257,6 +265,10 @@ function T.player(o)
     function p:getY() return self.y end
     function p:getZ() return self.z end
     function p:isDead() return self.dead end
+    function p:getModData()
+        self.modData = self.modData or {}
+        return self.modData
+    end
     function p:isAnimal() return false end
     function p:getHoursSurvived() return self.hours end
     function p:getZombieKills() return self.kills end
@@ -300,6 +312,7 @@ function T.zombie(o)
         self.modData = self.modData or {}
         return self.modData
     end
+    function z:hasModData() return self.modData ~= nil and next(self.modData) ~= nil end
     function z:getPersistentOutfitID() return self.outfit end
     function z:isDead() return self.dead end
     function z:isExistInTheWorld() return self.inWorld end
@@ -324,11 +337,13 @@ function T.zombie(o)
     end
     function z:removeFromSquare() self.onSquare = false end
     function z:getEmitter() return { unregister = function() z.unregistered = true end } end
-    -- IsoGameCharacter.Kill: attacker set, then OnZombieDead (IsoZombie.onKilled); die() then makes the corpse
+    -- IsoGameCharacter.Kill: attacker set, then OnZombieDead (IsoZombie.onKilled); die() then makes the corpse, which
+    -- takes the zombie out of the cell's zombie list (IsoDeadBody.java:392, removeFromWorld)
     function z:Kill(killer)
         self.attacker, self.dead = killer, true
         T.fire("OnZombieDead", self)
         T.body{ x = math.floor(self.x), y = math.floor(self.y), z = self.z, modData = T.deepcopy(self.modData) }
+        for i, c in ipairs(T.cellZombies) do if c == self then table.remove(T.cellZombies, i) break end end
     end
     T.zombies[#T.zombies + 1] = z
     if o.cell then T.cellZombies[#T.cellZombies + 1] = z end
@@ -366,19 +381,41 @@ end
 -- addSound (LuaManager.java:11753-11758) records { x, y, z, radius, volume } in T.sounds.
 T.sounds, T.square = {}, nil
 T.bodies, T.removed = {}, {}   -- "x,y,z" -> { IsoDeadBody }
+T.nextObjectId = 1
 local function bodyKey(x, y, z) return x .. "," .. y .. "," .. (z or 0) end
 function T.body(o)
-    local b = { __class = "IsoDeadBody", x = o.x or 0, y = o.y or 0, z = o.z or 0, modData = o.modData }
+    local b = { __class = "IsoDeadBody", x = o.x or 0, y = o.y or 0, z = o.z or 0, modData = o.modData,
+        objId = o.oid or T.nextObjectId, lit = {} }
+    T.nextObjectId = T.nextObjectId + 1
     -- IsoObject.java:1037: a table that is not empty
     function b:hasModData() return self.modData ~= nil and next(self.modData) ~= nil end
     function b:getModData()
         self.modData = self.modData or {}
         return self.modData
     end
+    function b:getObjectIDAsLong() return self.objId end
+    function b:getX() return self.x + 0.5 end
+    function b:getY() return self.y + 0.5 end
+    function b:setOutlineHighlight(pn, on) self.lit.outline = on end
+    function b:setOutlineHighlightCol(pn, r, g, bl, a) self.lit.outlineCol = { r, g, bl, a } end
+    function b:setHighlighted(pn, on, once) self.lit.tint = on end
+    function b:setHighlightColor(pn, r, g, bl, a) self.lit.tintCol = { r, g, bl, a } end
     local key = bodyKey(b.x, b.y, b.z)
     T.bodies[key] = T.bodies[key] or {}
     table.insert(T.bodies[key], b)
     return b
+end
+function T.die(p)
+    p.dead = true
+    T.fire("OnCharacterDeath", p)
+    return T.body{ x = math.floor(p.x), y = math.floor(p.y), z = p.z, modData = T.deepcopy(p.modData) }
+end
+function T.reanimate(b)
+    local list = T.bodies[bodyKey(b.x, b.y, b.z)] or {}
+    for i, x in ipairs(list) do if x == b then table.remove(list, i) break end end
+    local z = T.zombie{ x = b.x, y = b.y, z = b.z, cell = true }
+    z.modData = T.deepcopy(b.modData)
+    return z
 end
 function T.bodiesAt(x, y, z) return T.bodies[bodyKey(x, y, z)] or {} end
 function T.allBodies()
@@ -439,6 +476,9 @@ function sendServerCommand(a, b, c, d)
     if type(a) == "string" then
         T.broadcasts[#T.broadcasts + 1] = { module = a, command = b, args = c }
     else
+        -- an empty table goes as "no args": the client's OnServerCommand gets nil (GameServer.java:3501,
+        -- GameClient.java:1059-1071)
+        if type(d) == "table" and next(d) == nil then d = nil end
         record(a.name, c, d)
     end
 end

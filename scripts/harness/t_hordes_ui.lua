@@ -1363,6 +1363,57 @@ return function(T)
     T.check(M.register() == true and reg.zone[1] == "MinidoracatQuestFor42" and reg.zone[2] == M.zoneProvider
         and reg.marker[2] == M.markerProvider, "MiniMap present: zone and marker providers registered")
 
+    -- plan quest-corpse-highlight-1102: the owner's corpse lit (outline + tint) and on MiniMap
+    T.section("corpse mark: found by ObjectID or modData key, lit, released; its MiniMap marker")
+    do   -- its own locals: this function is near Lua's 200 local limit
+        local CM, KEY, t0 = Q.CorpseMark, Q.Contract.MARK_KEY, T.now
+        local claimed = {}
+        ISInventoryPage = { OnObjectHighlighted = function(pn, obj, on) claimed[obj] = on and pn or nil end }
+        local CX, CY = 10650, 9840
+        local other = T.body{ x = CX, y = CY, z = 0, oid = 77 }   -- someone else's corpse on that square
+        local mine = T.body{ x = CX + 1, y = CY, z = 0, oid = 78 }   -- no modData: made where this client had the area
+        local function tick() T.advance(1000); CM.tick(getTimestampMs()) end
+        Cl.receive("corpseMark", { mark = { key = "me#1", at = 1, state = "body", x = CX, y = CY, z = 0, oid = 78 } })
+        tick()
+        T.check(mine.lit.outline == true and mine.lit.tint == true and mine.lit.outlineCol[1] == 1
+            and mine.lit.tintCol[2] == 0.75 and claimed[mine] == 0,
+            "matched by ObjectID within 1 square: outline + light tint, claimed from the loot window")
+        T.check(other.lit.outline == nil and other.lit.tint == nil and claimed[other] == nil, "another corpse there: untouched")
+        mine.lit.outline, mine.lit.tint = false, false   -- the loot window or context menu cleared it
+        tick()
+        T.check(mine.lit.outline == true and mine.lit.tint == true, "cleared by vanilla: lit again a second later")
+        local mk = M.markerProvider(0)
+        T.check(mk ~= nil and #mk.markers == 1 and mk.markers[1].id == "mq_corpse" and mk.markers[1].x == CX
+            and mk.markers[1].label == "IGUI_MQ_MyCorpse" and mk.markers[1].state == "live" and M.zoneProvider() == M.NONE,
+            "MiniMap: one corpse marker at the mark (no horde, no zone)")
+        -- the area reloaded: a new object, new ObjectID, the key in its modData
+        local reloaded = T.body{ x = CX - 1, y = CY + 1, z = 0, oid = 900, modData = { [KEY] = "me#1" } }
+        table.remove(T.bodiesAt(CX + 1, CY, 0), 1)
+        tick()
+        T.check(reloaded.lit.outline == true and mine.lit.outline == false and claimed[mine] == nil,
+            "after a reload: found by the modData key; the old object released")
+        Cl.receive("corpseMark", { mark = { key = "me#1", at = 1, state = "walker", x = CX, y = CY, z = 0 } })
+        tick()
+        T.check(reloaded.lit.outline == false and reloaded.lit.tint == false and claimed[reloaded] == nil
+            and M.markerProvider(0).markers[1].state == "stale", "walker: no corpse lit, the marker faded at the last square")
+        table.remove(T.bodiesAt(CX - 1, CY + 1, 0), 1)   -- it reanimated: the corpse left its square
+        Cl.receive("corpseMark", { mark = { key = "me#1", at = 1, state = "zbody", x = CX, y = CY, z = 0, oid = 77 } })
+        tick()
+        T.check(other.lit.outline == true, "zbody with its ObjectID: that corpse lit")
+        Cl.receive("corpseMark", { mark = false })
+        tick()
+        T.check(other.lit.outline == false and claimed[other] == nil and M.markerProvider(0) == nil,
+            "no mark (gone, MARK_MS, or none at hello): released, no marker")
+        Cl.receive("delta", { hordes = { cur = cur("active") } })
+        Cl.receive("corpseMark", { mark = { key = "me#2", at = 1, state = "body", x = CX, y = CY, z = 0 } })
+        mk = M.markerProvider(0)
+        T.check(#mk.markers == 2 and mk.markers[1].id == "mq_horde" and mk.markers[2].id == "mq_corpse",
+            "with a horde: both markers in the one provider (MiniMap keeps one per owner)")
+        Cl.receive("corpseMark", { mark = false })
+        Cl.receive("delta", { hordes = { cur = nil, last = lastWin } })
+        ISInventoryPage, T.now = nil, t0
+    end
+
     -- ===== plan-horde-result 1029: the x (this horde only), quiet toasts, death / MVP toasts, results, View results =====
     local shownToasts = {}
     local realToast, realSend, realUI = D.toast, Cl.send, MinidoracatUI

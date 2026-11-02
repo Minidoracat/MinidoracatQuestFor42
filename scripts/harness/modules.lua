@@ -50,5 +50,6 @@ return {
     { dir = "client", name = "MinidoracatQuest/HordeResult" },
     { dir = "client", name = "MinidoracatQuest/Hud" },
     { dir = "client", name = "MinidoracatQuest/HordeMap" },
+    { dir = "client", name = "MinidoracatQuest/CorpseMark" },
     { dir = "client", name = "MinidoracatQuest/Titles" },
 }

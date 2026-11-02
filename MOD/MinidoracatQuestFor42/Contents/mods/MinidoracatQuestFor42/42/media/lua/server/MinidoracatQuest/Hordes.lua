@@ -31,6 +31,7 @@
 -- the player Hordes page, which lists the recent results from root.hordes.log (H.recent, in the records reply).
 -- Players dying near a spawned horde are listed and announced (H.onDeath); at a success or failure the ones still
 -- there (online, alive, within CLEAR_RANGE) get the full result (H.result, command hordeResult), anyone can ask for it.
+-- Such a death also marks that player's corpse, for them only (marks.json, H.markTick; plan quest-corpse-highlight-1102).
 
 if isClient() then return end
 
@@ -958,6 +959,7 @@ function H.tick(now)
     H.roll(now, settings(), MQ.Sandbox.get("TimezoneOffset"))
     H.step(now)
     H.corpseTick(now)
+    H.markTick(now)
 end
 
 -- OnZombieCreate (VirtualZombieManager.java:203, its only trigger): the engine hands out a zombie, maybe an object that
@@ -968,6 +970,7 @@ function H.onZombieCreate(z)
 end
 
 function H.onZombieDead(z)
+    if z ~= nil then H.markZombieDead(z) end
     local t = z ~= nil and H.live[z] or nil
     if t == nil then return end   -- not ours, or the second event of a burning death
     H.live[z] = nil
@@ -1008,6 +1011,7 @@ function H.onDeath(c)
     if dx * dx + dy * dy > H.CLEAR_RANGE * H.CLEAR_RANGE then return end
     local user = MQ.Identity.principal(c)
     if user == nil then return end
+    H.markDeath(user, c)   -- before the once-per-account return: a second death there moves the mark to the new corpse
     cur.deaths = cur.deaths or {}   -- a horde planned before the death list
     if #cur.deaths >= H.DEATHS_MAX then return end
     for _, d in ipairs(cur.deaths) do
@@ -1021,6 +1025,133 @@ function H.onDeath(c)
         H.deathQ = q
     end
     q.users[#q.users + 1] = user
+end
+
+-- ---------- player corpse marks (marks.json; plan quest-corpse-highlight-1102) ----------
+-- marks()[user] = { key, at, t, state, x, y, z, oid }: the player's own corpse after a death at a spawned horde, seen
+-- by that player only (sent with Net.toUser at each change and at hello). The key goes into the dying player's modData
+-- before die() builds the corpse, which copies it (IsoDeadBody.java:384); a reanimated corpse hands it to its zombie
+-- (:1989), whose corpse copies it again. state: "body" / "zbody" (a corpse; oid its ObjectID once read, the client
+-- finds it by that: it has no modData of a corpse made where its area was loaded, quest-hrs-1102i) or "walker" (the
+-- reanimated zombie, last known square); t = when the state began. A mark goes after MARK_MS or once its corpse is gone.
+-- The marks live in a private file, not in Global ModData: any logged-in client may ask the server for a whole Global
+-- ModData table (GlobalModDataRequestPacket.java:15, GlobalModData.java:171-191) and a mark is the owner's alone.
+H.MARK_MS = DAY
+H.MARK_WAIT_MS = 30000    -- the corpse may come this long after the death event: Kill fires it, die() makes the corpse
+                          -- later, a player's once the fall ends (PlayerOnGroundState.java:28-33), a zombie's likewise
+H.MARKS_FILE = "marks.json"
+
+local function marks()
+    if H.marksT == nil then
+        H.marksT = {}
+        local lines = MQ.Store.readLines(MQ.Store.path(H.MARKS_FILE), 1)
+        local list = type(lines) == "table" and lines[1] ~= nil and U.decode(lines[1], 1000000) or nil
+        if lines == false or (type(lines) == "table" and lines[1] ~= nil and type(list) ~= "table") then
+            U.log("corpse marks: " .. H.MARKS_FILE .. " unreadable, starting empty")
+        end
+        for _, m in ipairs(type(list) == "table" and list or {}) do
+            if type(m) == "table" and type(m.u) == "string" and type(m.key) == "string" and C.isFinite(m.at)
+                and C.isFinite(m.x) and C.isFinite(m.y) and C.isFinite(m.z) then
+                m.t = C.isFinite(m.t) and m.t or m.at
+                H.marksT[m.u] = m
+            end
+        end
+    end
+    return H.marksT
+end
+
+function H.markOf(user) return marks()[user] end
+
+-- a mark of user changed or went: the file written again, the owner told
+local function changed(user)
+    local list = {}   -- an array: JSON gives an all-digit user name back as a number key (Config.lua:184)
+    for u, m in pairs(marks()) do
+        m.u = u
+        list[#list + 1] = m
+    end
+    -- encode gives {} for an empty table
+    if not MQ.Store.writeLines(MQ.Store.path(H.MARKS_FILE), { #list > 0 and U.encode(list) or "[]" }, false) then
+        U.log("corpse marks: " .. H.MARKS_FILE .. " not written")
+    end
+    -- false, never an empty table: that goes as "no args" and the client gets nil (GameServer.java:3501)
+    MQ.Net.toUser(user, "corpseMark", { mark = marks()[user] or false })
+end
+
+-- OnCharacterDeath, before die() makes the corpse: a new mark replaces the user's last one
+function H.markDeath(user, c)
+    local now = getTimestampMs()
+    -- no user name in it: other clients get the corpse's modData once they load its area (anonymous players too);
+    -- %.0f keeps every digit of the ms, the count tells two deaths of one ms apart
+    H.markSeq = (H.markSeq or 0) + 1
+    local key = string.format("%.0f-%d", now, H.markSeq)
+    c:getModData()[C.MARK_KEY] = key
+    marks()[user] = { key = key, at = now, t = now, state = "body", x = math.floor(c:getX()), y = math.floor(c:getY()),
+        z = math.floor(c:getZ()) }
+    changed(user)
+end
+
+-- OnZombieDead of a marked (reanimated) zombie: its corpse comes next, at its square
+function H.markZombieDead(z)
+    if not z:hasModData() or not MQ.Store.ready() or MQ.Store.readOnly then return end
+    local key = z:getModData()[C.MARK_KEY]
+    if key == nil then return end
+    for user, m in pairs(marks()) do
+        if m.key == key then
+            m.state, m.oid, m.t = "zbody", nil, getTimestampMs()
+            m.x, m.y, m.z = math.floor(z:getX()), math.floor(z:getY()), math.floor(z:getZ())
+            changed(user)
+            return
+        end
+    end
+end
+
+-- the object of class cls in list (a Java list) whose modData carries key, nil when none; a dead zombie (killed, its
+-- corpse not made yet) does not count
+local function keyIn(list, cls, key)
+    for i = 0, (list ~= nil and list:size() or 0) - 1 do
+        local o = list:get(i)
+        if instanceof(o, cls) and o:hasModData() and o:getModData()[C.MARK_KEY] == key
+            and (cls ~= "IsoZombie" or not o:isDead()) then return o end
+    end
+end
+
+-- Each H.tick: a mark past MARK_MS goes. A corpse mark whose square is loaded looks for its corpse within 1 square:
+-- found, the mark follows its ObjectID and square; gone with a living zombie carrying the key in the cell, it
+-- reanimated ("walker"); else the mark goes, unless its corpse was never seen and MARK_WAIT_MS has not passed since
+-- the death. A walker waits for H.markZombieDead.
+-- ponytail: a walker's square is the one where it got up; the server learns its new one only at its death. A dragged
+-- corpse (reanimateZombieForGrapple) is a walker too until its drop calls OnZombieDead, if it does (not checked)
+function H.markTick(now)
+    local cell, gone = getCell(), {}
+    for user, m in pairs(marks()) do
+        if now - m.at >= H.MARK_MS then
+            gone[#gone + 1] = user
+        elseif m.state ~= "walker" and cell:getGridSquare(m.x, m.y, m.z) ~= nil then
+            local b
+            for dx = -1, 1 do
+                for dy = -1, 1 do
+                    local sq = b == nil and cell:getGridSquare(m.x + dx, m.y + dy, m.z) or nil
+                    if sq ~= nil then b = keyIn(sq:getStaticMovingObjects(), "IsoDeadBody", m.key) end
+                end
+            end
+            if b ~= nil then
+                local oid, x, y = b:getObjectIDAsLong(), math.floor(b:getX()), math.floor(b:getY())
+                if oid ~= m.oid or x ~= m.x or y ~= m.y then
+                    m.oid, m.x, m.y = oid, x, y
+                    changed(user)
+                end
+            elseif keyIn(cell:getZombieList(), "IsoZombie", m.key) ~= nil then
+                m.state, m.oid, m.t = "walker", nil, now
+                changed(user)
+            elseif m.oid ~= nil or now - m.t >= H.MARK_WAIT_MS then
+                gone[#gone + 1] = user
+            end
+        end
+    end
+    for _, user in ipairs(gone) do
+        marks()[user] = nil
+        changed(user)
+    end
 end
 
 -- ---------- horde corpses (hordes.corpses; plan quest-horde-restart-corpses-1101) ----------

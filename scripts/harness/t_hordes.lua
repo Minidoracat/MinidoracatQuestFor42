@@ -1806,6 +1806,182 @@ return function(T)
             and #T.removed == before, "max 0: no list, no sweep, nothing removed")
     end)
 
+    -- plan quest-corpse-highlight-1102 (owner 2026-11-02): a death at a spawned horde marks the player's own corpse
+    section("corpse marks: horde deaths only, the owner only, body -> walker -> zbody, gone, MARK_MS", function()
+        local Q = boot()
+        local H, root = Q.Hordes, Q.Store.root()
+        local function mk(u) return H.markOf(u) end
+        local KEY = Q.Contract.MARK_KEY
+        local admin = T.player{ name = "admin", admin = true }
+        local alice, bob = T.player{ name = "alice" }, T.player{ name = "bob" }
+        for _, p in ipairs({ admin, alice, bob }) do cmd(p, "hello") end
+        local function marks(p)
+            local out = {}
+            for _, a in ipairs(T.sentTo(p, "corpseMark")) do out[#out + 1] = a end
+            return out
+        end
+        local function last(p) local l = marks(p); return l[#l] end
+        local function present(b)
+            for _, x in ipairs(T.allBodies()) do if x == b then return true end end
+            return false
+        end
+        T.check(#marks(bob) == 1 and last(bob) ~= nil and last(bob).mark == false,
+            "hello: corpseMark { mark = false } (an empty table would reach the client as nil and clear nothing)")
+        apply(Q, { spots = { SPOT }, waves = { wave(3) }, kinds = { vanilla = 100 }, corpses = { max = 1, afterMin = 0 } })
+        adm(admin, "horde.now")
+        near(bob, 5)
+        T.die(bob)
+        T.check(mk("bob") == nil, "a death before the first spawn: no mark")
+        revive(bob)
+        near(alice)
+        step(Q)
+        T.check(root.hordes.cur.state == "active", "spawned")
+        T.clearOutbox()
+        near(bob, 51)
+        T.die(bob)
+        T.check(mk("bob") == nil and #marks(bob) == 0, "a death 51 tiles away: no mark")
+        revive(bob)
+
+        -- a death at the horde: the key in the corpse's modData, the mark to bob only
+        near(bob, 5)
+        local b1 = T.die(bob)
+        local m = mk("bob")
+        T.check(m ~= nil and m.state == "body" and m.x == SPOT.x + 5 and m.y == SPOT.y and m.oid == nil
+            and b1.modData[KEY] == m.key and not string.find(m.key, "bob", 1, true),
+            "a horde death: mark 'body' at the death square, the key in the corpse (no user name: others can read it)")
+        T.check(#marks(bob) == 1 and last(bob).mark.key == m.key and #marks(alice) == 0 and #marks(admin) == 0,
+            "sent to the dead player only")
+        T.clearOutbox()
+        step(Q)
+        T.check(m.oid == b1.objId and last(bob).mark.oid == b1.objId and #marks(alice) == 0,
+            "next tick: the corpse's ObjectID read and sent to the owner")
+        step(Q)
+        T.check(#marks(bob) == 1, "nothing changed: not sent again")
+
+        -- a second death in the same horde (once per account in cur.deaths): the new corpse takes the mark
+        revive(bob)
+        T.advance(60000)
+        near(bob, 8)
+        bob.y = SPOT.y + 3
+        local b2 = T.die(bob)
+        step(Q)
+        m = mk("bob")
+        T.check(#root.hordes.cur.deaths == 1 and m.oid == b2.objId and m.x == SPOT.x + 8 and b2.modData[KEY] == m.key
+            and b1.modData[KEY] ~= m.key, "a second death there: the new corpse is the marked one")
+
+        -- reanimated: the zombie carries the key; it dies elsewhere and its corpse is the marked one
+        T.clearOutbox()
+        local walker = T.reanimate(b2)
+        step(Q)
+        T.check(m.state == "walker" and m.oid == nil and last(bob).mark.state == "walker",
+            "the corpse gone, its zombie carries the key: 'walker', sent")
+        walker.x, walker.y = SPOT.x + 20, SPOT.y - 4
+        walker:Kill(alice)
+        T.check(m.state == "zbody" and m.x == SPOT.x + 20 and m.y == SPOT.y - 4 and last(bob).mark.state == "zbody",
+            "the walker killed elsewhere: 'zbody' at its square, sent")
+        local zb = T.bodiesAt(SPOT.x + 20, SPOT.y - 4, 0)[1]
+        T.check(zb ~= nil and zb.modData[KEY] == m.key and zb.modData[H.CORPSE_TAG] == nil,
+            "its corpse carries the mark, not the horde tag")
+        step(Q)
+        T.check(m.oid == zb.objId and last(bob).mark.oid == zb.objId, "the zombie's corpse ObjectID read and sent")
+
+        -- the horde's corpse cut and sweep leave the marked corpses alone
+        killAlive(Q, root.hordes.cur.id, alice)
+        for _ = 1, 30 do   -- SWEEP_ROWS rows a tick over the 121 rows
+            T.advance(1000)
+            step(Q)
+        end
+        T.check(root.hordes.cur == nil and #T.removed > 0 and #root.hordes.sweeps == 0, "the horde over, its corpses swept")
+        T.check(present(zb) and present(b1) and mk("bob") ~= nil, "the marked corpse and bob's first corpse stay")
+
+        -- hello sends it again (a respawn, a relogin); others get none
+        T.clearOutbox()
+        cmd(bob, "hello")
+        cmd(alice, "hello")
+        T.check(last(bob).mark.key == m.key and last(alice) ~= nil and last(alice).mark == false,
+            "hello: the owner gets the mark, others a clear")
+
+        -- not loaded: kept; loaded without the corpse: gone, the owner told
+        local list = T.bodiesAt(zb.x, zb.y, 0)
+        table.remove(list, 1)
+        T.square = function() return nil end
+        step(Q)
+        T.check(mk("bob") ~= nil, "its square not loaded: the mark stays")
+        T.square = nil
+        T.clearOutbox()
+        step(Q)
+        T.check(mk("bob") == nil and #marks(bob) == 1 and last(bob) ~= nil and last(bob).mark == false,
+            "loaded, no corpse: mark gone, told (mark = false, not an empty table)")
+
+        -- MARK_MS: gone even with the corpse there (a walker too)
+        H.marksT.carol = { key = "carol#1", at = T.now, t = T.now, state = "walker", x = SPOT.x, y = SPOT.y, z = 0 }
+        T.now = T.now + H.MARK_MS - 1000
+        step(Q)
+        T.check(mk("carol") ~= nil, "before MARK_MS: kept")
+        T.now = T.now + 1000
+        step(Q)
+        T.check(mk("carol") == nil, "MARK_MS after the death: gone")
+    end)
+
+    -- review 2026-11-02 (Codex): Kill fires the death event, die() makes the corpse later (a player's after the fall,
+    -- PlayerOnGroundState.java:28-33); Global ModData is readable by any logged-in client (GlobalModDataRequestPacket)
+    section("corpse marks: a late corpse, a killed walker before its corpse, a private file over a restart", function()
+        local Q = boot()
+        local H, root = Q.Hordes, Q.Store.root()
+        local admin = T.player{ name = "admin", admin = true }
+        local alice, bob = T.player{ name = "alice" }, T.player{ name = "12345" }   -- an all-digit user name
+        apply(Q, { spots = { SPOT }, waves = { wave(3) }, kinds = { vanilla = 100 } })
+        adm(admin, "horde.now")
+        near(alice)
+        step(Q)
+        near(bob, 5)
+        bob.dead = true
+        T.fire("OnCharacterDeath", bob)   -- no corpse yet
+        T.advance(H.MARK_WAIT_MS - 1000)
+        step(Q)
+        local m = H.markOf("12345")
+        T.check(m ~= nil and m.state == "body" and m.oid == nil, "no corpse yet, MARK_WAIT_MS not over: the mark waits")
+        local b = T.body{ x = bob.x, y = bob.y, z = 0, modData = T.deepcopy(bob.modData) }
+        step(Q)
+        T.check(m.oid == b.objId, "the corpse came: found, its ObjectID read")
+        local z = T.reanimate(b)
+        step(Q)
+        T.check(m.state == "walker", "reanimated: walker")
+        z.dead = true
+        T.fire("OnZombieDead", z)   -- killed; its corpse comes later, the dead zombie is still in the cell's list
+        step(Q)
+        T.check(m.state == "zbody" and m.oid == nil and H.markOf("12345") == m,
+            "killed, no corpse yet, the dead zombie still listed: 'zbody' waits, not 'walker', not gone")
+        T.advance(H.MARK_WAIT_MS)
+        step(Q)
+        T.check(H.markOf("12345") == nil and T.files[Q.Store.path(H.MARKS_FILE)].lines[1] == "[]",
+            "no corpse within MARK_WAIT_MS: gone, the file an empty array")
+
+        revive(bob)
+        near(bob, 6)
+        local b3 = T.die(bob)
+        step(Q)
+        local key, path = H.markOf("12345").key, Q.Store.path(H.MARKS_FILE)
+        T.check(root.marks == nil and not string.find(encoded(Q, root), key, 1, true) and T.files[path] ~= nil
+            and string.find(T.files[path].lines[1], key, 1, true) ~= nil,
+            "kept in the private file, nowhere in Global ModData (any logged-in client can request a whole table)")
+        Q = boot({ keepGmd = true, keepFiles = true })
+        local back = Q.Hordes.markOf("12345")
+        T.check(back ~= nil and back.key == key and back.oid == b3.objId and back.state == "body",
+            "a restart reads it back (an all-digit user name too)")
+        T.failWrites = true
+        T.advance(1000)
+        bob = T.player{ name = "12345" }
+        Q.Hordes.markDeath("12345", bob)
+        T.failWrites = false
+        T.check(T.printed("corpse marks: marks.json not written") and Q.Hordes.markOf("12345").key ~= key,
+            "the file cannot be written: logged, the mark still kept and sent this session")
+        T.files[path] = { lines = { "not json" } }
+        Q = boot({ keepGmd = true, keepFiles = true })
+        T.check(Q.Hordes.markOf("12345") == nil and T.printed("corpse marks: marks.json unreadable, starting empty"),
+            "a broken file: logged, starting empty")
+    end)
+
     -- ===================== status, provider, delta =====================
     section("horde.status, the hordes part and its delta", function()
         local Q = boot()

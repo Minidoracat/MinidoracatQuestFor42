@@ -1405,6 +1405,7 @@
   "IGUI_MQ_Horde_Title_soon": "大群の予告：%1",
   "IGUI_MQ_Horde_Title_wait": "大群があなたを待っています：%1",
   "IGUI_MQ_Horde_Title_active": "大群が進行中：%1",
+  "IGUI_MQ_MyCorpse": "自分の死体",
   "IGUI_MQ_Horde_Title_spawn": "大群が現れました：%1",
   "IGUI_MQ_Horde_Title_win": "大群を掃討：%1",
   "IGUI_MQ_Horde_Title_fail": "大群の掃討に失敗：%1",

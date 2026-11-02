@@ -91,6 +91,7 @@ return function(T)
     local function zombie(killer, sq)
         return { __class = "IsoZombie",
             getAttackedBy = function() return killer end,
+            hasModData = function() return false end,   -- IsoObject.java:1037 (Hordes.markZombieDead asks)
             getCurrentSquare = function() return sq end }
     end
 

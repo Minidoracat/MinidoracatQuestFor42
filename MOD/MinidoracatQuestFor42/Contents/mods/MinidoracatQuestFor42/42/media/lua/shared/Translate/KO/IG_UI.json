@@ -1534,5 +1534,5 @@
   "IGUI_MQ_UI_TitleCondNewbie": "%1일 안에 신규 생존자 퀘스트의 모든 단계 완료",
   "IGUI_MQ_UI_TitleCondRank": "시즌 %1 포인트 %2",
   "IGUI_MQ_UI_TitleCondFirst": "시즌 %1 \"%2\" 순위 1위",
-  "IGUI_MQ_WhatsNew": "추적 패널 너비가 내용에 맞춰지고, 오른쪽 끝을 끌어 더 좁힐 수 있습니다. MOD 옵션에서 배경 불투명도와 접기 키를 설정할 수 있습니다."
+  "IGUI_MQ_WhatsNew": "서버 재시작으로 끊긴 좀비 떼는 이어서 진행되고, 좀비 떼의 시체는 자동으로 치워집니다. 좀비 떼에서 죽으면 내 시체가 빛납니다."
 }

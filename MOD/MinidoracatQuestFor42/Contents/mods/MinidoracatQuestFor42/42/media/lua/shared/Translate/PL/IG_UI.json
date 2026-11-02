@@ -1534,5 +1534,5 @@
   "IGUI_MQ_UI_TitleCondNewbie": "Ukończ każdy krok zadań nowicjusza w ciągu %1 dni",
   "IGUI_MQ_UI_TitleCondRank": "Sezon %1, punkty: %2",
   "IGUI_MQ_UI_TitleCondFirst": "Sezon %1: 1. miejsce w \"%2\"",
-  "IGUI_MQ_WhatsNew": "Panel śledzenia dopasowuje się do treści; przeciągnij prawą krawędź, aby go zwęzić. Nowe opcje: krycie tła i klawisz zwijania."
+  "IGUI_MQ_WhatsNew": "Hordy przerwane restartem trwają dalej, a ich zwłoki znikają. Gdy zginiesz w hordzie, twoje zwłoki świecą."
 }

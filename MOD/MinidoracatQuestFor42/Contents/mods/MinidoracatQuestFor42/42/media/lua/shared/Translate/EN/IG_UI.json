@@ -1534,5 +1534,5 @@
   "IGUI_MQ_UI_TitleCondNewbie": "Finish every newcomer quest step within %1 days",
   "IGUI_MQ_UI_TitleCondRank": "Season %1 points: %2",
   "IGUI_MQ_UI_TitleCondFirst": "Season %1: #1 on \"%2\"",
-  "IGUI_MQ_WhatsNew": "Tracker panel fits its content; drag the right edge to narrow it. New: background opacity, collapse key."
+  "IGUI_MQ_WhatsNew": "Hordes cut by a restart carry on, and horde corpses get cleared. Die in a horde and your corpse glows."
 }

@@ -114,7 +114,7 @@ Once an admin sets up spots, the server can start a horde during its time window
 [*] [b]Reminder[/b]: when the warning is longer than 2 minutes, players within 30 tiles of the spot get one more notice 2 minutes before the start. If you do not want to take part, leave then: the first wave comes when someone is within 30 tiles.
 [*] [b]Get there[/b]: once it has started, a wave comes as soon as someone is within 30 tiles of the spot, and the wave's timer starts. Each wave waits only so long for players (set per time window); if nobody comes, the horde fails.
 [*] [b]How big a wave is[/b]: it depends on how many living players are within 30 tiles when it starts: the admin sets a base count and how many % of it each extra player adds.
-[*] [b]Where it comes from[/b]: the zombies appear 30 to 40 tiles from the spot, from up to 8 directions and at least 25 tiles from every player, and a sound at the spot draws them in. In very heavy rain (or rain with thick fog), or when zombie hearing is set to Poor, Random or Random between Normal and Poor in the sandbox (with Random some zombies hear poorly), the sound does not carry that far and the wave appears right at the spot.
+[*] [b]Where it comes from[/b]: the zombies appear 30 to 40 tiles from the spot, from up to 8 directions and at least 25 tiles from every player, and a sound at the spot draws them in. In very heavy rain (or rain with thick fog), or with sandbox zombie hearing set to Poor or either Random option, the sound does not carry that far and the wave appears right at the spot.
 [*] [b]Not all at once[/b]: only so many horde zombies are on the field at a time; more come in as they die.
 [*] [b]Clear it[/b]: kill every zombie of the wave within its time limit while a player is within 50 tiles of the spot, so chasing the last ones out to the edges is fine. Zombies killed by others or burnt count as cleared too. After a short rest the next wave comes, again once someone is within 30 tiles; clearing the last wave clears the horde.
 [*] [b]Get points[/b]: only players with a kill get points; see "Reward" below.
@@ -122,19 +122,19 @@ Once an admin sets up spots, the server can start a horde during its time window
 [h3]Where to see it[/h3]
 [list]
 [*] [b]Tracker panel[/b]: a horde row on top shows the place, "Wave W/N" when there is more than one, the countdown ("Starts in", "Waiting", "left" or "Next wave in") and "Cleared N/M"; while the horde is in progress it reads "N joined · N/M cleared", and one kill counts as joining. Only a horde in progress is red; before the start, while waiting for players and during a rest it is orange. It does not use one of the 5 slots and shows even when you track nothing. "Show the tracker panel" in the mod options must be on.
-[*] [b]Hide this horde[/b]: the ✕ at the right end of the horde row's first line hides this horde: the row goes away and this horde's server-wide notices (warning, waves, cleared, failed, cancelled, deaths, MVP) stop; the reminder 2 minutes before the start, your "Horde reward" and the results still come. The next horde shows again. Hiding is not saved, so it also shows again after you log in again.
+[*] [b]Hide this horde[/b]: the ✕ at the right end of the horde row's first line hides this horde: the row goes away and this horde's server-wide notices (warning, waves, cleared, failed, cancelled, deaths, MVP) stop; the reminder 2 minutes before the start, your "Horde reward" and the results still come. The next horde shows again, and so does this one after you log in again.
 [*] [b]Daily quests page[/b]: a horde banner under the timed events shows the current state; for 10 minutes after the end it shows the result, the waves cleared, your kills and the points you got. "Hide from tracker" / "Show in tracker" on the banner hides this horde or brings it back, also with a keyboard or controller.
 [*] [b]Map button[/b]: before the start, while waiting for players, in progress and during a rest, the tracker row and the banner have a "Map" button that opens the world map on the spot. It is hidden when the server turns the world map off.
-[*] [b]Minimap[/b]: with Minidoracat MiniMap installed, the minimap marks the area around the spot, and the marker names the state (for example "Horde warning: …" or "Horde in progress: …").
-[*] [b]Notices[/b]: the warning, each wave appearing, the rest between waves, cleared, failed and cancelled go to everyone; the reminder 2 minutes before the start goes only to players near the spot; points you get come with a "Horde reward" notice and your kills in the cleared waves. Deaths in the horde and the horde MVP go to everyone too; see "Horde results and notices".
+[*] [b]Minimap[/b]: with Minidoracat MiniMap installed, the minimap marks the area around the spot and names the state (such as "Horde in progress: …").
+[*] [b]Notices[/b]: the warning, each wave appearing, the rest between waves, cleared, failed and cancelled go to everyone; points you get come with a "Horde reward" notice and your kills in the cleared waves. Deaths in the horde and the horde MVP go to everyone too; see "Horde results and notices".
 [/list]
 [h3]Hordes page[/h3]
 {{img:15-hordes-en.jpg}}
 Once the server has automatic hordes on or has had a horde, a "Hordes" page appears on the left of the window.
 [list]
-[*] [b]Now[/b]: the same banner as on the daily quests page (with "Hide from tracker" / "Show in tracker"); with no horde it says so.
-[*] [b]My hordes[/b]: your totals for hordes joined, hordes cleared, horde kills and hordes where you were the top killer. One kill counts as joining.
-[*] [b]Recent hordes[/b]: the last 10 hordes on the server with time, place, result (waves cleared, or the wave it failed in), your kills and your points; older ones only count in your totals. Hordes where someone got a kill have a "View results" button; anyone can press it, and it opens that horde's results at once (see "Horde results and notices").
+[*] [b]Now[/b]: the same banner as on the daily quests page; with no horde it says so.
+[*] [b]My hordes[/b]: your totals for hordes joined, hordes cleared, horde kills and hordes where you were the top killer.
+[*] [b]Recent hordes[/b]: the last 10 hordes on the server with time, place, result (waves cleared, or the wave it failed in), your kills and your points; older ones only count in your totals. Hordes where someone got a kill have a "View results" button that anyone can press (see "Horde results and notices").
 [/list]
 [h3]Reward[/h3]
 [list]
@@ -142,7 +142,7 @@ Once the server has automatic hordes on or has had a horde, a "Hordes" page appe
 [*] [b]Only cleared waves pay[/b]: kills in a wave that fails earn nothing; the waves cleared before it still pay, whatever the result.
 [*] [b]Cap[/b]: one horde pays at most a set total (500 by default; each preset can differ). When the kills add up to more, everyone's share shrinks in proportion.
 [*] [b]Where it counts[/b]: season, all-time and balance, so it can be exchanged.
-[*] [b]Horde achievements[/b]: once the server has automatic hordes on or has had a horde, the achievements page gets a "Hordes" category: hordes cleared, horde kills and top killer (cleared hordes with 2 or more players, ties count for all), five tiers each. The first horde you help clear also unlocks a hidden achievement and the title "Horde Hunter".
+[*] [b]Horde achievements[/b]: the achievements page gets a "Hordes" category on the same servers as the Hordes page: hordes cleared, horde kills and top killer (cleared hordes with 2 or more players, ties count for all), five tiers each. The first horde you help clear also unlocks a hidden achievement and the title "Horde Hunter".
 [*] [b]Kills still count[/b]: horde kills count for kill stats, quests and achievements as usual.
 [/list]
 [h3]Failing[/h3]
@@ -150,13 +150,13 @@ Once the server has automatic hordes on or has had a horde, a "Hordes" page appe
 [*] [b]Time runs out[/b]: the zombies left in that wave are removed; the waves already cleared still pay.
 [*] [b]Other reasons[/b]: nobody came within 30 tiles in time, an admin stopped it, or the wave could not appear at the spot.
 [*] [b]Zombies that wander off[/b]: horde zombies that follow someone far away and get stored by the game become normal zombies; they no longer count for the horde, so there is no need to chase them.
-[*] [b]A server restart is not a failure[/b]: the horde carries on from the last world save. In a wave that was cut off, the zombies that were left come back after the start and the kills from before the restart still count; the horde starts no wave for 10 minutes after the start (admins can change this) so everyone can get back, and the tracker shows "Resumes in 4:12" and "restarted, N left". The zombies that were out become normal zombies and do not count.
+[*] [b]A server restart is not a failure[/b]: the horde carries on from the last world save: in the wave that was cut off, the zombies that were left come back and kills from before the restart still count. No wave starts for 10 minutes after the start (admins can change this) so everyone can get back; the tracker shows "Resumes in 4:12". The zombies that were out become normal zombies and do not count.
 [/list]
 [h3]Horde corpses[/h3]
 [list]
 [*] [b]Removed on their own[/b]: at most 500 horde corpses are kept, the oldest go first; 10 minutes after a horde ends, the rest around the spot are removed with everything on them. Loot them before that.
 [*] [b]Player corpses stay[/b]: only the corpses of zombies this mod spawned for a horde are removed; player corpses and other zombies' corpses are never removed.
-[*] [b]Find your own corpse[/b]: die within 50 tiles of the spot after the first wave has appeared and before the horde ends, and your corpse gets a gold outline and a light red tint; the outline shows through walls. With Minidoracat MiniMap installed, the maps also show a "My corpse" marker. Only you see them. If the corpse reanimates, the marker stays at its last place, faded; once that zombie is killed, the marker moves to where it fell. The mark goes 24 hours (real time) after the death or once the corpse is gone, and cannot be turned off. Anyone can loot the corpse.
+[*] [b]Find your own corpse[/b]: die within 50 tiles of the spot between the first wave and the end of the horde, and your corpse gets a gold outline (seen through walls) and a light red tint. With Minidoracat MiniMap installed, the maps also show a "My corpse" marker. Only you see them. If the corpse reanimates, the marker stays at its last place, faded; once that zombie is killed, the marker moves to where it fell. The mark goes 24 hours (real time) after the death or once the corpse is gone, and cannot be turned off. Anyone can loot the corpse.
 [/list]
 [b]Admins[/b]: spots, time windows and presets (waves, kinds and the reward) are set up as described in "Horde settings".
 === 🧰 Horde results and notices

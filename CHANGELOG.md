@@ -12,11 +12,11 @@
 
 格式基於 [Keep a Changelog](https://keepachangelog.com/zh-TW/1.1.0/)，版本號遵循 `{PZ版本}-{主版本}.{次版本}.{修訂}` 格式。
 
-## [Unreleased]
+## [42.21.0-0.6.1] - 2026-11-08
 
 ### 修正
 
-- **單人遊戲同時裝 Tool Priority 時，用到工具的製作不再出錯**：單人遊戲同時裝 TwisTonFire - Tool Priority 時，要用工具的製作（例如用開罐器開罐頭）會跳出 Lua 錯誤、做不出來（0.1.0 起都會；多人伺服器不受影響）。現在兩個 MOD 可以一起用，製作照常完成、照常計數。
+- **單人遊戲同時裝 Tool Priority 時，用到工具的製作不再出錯**：單人遊戲同時裝 TwisTonFire - Tool Priority 時，要用工具的製作（例如用開罐器開罐頭）會跳出錯誤、做不出來（0.1.0 起都會；多人伺服器不受影響）。現在兩個 MOD 可以一起用，製作照常完成、照常計數。
 
 > 技術要點：本 MOD 記錄製作次數時，`ISHandcraftAction.performRecipe` 執行期間的 `self.logic` 是轉送用的代理表（單人與專用伺服器都是）。現在它只回 logic 真有的成員，`tostring()` 回原本 logic 的字串；包在裡面的其他 MOD 呼叫 logic 的方法、拿 `tostring(logic)` 當鍵都照常。它仍是 Lua table，`type`、`instanceof` 與 `==` 的結果和原本的 logic 不同。
 

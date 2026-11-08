@@ -1,20 +1,13 @@
-[h1]Minidoracat Quests & Achievements for B42 42.21.0-0.6.0[/h1]
-[i]2026-11-02[/i]
+[h1]Minidoracat Quests & Achievements for B42 42.21.0-0.6.1[/h1]
+[i]2026-11-08[/i]
 
-這一版處理屍潮的兩個問題：伺服器重啟會打斷屍潮，屍體越堆越卡。另外，在屍潮中死掉也找得到自己的屍體。
-
-[h3]✨ 新增[/h3]
+[b]English summary[/b]
 [list]
-[*] [b]屍潮殭屍的屍體會自動清掉[/b]：地點附近的屍潮屍體最多留 500 具，超過就從最舊的清；一場結束 10 分鐘後，清掉地點周圍其餘的屍潮屍體，身上的東西一起清掉。一次只清一點，畫面不會因此卡住。玩家和一般殭屍的屍體都不動。管理員可在「管理 > 屍潮」調整，上限填 0 就不清。
-[*] [b]在屍潮中死掉，找得到自己的屍體[/b]：你的屍體會有金色外框和淡紅色，隔著牆也看得到外框；有裝 Minidoracat 小地圖時，地圖上也會標出「我的屍體」。只有你自己看得到。屍體屍變後，那隻殭屍被打倒的地方會換上新標記。死後 24 小時（現實時間）或屍體不見，標記就消失。
-[/list]
-
-[h3]🔄 變更[/h3]
-[list]
-[*] [b]伺服器重啟時，打到一半的屍潮會接著打[/b]：以前重啟時正在打的那一波直接算失敗。現在開服後同一波接著打，剩下的殭屍會重新出現，重啟前的擊殺照算。開服後 10 分鐘內不開打，讓大家先連回來，追蹤面板會顯示還要等多久；管理員可以改這個時間。
+[*] Single player with TwisTonFire - Tool Priority installed: crafting that needs a tool (for example, opening a can with a can opener) no longer fails with an error. The craft completes and counts toward quests as usual.
+[*] Multiplayer servers were not affected.
 [/list]
 
 [h3]🔧 修正[/h3]
 [list]
-[*] [b]當機後屍潮的編號重複[/b]：伺服器當機、回到上次存檔後，新開的屍潮可能用到已經用過的編號。現在不會重複。
+[*] [b]單人遊戲同時裝 Tool Priority 時，用到工具的製作不再出錯[/b]：單人遊戲同時裝 TwisTonFire - Tool Priority 時，要用工具的製作（例如用開罐器開罐頭）會跳出錯誤、做不出來（0.1.0 起都會；多人伺服器不受影響）。現在兩個 MOD 可以一起用，製作照常完成、照常計數。
 [/list]

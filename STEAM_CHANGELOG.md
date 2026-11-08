@@ -1,13 +1,13 @@
-[h1]Minidoracat Quests & Achievements for B42 42.21.0-0.6.1[/h1]
+[h1]Minidoracat Quests & Achievements for B42 42.21.0-0.6.2[/h1]
 [i]2026-11-08[/i]
 
 [b]English summary[/b]
 [list]
-[*] Single player with TwisTonFire - Tool Priority installed: crafting that needs a tool (for example, opening a can with a can opener) no longer fails with an error. The craft completes and counts toward quests as usual.
-[*] Multiplayer servers were not affected.
+[*] Horde kills are no longer credited to players who were not there. On multiplayer servers a horde zombie could count as another player's kill, so a player in another town could be listed as a participant and get points.
+[*] Zombie kills for quests and achievements are fixed the same way: a zombie now counts only for the player who actually hit it after it appeared.
 [/list]
 
 [h3]🔧 修正[/h3]
 [list]
-[*] [b]單人遊戲同時裝 Tool Priority 時，用到工具的製作不再出錯[/b]：單人遊戲同時裝 TwisTonFire - Tool Priority 時，要用工具的製作（例如用開罐器開罐頭）會跳出錯誤、做不出來（0.1.0 起都會；多人伺服器不受影響）。現在兩個 MOD 可以一起用，製作照常完成、照常計數。
+[*] [b]屍潮的擊殺不再記到不在場的玩家頭上[/b]：多人伺服器上，屍潮殭屍偶爾會記成別的玩家殺的，人在其他城鎮、沒去那一場的玩家也會被算成參加、拿到那一場的積分（從第一版起）。任務與成就的殺殭屍數也可能這樣多算給別人，或在混戰中少算幾隻。現在一隻殭屍只算給它這次出現後真的打過它的玩家；沒有人打過就倒下的，不算任何人的擊殺。
 [/list]

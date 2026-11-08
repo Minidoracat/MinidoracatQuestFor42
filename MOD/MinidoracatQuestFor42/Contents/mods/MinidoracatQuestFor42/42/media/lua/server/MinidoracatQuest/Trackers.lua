@@ -205,7 +205,12 @@ end
 -- (ISHandcraftAction.lua:221-223). The craft history cannot tell: getCraftHistoryFor returns a
 -- PlayerCraftHistory.CraftHistoryEntry, which LuaManager never exposes (only PlayerCraftHistory, :1832),
 -- so getCraftCount() errors in Lua (E2E quest-mp 2026-10-23: no craft was ever counted).
--- For the duration of the call self.logic is a proxy that forwards every method and records that result.
+-- For the duration of the call self.logic is a proxy that forwards the real logic's methods and records that result.
+-- Wrappers other mods installed before ours (at file load; ours goes in at OnServerStarted / OnGameStart) run inside
+-- ours and get the proxy, so it must look like the logic: Kahlua's tostring calls a table's "tostring" member before
+-- __tostring (KahluaUtil.java:236-245), and Tool Priority keys on tostring(logic) (Workshop comment 2026-11-03:
+-- errors at TWF_ToolPriority_Core.lua:454). Only member lookups and tostring match: type, instanceof and == still see
+-- a table.
 local function afterCraft(self)
     local who, r = self.character, self.craftRecipe
     add(who, "craft.count")
@@ -229,7 +234,14 @@ local function wrapCraft()
         self.logic = setmetatable({ performCurrentRecipe = function()
             done = real:performCurrentRecipe() == true
             return done
-        end }, { __index = function(_, k) return function(_, ...) return real[k](real, ...) end end })
+        end }, {
+            __index = function(_, k)
+                local f = real[k]
+                if type(f) ~= "function" then return f end
+                return function(_, ...) return f(real, ...) end
+            end,
+            __tostring = function() return tostring(real) end,
+        })
         local ok, result = pcall(orig, self, ...)
         self.logic = real
         if not ok then error(result) end

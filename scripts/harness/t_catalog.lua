@@ -12,10 +12,14 @@ return function(T)
     -- fake vanilla timed actions (installed before OnServerStarted so Trackers wraps them)
     local history = {}
     -- vanilla shape (ISHandcraftAction.lua:221-223): only logic:performCurrentRecipe() says whether it ran;
-    -- the follow-up calls go through the same logic object (the wrapper's proxy must forward them)
+    -- the follow-up calls go through the same logic object (the wrapper's proxy must forward them).
+    -- `seen` is what another mod's performRecipe wrapper, installed before ours and so running inside it, reads
+    -- from self.logic: Tool Priority keys on tostring(logic), and Kahlua's tostring calls a "tostring" member
+    -- first (KahluaUtil.java:236-245), so the proxy must not make one up
     local function fakeClasses()
         ISHandcraftAction = {
             performRecipe = function(self)
+                self.seen = { tostring = tostring(self.logic), member = self.logic and self.logic.tostring }
                 if self.logic and self.logic:performCurrentRecipe() then
                     self.logic:getRecipeData():luaCallOnCreate(self.character)
                 end
@@ -279,6 +283,8 @@ return function(T)
     T.check(r == "craft-result", "wrapped performRecipe returns the original result")
     T.check(tot("craft.count") == 1 and tot("cook.count") == 1, "craft + cook counted")
     T.check(act.logic == soupLogic and soupLogic.data.created == p, "proxy forwarded the follow-up calls, real logic restored")
+    T.check(act.seen.member == nil and act.seen.tostring == tostring(soupLogic),
+        "inside the wrapper the logic has no made-up members and tostring() is the real logic's (Tool Priority keys on it)")
     ISHandcraftAction.performRecipe({ character = p, craftRecipe = recipe("Nail", "Blacksmithing", true), logic = logic(false, "Nail") })
     T.check(tot("craft.count") == 1 and tot("smith.count") == 0, "failed craft not counted")
     ISHandcraftAction.performRecipe({ character = p, craftRecipe = recipe("Nail", "Blacksmithing", true), logic = logic(true, "Nail") })

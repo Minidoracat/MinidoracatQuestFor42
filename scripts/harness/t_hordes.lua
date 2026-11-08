@@ -614,8 +614,12 @@ return function(T)
         near(alice, 31)
         step(Q)
         T.check(cur.state == "waiting" and #T.spawnCalls == 0, "31 tiles away: no spawn")
+        -- the engine hands the wave out of its reuse pool: objects admin last hit elsewhere, attacker kept
+        -- (IsoZombie.java:4379-4476 never clears attackedBy; Discord report 2026-11-08)
+        T.staleAttacker = admin
         near(alice, 30)
         step(Q)
+        T.staleAttacker = nil
         T.check(cur.state == "active" and cur.size == 6 and cur.spawned == 6 and cur.left == 6 and cur.firstSpawnAt == T.now
             and cur.endsAt == T.now + 15 * MIN, "30 tiles: the wave starts, timer runs")
         local zs = hordeZombies()
@@ -672,8 +676,10 @@ return function(T)
         T.advance(H.LURE_MS)
         step(Q)
         T.check(#T.sounds == 2, "the lure repeats every LURE_MS while zombies are alive")
-        vanillas[3]:Kill(nil)
-        T.check(cur.killed == 6 and cur.kills.alice == 3, "a death without attacker clears it, no kill")
+        -- the owner client reports the death: the server runs die() -> Kill(getAttackedBy()) (NetworkZombiePacker.java:92-93)
+        vanillas[3]:die()
+        T.check(cur.killed == 6 and cur.kills.alice == 3 and cur.kills.admin == nil,
+            "a death without a hit in this life: no kill, not even for whoever hit the reused object before")
         local awards = spyAwards(Q)
         step(Q)
         T.check(root.hordes.cur == nil, "all gone with a player near: success")

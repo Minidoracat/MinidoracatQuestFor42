@@ -123,6 +123,15 @@ function T.onZombieDead(z)
     Q.Stats.max(killer, "kills.dayBest", T.dayKills[name])
 end
 
+-- The engine hands dead zombie objects out again (VirtualZombieManager.java:271-300) and never clears attackedBy;
+-- a death the server learns from the owner client runs die() -> Kill(getAttackedBy()) (NetworkZombiePacker.java:92-93,
+-- IsoGameCharacter.java:14623-14626). Left alone, a zombie that dies with no hit in its new life is the kill of
+-- whoever hit that object last, anywhere on the map (Hordes.onZombieDead reads the same attacker).
+function T.onZombieCreate(z)
+    z:setAttackedBy(nil)
+    T.seen[z], T.hitBy[z], T.hitWith[z] = nil, nil, nil
+end
+
 function T.onCharacterDeath(c)
     if c == nil or not instanceof(c, "IsoPlayer") then return end
     if c:isAnimal() then
@@ -533,6 +542,7 @@ function T.install()
         { WeaponCategory.SMALL_BLADE, "zombie.kills.smallblade" }, { WeaponCategory.SPEAR, "zombie.kills.spear" },
         { WeaponCategory.IMPROVISED, "zombie.kills.improvised" },
     }
+    Events.OnZombieCreate.Add(function(z) Q.Trackers.onZombieCreate(z) end)
     Events.OnZombieDead.Add(function(z) Q.Trackers.onZombieDead(z) end)
     Events.OnWeaponHitXp.Add(function(o, w, h) Q.Trackers.onWeaponHit(o, w, h) end)
     Events.AddXP.Add(function(o, perk, n) Q.Trackers.onAddXP(o, perk, n) end)

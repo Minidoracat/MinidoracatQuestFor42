@@ -413,6 +413,30 @@ return function(T)
     T.fire("OnZombieDead", zombie(animal, nil))
     T.check(tot("zombie.kills") == 4, "fire death and animal killer not counted")
     T.check(tot("kills.dayBest") == 4, "best kills in a day")
+    -- reused zombie objects (VirtualZombieManager.java:78-99, :272): resetForReuse keeps the last attacker
+    -- (IsoZombie.java:4379-4476), and an owner client's death reaches the server as die() -> Kill(getAttackedBy())
+    -- (NetworkZombiePacker.java:92-93, IsoGameCharacter.java:14623-14626); Discord report 2026-11-08
+    T.staleAttacker = p
+    local reused = addZombiesInOutfitArea(0, 0, 1, 1, 0, 1, nil, 50):get(0)
+    T.staleAttacker = nil
+    reused:die()
+    T.check(tot("zombie.kills") == 4, "a reused zombie that dies with no hit in this life is not its last killer's kill")
+    local kills = tot("zombie.kills")
+    reused = T.zombie{}
+    reused:Kill(p)
+    T.reuseZombie(reused)
+    reused:Kill(p)
+    T.check(tot("zombie.kills") == kills + 2, "a zombie object killed again in its next life (same minute) counts again")
+    -- last life: the axe hit it and it left the world unkilled; this life it is run over: a vehicle kill, not an axe one
+    local axeN, vehN = tot("zombie.kills.axe"), tot("zombie.kills.vehicle")
+    reused = T.zombie{}
+    T.fire("OnWeaponHitXp", p, axe, reused, 1, 1)
+    T.reuseZombie(reused)
+    p.veh = { getDriver = function() return p end, getCurrentSpeedKmHour = function() return 50 end }
+    reused:Kill(p)
+    p.veh = nil
+    T.check(tot("zombie.kills.vehicle") == vehN + 1 and tot("zombie.kills.axe") == axeN,
+        "a reused zombie run over in its next life is a vehicle kill, not the last life's axe hit")
 
     -- xp and levels
     T.fire("AddXP", p, Perks.Cooking, 10)

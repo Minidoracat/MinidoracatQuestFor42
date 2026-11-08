@@ -984,7 +984,9 @@ function H.onZombieDead(z)
     if cur == nil or cur.id ~= t.horde or cur.state ~= "active" then return end
     cur.killed, cur.totalKilled = cur.killed + 1, cur.totalKilled + 1
     if cur.left > 0 then cur.left = cur.left - 1 end
-    -- Kill() sets the attacker before the event fires; fire deaths have none: cleared, no kill
+    -- the last hit of this life: Kill() sets it before the event; a death the owner client reports runs die() ->
+    -- Kill(getAttackedBy()), and Trackers.onZombieCreate clears the one a reused object brings along; fire deaths
+    -- have none: cleared, no kill
     local killer = z:getAttackedBy()
     local user = killer ~= nil and instanceof(killer, "IsoPlayer") and MQ.Identity.principal(killer) or nil
     if user ~= nil then

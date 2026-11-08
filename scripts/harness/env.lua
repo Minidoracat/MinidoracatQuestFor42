@@ -14,14 +14,17 @@ Quick reference
   T.player{ name, admin, role, sid, x, y, z, num, oid, dead, noRole, offline }  online IsoPlayer (p.veh, p.hand)
   T.zombie{ oid, outfit, attacker, inWorld, owner, useless, cell, x, y, z, health }  IsoZombie; addZombiesInOutfitArea makes these at (x1, y1) with T.spawnHealth (default 2) (T.spawnCap limits
       how many it returns, like unloaded squares; T.spawnCalls records the calls; they report isExistInTheWorld() false
-      like fresh zombies on a dedicated server, quest-hz-1026e; T.staleOwner = p makes them still owned by p and
-      T.staleUseless = true keeps them useless, like a reused engine object); z:Kill(killer) fires OnZombieDead, then
-      leaves a corpse with a copy of the zombie's modData (die() -> becomeCorpse, IsoDeadBody.java:384);
+      like fresh zombies on a dedicated server, quest-hz-1026e; T.staleOwner = p makes them still owned by p,
+      T.staleUseless = true keeps them useless and T.staleAttacker = p keeps p as their attacker, like a reused engine
+      object); z:Kill(killer) fires OnZombieDead, then leaves a corpse with a copy of the zombie's modData (die() ->
+      becomeCorpse, IsoDeadBody.java:384); z:die() is Kill(getAttackedBy()) (IsoGameCharacter.java:14623-14626: the
+      server's path when the owner client reports the death, NetworkZombiePacker.java:92-93);
       cell = true: also in getCell():getZombieList() (T.cellZombies, a client's list; removeFromWorld takes it out,
       z.unregistered after z:getEmitter():unregister()).
       T.boot{ sp = true }: online id -1 (only the dedicated server hands them out) and spawns join the cell's list.
       Spawns fire OnZombieCreate; T.reuseZombie(z): the engine hands the object out again (OnZombieCreate, back in the
-      cell's list, a new online id on the dedicated server, modData cleared: IsoZombie.java:4470-4471)
+      cell's list, a new online id on the dedicated server, modData cleared: IsoZombie.java:4470-4471; the attacker
+      stays, resetForReuse never touches it: :4379-4476, VirtualZombieManager.java:271-329)
   T.body{ x, y, z, modData, oid } IsoDeadBody on that square (a player's corpse: the player's modData copied, :384);
       oid = its ObjectID (default a new one; server and client share it); highlight setters record into b.lit.
       T.bodiesAt(x, y, z), T.allBodies(), T.removed (removeCorpse calls { body, remote }); corpses stay over a
@@ -317,6 +320,7 @@ function T.zombie(o)
     function z:isDead() return self.dead end
     function z:isExistInTheWorld() return self.inWorld end
     function z:getAttackedBy() return self.attacker end
+    function z:setAttackedBy(c) self.attacker = c end
     function z:getCurrentSquare() return nil end
     function z:doSprinter() self.sprinter = true end
     -- network owner (IsoZombie.java:634-646): a reused zombie object keeps the one of its last life (quest-hz-1026j)
@@ -345,6 +349,9 @@ function T.zombie(o)
         T.body{ x = math.floor(self.x), y = math.floor(self.y), z = self.z, modData = T.deepcopy(self.modData) }
         for i, c in ipairs(T.cellZombies) do if c == self then table.remove(T.cellZombies, i) break end end
     end
+    function z:die()
+        if not self.dead then self:Kill(self.attacker) end
+    end
     T.zombies[#T.zombies + 1] = z
     if o.cell then T.cellZombies[#T.cellZombies + 1] = z end
     return z
@@ -353,7 +360,7 @@ end
 -- then the cell's zombie list (:206) and, on the dedicated server, a new online id (:211-212)
 function T.reuseZombie(z)
     z:removeFromWorld()
-    z.dead, z.attacker, z.inWorld, z.modData = false, nil, true, nil
+    z.dead, z.inWorld, z.modData = false, true, nil
     if T.mode ~= "sp" then z.oid, T.nextZombieId = T.nextZombieId, T.nextZombieId + 1 end
     T.fire("OnZombieCreate", z)
     T.cellZombies[#T.cellZombies + 1] = z
@@ -367,7 +374,8 @@ function addZombiesInOutfitArea(x1, y1, x2, y2, z, n, outfit, femaleChance)
     T.spawnCalls[#T.spawnCalls + 1] = { x1 = x1, y1 = y1, x2 = x2, y2 = y2, z = z, n = n, outfit = outfit, female = femaleChance }
     local list = {}
     for i = 1, T.spawnCap and math.min(n, T.spawnCap) or n do
-        list[i] = T.zombie{ inWorld = false, owner = T.staleOwner, useless = T.staleUseless, x = x1, y = y1, cell = T.mode == "sp",
+        list[i] = T.zombie{ inWorld = false, owner = T.staleOwner, useless = T.staleUseless, attacker = T.staleAttacker,
+            x = x1, y = y1, cell = T.mode == "sp",
             health = T.spawnHealth }
         T.fire("OnZombieCreate", list[i])   -- createRealZombieAlways fires it before the caller gets the list
     end
@@ -542,7 +550,8 @@ local function resetWorld(opts)
     T.failWrites, T.silentWrites = false, false
     T.randQueue = {}
     T.serverOptions = opts.serverOptions or { SleepAllowed = true }
-    T.zombies, T.cellZombies, T.spawnCalls, T.spawnCap, T.staleOwner, T.staleUseless, T.spawnHealth = {}, {}, {}, nil, nil, nil, nil
+    T.zombies, T.cellZombies, T.spawnCalls, T.spawnCap, T.staleOwner, T.staleUseless, T.staleAttacker, T.spawnHealth =
+        {}, {}, {}, nil, nil, nil, nil, nil
     T.sounds, T.square = {}, nil   -- horde server mocks
     if not opts.keepGmd then T.bodies = {} end   -- the world save keeps corpses like Global ModData
     T.removed = {}

@@ -366,10 +366,10 @@ B("streak_best", "quest", "streak.best")
 B("achv_tiers", "quest", "achv.tiers")
 
 -- Built-in towns (section 4.6). World square coords, inclusive.
--- Sources (42.21.0 vanilla): label centres media/maps/Muldraugh, KY/worldmap-annotations.lua, town points
--- in worldmap.xml, each map's spawnpoints.lua and POIData.lua building positions. Except muldraugh (design
--- draft, all spawns and POIs inside) and louisville (ISMapDefinitions.lua:472-490 treasure-map extent),
--- each rect is the POI/spawn bounding box padded by 100 squares.
+-- Sources (42.21.0; unchanged in 42.22.2): label centres media/maps/Muldraugh, KY/worldmap-annotations.lua, town
+-- points in worldmap.xml, each map's spawnpoints.lua and the building positions in the family MiniMap's
+-- MinidoracatMiniMapPOIData.lua. Except muldraugh (design draft, all spawns and POIs inside) and louisville
+-- (ISMapDefinitions.lua:472-490 treasure-map extent), each rect is the POI/spawn bounding box padded by 100 squares.
 -- Rect fields are named, same shape as config towns.custom (Config.lua townsCustom).
 local function R(x1, y1, x2, y2) return { x1 = x1, y1 = y1, x2 = x2, y2 = y2 } end
 Cat.towns = {

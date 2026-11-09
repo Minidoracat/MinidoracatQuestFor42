@@ -2,8 +2,9 @@
 -- (docs/ARCHITECTURE.md section 5.9). Runs on the dedicated server and in single player.
 -- Hooks are installed once, after every mod's top-level code (OnServerStarted / SP OnGameStart), so our
 -- wrappers are outermost. Wrappers run the vanilla method first, pass its result through unchanged and
--- record inside guard() (pcall; the first error of each hook is printed once). Timed-action character comes
--- from the client's action args (pitfalls.md:182-195); Stats.add still requires a verified principal for that player.
+-- record inside guard() (pcall; the first error of each hook is printed once). Timed-action character: since 42.22
+-- the server drops a NetTimedAction whose character is not the sending connection's player (NetTimedActionPacket.
+-- processServer) and a build's player comes from the connection; Stats.add still requires a verified principal.
 
 if isClient() then return end
 

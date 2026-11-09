@@ -166,7 +166,7 @@ function T.render()
     if me == nil then return end
     local tm = getTextManager()
     local zoom = getCore():getZoom(0)
-    local lift = 64 * Core.getTileScale() / zoom   -- vanilla name anchor: 128 / (2 / tileScale), over the feet
+    local lift = 64 * Core.getTileScale() / zoom   -- vanilla name anchor over the feet: 128 / zoom (42.22.2 renderlast; tileScale is always 2)
     local half = 16 * Core.getTileScale() / zoom
     local lh = T.lineH or 16
     local c = T.COLOR

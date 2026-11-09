@@ -118,8 +118,9 @@ end
 -- LuaManager.java:10433: each zombie on a random square of the 11 x 11 area; unloaded squares give fewer. A reused
 -- zombie object keeps useless from its last life (VirtualZombieManager.java:271-329 does not reset it; only setUseless
 -- and the debug "Useless" outfits write it, IsoZombie.java:3220-3221, :4768) and a useless zombie ignores every sound
--- and drops its target (:1594, :2060), so it stands at its exit through the lure (quest-hz-1027h-l). The built-in
--- kinds want ordinary zombies; registered kinds set their own flags.
+-- and drops its target (:1594, :2060), so it stands at its exit through the lure (quest-hz-1027h-l). Since 42.22
+-- addZombiesInOutfit* itself calls setUseless(isUseless) (default false, 42.22.2 LuaManager.addZombiesInOutfit); the
+-- call below stays as the 42.21 guard. The built-in kinds want ordinary zombies; registered kinds set their own flags.
 local function area(x, y, z, n)
     local list = addZombiesInOutfitArea(x - 5, y - 5, x + 5, y + 5, z, n, nil, 50)
     each(list, function(zed) if instanceof(zed, "IsoZombie") then zed:setUseless(false) end end)

@@ -15,7 +15,8 @@ Quick reference
   T.zombie{ oid, outfit, attacker, inWorld, owner, useless, cell, x, y, z, health }  IsoZombie; addZombiesInOutfitArea makes these at (x1, y1) with T.spawnHealth (default 2) (T.spawnCap limits
       how many it returns, like unloaded squares; T.spawnCalls records the calls; they report isExistInTheWorld() false
       like fresh zombies on a dedicated server, quest-hz-1026e; T.staleOwner = p makes them still owned by p,
-      T.staleUseless = true keeps them useless and T.staleAttacker = p keeps p as their attacker, like a reused engine
+      T.staleUseless = true keeps them useless (42.21; since 42.22 addZombiesInOutfit* clears it itself) and
+      T.staleAttacker = p keeps p as their attacker, like a reused engine
       object); z:Kill(killer) fires OnZombieDead, then leaves a corpse with a copy of the zombie's modData (die() ->
       becomeCorpse, IsoDeadBody.java:384); z:die() is Kill(getAttackedBy()) (IsoGameCharacter.java:14623-14626: the
       server's path when the owner client reports the death, NetworkZombiePacker.java:92-93);

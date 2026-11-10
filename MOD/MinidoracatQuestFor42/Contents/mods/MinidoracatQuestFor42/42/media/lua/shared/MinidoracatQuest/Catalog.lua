@@ -370,12 +370,14 @@ B("achv_tiers", "quest", "achv.tiers")
 -- points in worldmap.xml, each map's spawnpoints.lua and the building positions in the family MiniMap's
 -- MinidoracatMiniMapPOIData.lua. Except muldraugh (design draft, all spawns and POIs inside) and louisville
 -- (ISMapDefinitions.lua:472-490 treasure-map extent), each rect is the POI/spawn bounding box padded by 100 squares.
+-- riverside's second rect is its two spawn points east of town, (7342,5981) and (7396,6017), padded the same way:
+-- a player who starts there starts in Riverside (newbie.leave needs a start town).
 -- Rect fields are named, same shape as config towns.custom (Config.lua townsCustom).
 local function R(x1, y1, x2, y2) return { x1 = x1, y1 = y1, x2 = x2, y2 = y2 } end
 Cat.towns = {
     { id = "muldraugh", rects = { R(10540, 9240, 11160, 10760) } },
     { id = "west_point", rects = { R(10830, 6500, 12600, 7400) } },
-    { id = "riverside", rects = { R(5631, 5104, 6917, 5662) } },
+    { id = "riverside", rects = { R(5631, 5104, 6917, 5662), R(7242, 5881, 7496, 6117) } },
     { id = "rosewood", rects = { R(7722, 11037, 8595, 12494), R(7412, 11601, 7794, 11970) } },
     { id = "louisville", rects = { R(11700, 750, 14699, 3899) } },
     { id = "brandenburg", rects = { R(1897, 5637, 2342, 6534) } },

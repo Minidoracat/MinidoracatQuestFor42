@@ -28,7 +28,7 @@ T.DRIVE_KM_MIN = 4    -- km per minute (240 km/h); faster in a car is a teleport
 T.STALE_MS = 90000    -- older position samples are dropped (relog, server pause)
 
 T.seen = T.seen or {}             -- zombie -> true, cleared every minute
-T.hitBy = T.hitBy or {}           -- zombie -> owner of the last weapon hit
+T.hitBy = T.hitBy or {}           -- zombie -> owner of the last damaging weapon hit or explosion
 T.hitWith = T.hitWith or {}       -- zombie -> that weapon (false = none)
 T.px, T.py, T.pt = T.px or {}, T.py or {}, T.pt or {}
 T.days = T.days or {}             -- user -> floor(hours survived / 24) at the last poll
@@ -83,7 +83,21 @@ function T.onWeaponHit(owner, weapon, hitObject)
     end
 end
 
+-- A bomb (pipe bomb, aerosol bomb; thrown, placed or remote) is neither melee nor a firearm: its kill counts in
+-- zombie.kills only (server owner 2026-11-10). IsoTrap.explosion hits with the trap's weapon in the thrower's name
+-- only when the explosion range is above 0, and raises OnHitZombie but never OnWeaponHitXp (42.22.2 IsoTrap.java,
+-- IsoZombie.Hit; same in 42.21), so without onHitZombie the kill fell back to whatever the thrower held.
+local function isBomb(w)
+    return w ~= nil and instanceof(w, "HandWeapon") and w:getExplosionRange() > 0
+end
+
+-- OnHitZombie fires for every weapon Hit, shoves included; only explosions are taken from it.
+function T.onHitZombie(z, wielder, weapon)
+    if isBomb(weapon) then T.onWeaponHit(wielder, weapon, z) end
+end
+
 local function weaponKill(killer, w)
+    if isBomb(w) then return end
     if w and instanceof(w, "HandWeapon") and w:isRanged() then
         add(killer, "zombie.kills.firearm")
         return
@@ -546,6 +560,7 @@ function T.install()
     Events.OnZombieCreate.Add(function(z) Q.Trackers.onZombieCreate(z) end)
     Events.OnZombieDead.Add(function(z) Q.Trackers.onZombieDead(z) end)
     Events.OnWeaponHitXp.Add(function(o, w, h) Q.Trackers.onWeaponHit(o, w, h) end)
+    Events.OnHitZombie.Add(function(z, o, _, w) Q.Trackers.onHitZombie(z, o, w) end)
     Events.AddXP.Add(function(o, perk, n) Q.Trackers.onAddXP(o, perk, n) end)
     Events.LevelPerk.Add(function(o, perk, l, up) Q.Trackers.onLevelPerk(o, perk, l, up) end)
     Events.OnCharacterDeath.Add(function(c) Q.Trackers.onCharacterDeath(c) end)

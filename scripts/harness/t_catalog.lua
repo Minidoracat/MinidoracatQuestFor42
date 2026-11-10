@@ -87,9 +87,10 @@ return function(T)
         p.levels = {}
         return p
     end
-    local function weapon(cat, ranged)
+    local function weapon(cat, ranged, boom)
         return { __class = "HandWeapon",
             isRanged = function() return ranged == true end,
+            getExplosionRange = function() return boom or 0 end,
             getScriptItem = function() return { containsWeaponCategory = function(_, c) return c == cat end } end }
     end
     local function zombie(killer, sq)
@@ -437,6 +438,35 @@ return function(T)
     p.veh = nil
     T.check(tot("zombie.kills.vehicle") == vehN + 1 and tot("zombie.kills.axe") == axeN,
         "a reused zombie run over in its next life is a vehicle kill, not the last life's axe hit")
+    -- explosions: IsoTrap.explosion -> Hit(bomb, thrower) raises OnHitZombie and never OnWeaponHitXp (42.22.2
+    -- IsoTrap.java, IsoZombie.Hit); the kill counts, the weapon classes do not, whatever the thrower holds
+    local bomb = weapon(nil, false, 7)
+    local k0, m0, u0, a0 = tot("zombie.kills"), tot("zombie.kills.melee"), tot("zombie.kills.unarmed"), tot("zombie.kills.axe")
+    z = zombie(p, nil)
+    T.fire("OnHitZombie", z, p, nil, bomb)
+    T.fire("OnZombieDead", z)
+    p.hand = axe
+    z = zombie(p, nil)
+    T.fire("OnHitZombie", z, p, nil, bomb)
+    T.fire("OnZombieDead", z)
+    p.hand = nil
+    T.check(tot("zombie.kills") == k0 + 2 and tot("zombie.kills.melee") == m0 and tot("zombie.kills.unarmed") == u0
+        and tot("zombie.kills.axe") == a0, "a bomb kill counts in zombie.kills only, bare-handed or holding an axe")
+    z = zombie(p, nil)
+    T.fire("OnHitZombie", z, p, nil, bomb)
+    T.fire("OnWeaponHitXp", p, axe, z, 1, 1)
+    T.fire("OnZombieDead", z)
+    T.check(tot("zombie.kills.axe") == a0 + 1, "wounded by a bomb and finished with the axe is an axe kill")
+    -- every weapon Hit raises OnHitZombie, a shove too (no damage, no OnWeaponHitXp): it must not replace the axe
+    z = zombie(p, nil)
+    T.fire("OnWeaponHitXp", p, axe, z, 1, 1)
+    T.fire("OnHitZombie", z, p, nil, weapon(WeaponCategory.UNARMED))
+    T.fire("OnZombieDead", z)
+    T.check(tot("zombie.kills.axe") == a0 + 2 and tot("zombie.kills.unarmed") == u0, "a shove after the axe hit keeps the axe")
+    -- the two Riverside spawn points east of town (media/maps/Riverside, KY/spawnpoints.lua) start inside the town
+    T.check(Q.Towns.at(7342, 5981) == "riverside" and Q.Towns.at(7396, 6017) == "riverside",
+        "every vanilla Riverside spawn point is in riverside")
+
 
     -- xp and levels
     T.fire("AddXP", p, Perks.Cooking, 10)

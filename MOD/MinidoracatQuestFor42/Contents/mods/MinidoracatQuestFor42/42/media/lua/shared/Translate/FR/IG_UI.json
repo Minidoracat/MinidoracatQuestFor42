@@ -1531,7 +1531,7 @@
   "IGUI_MQ_UI_TitleCondNewbie": "Finir chaque étape des quêtes de débutant en %1 jours",
   "IGUI_MQ_UI_TitleCondRank": "Saison %1, points : %2",
   "IGUI_MQ_UI_TitleCondFirst": "Saison %1 : 1er du classement « %2 »",
-  "IGUI_MQ_WhatsNew": "Hordes reprises après un redémarrage, leurs cadavres retirés. Mort en horde : votre cadavre brille.",
+  "IGUI_MQ_WhatsNew": "Nouveau : plus de changements de quête, bouclier de série et titres à points. Voir la page Points.",
   "IGUI_MQ_Code_PRICE_CHANGED": "Le propriétaire du serveur vient de modifier le prix. L'écran affiche maintenant le nouveau prix ; vérifiez-le et réessayez.",
   "IGUI_MQ_Code_SHOP_OFF": "Le propriétaire du serveur a désactivé cet usage des points. Aucun point n'a été dépensé.",
   "IGUI_MQ_Code_SHIELD_HELD": "Vous avez déjà un bouclier de série. Vous pourrez en acheter un autre une fois celui-ci utilisé.",

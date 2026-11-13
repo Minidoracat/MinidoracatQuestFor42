@@ -751,6 +751,10 @@ return function(T)
         local r5c = T.cmd(a, "exchange", { amount = 40, seq = seq }, rid)
         T.check(r5c and r5c.ok and r5c.replay == true and r5c.coins == 40 and acc.points.balance == 420 and #credits == 2,
             "the first packet once more, after other exchanges: still the answer of that first exchange")
+        T.now = T.now + Q.Contract.LIMIT.CACHE_TTL_MS + 1000
+        local r5d = T.cmd(a, "exchange", { amount = 40, seq = seq + 1 }, rid)
+        T.check(r5d and r5d.ok == false and r5d.code == "STALE" and acc.points.balance == 420 and #credits == 2,
+            "the first requestId with the spendSeq another exchange used up: STALE")
         -- a request that was refused made no exchange: asked again later it is STALE, not a made-up result
         seq, rid = acc.spendSeq, T.newRequestId()
         T.advance(3100)

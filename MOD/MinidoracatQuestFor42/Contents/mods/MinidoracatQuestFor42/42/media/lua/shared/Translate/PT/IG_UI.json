@@ -1531,7 +1531,7 @@
   "IGUI_MQ_UI_TitleCondNewbie": "Concluir cada etapa das missões de iniciante em %1 dias",
   "IGUI_MQ_UI_TitleCondRank": "Temporada %1, pontos: %2",
   "IGUI_MQ_UI_TitleCondFirst": "Temporada %1: 1º em \"%2\"",
-  "IGUI_MQ_WhatsNew": "Hordas continuam após reinícios e os seus cadáveres somem. Morreu numa horda? O seu cadáver brilha.",
+  "IGUI_MQ_WhatsNew": "Novos usos dos pontos: mais trocas de missão, escudo de sequência e títulos por pontos. Abra Pontos.",
   "IGUI_MQ_Code_PRICE_CHANGED": "O dono do servidor acabou de mudar o preço. O ecrã agora mostra o preço novo; confira e tente de novo.",
   "IGUI_MQ_Code_SHOP_OFF": "O dono do servidor desativou este uso de pontos. Nenhum ponto foi gasto.",
   "IGUI_MQ_Code_SHIELD_HELD": "Você já tem um escudo de sequência. Pode comprar outro depois que ele for usado.",

@@ -1531,7 +1531,7 @@
   "IGUI_MQ_UI_TitleCondNewbie": "Completar cada paso de las misiones de novato en %1 días",
   "IGUI_MQ_UI_TitleCondRank": "Temporada %1, puntos: %2",
   "IGUI_MQ_UI_TitleCondFirst": "Temporada %1: n.º 1 en \"%2\"",
-  "IGUI_MQ_WhatsNew": "Las hordas siguen tras un reinicio y sus cadáveres se retiran. Si mueres en una horda, tu cadáver brilla.",
+  "IGUI_MQ_WhatsNew": "Nuevos usos de los puntos: más cambios de misión, escudo de racha y títulos por puntos. Ve a Puntos.",
   "IGUI_MQ_Code_PRICE_CHANGED": "El dueño del servidor acaba de cambiar el precio. La pantalla ya muestra el precio nuevo; revísalo y vuelve a intentarlo.",
   "IGUI_MQ_Code_SHOP_OFF": "El dueño del servidor desactivó este uso de los puntos. No se gastaron puntos.",
   "IGUI_MQ_Code_SHIELD_HELD": "Ya tienes un escudo de racha. Puedes comprar otro cuando se use.",

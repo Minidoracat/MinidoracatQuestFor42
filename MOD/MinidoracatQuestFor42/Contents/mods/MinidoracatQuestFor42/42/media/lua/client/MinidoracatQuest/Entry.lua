@@ -313,7 +313,7 @@ do
             and ui.CAPABILITIES ~= nil and ui.CAPABILITIES.whatsNew == true and ui.WhatsNew ~= nil then
         ui.WhatsNew.register({
             modId = "MinidoracatQuestFor42",
-            since = "0.6.0",
+            since = "0.7.0",
             name = "IGUI_MQ_Name",
             text = "IGUI_MQ_WhatsNew",
         })

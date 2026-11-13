@@ -1531,7 +1531,7 @@
   "IGUI_MQ_UI_TitleCondNewbie": "%1 天内完成新手任务的每一步",
   "IGUI_MQ_UI_TitleCondRank": "第 %1 季积分%2",
   "IGUI_MQ_UI_TitleCondFirst": "第 %1 季「%2」榜第一",
-  "IGUI_MQ_WhatsNew": "尸潮被服务器重启打断时会接着打，尸潮僵尸的尸体会自动清除；在尸潮中死亡，你的尸体会发亮。",
+  "IGUI_MQ_WhatsNew": "积分有了新用途：多换几次任务、连续保护、积分称号。到「积分」页看看。",
   "IGUI_MQ_Code_PRICE_CHANGED": "服主调整了价格，界面已更新为新的价格。请确认后再试一次。",
   "IGUI_MQ_Code_SHOP_OFF": "服主已关闭这个积分用途，积分没有扣。",
   "IGUI_MQ_Code_SHIELD_HELD": "你手上已经有 1 天保护，用掉之后才能再换。",

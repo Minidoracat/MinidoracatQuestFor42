@@ -45,8 +45,9 @@ S.unverified = S.unverified or {}
 -- spec = { kind = "query" | "mutation", fields = { f = "type" | "type?" }, admin = bool, cooldownMs, run(ctx) }
 -- spend = true: the command takes points (or a free use: the daily swap). Its request carries seq, the account's
 -- spendSeq the client saw when the player confirmed, and is run only while that still is the account's: see
--- onClientCommand. Every command that takes points must set it. done(acc, seq) -> data | nil (optional): the result
--- of the request that used up seq, for a command whose client asks again with the same packet (exchange).
+-- onClientCommand. Every command that takes points must set it. done(acc, seq, requestId) -> data | nil (optional):
+-- what this very request (that seq and that requestId) did when it used up seq, nil for any other request; for a
+-- command whose client asks again with the same packet (exchange).
 -- run returns true, data | false, code, data
 function S.define(name, spec)
     spec.fields = spec.fields or {}

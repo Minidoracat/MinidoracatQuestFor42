@@ -1531,7 +1531,7 @@
   "IGUI_MQ_UI_TitleCondNewbie": "%1 天內完成新手任務的每一步",
   "IGUI_MQ_UI_TitleCondRank": "第 %1 季積分%2",
   "IGUI_MQ_UI_TitleCondFirst": "第 %1 季「%2」榜第一",
-  "IGUI_MQ_WhatsNew": "屍潮被伺服器重啟打斷時會接著打，屍潮殭屍的屍體會自動清掉；在屍潮中死掉，你的屍體會發亮。",
+  "IGUI_MQ_WhatsNew": "積分多了新用途：多換幾次任務、連續保護、積分稱號。到「積分」頁看看。",
   "IGUI_MQ_Code_PRICE_CHANGED": "服主剛調整了價格，畫面已更新成新的價格。請確認後再試一次。",
   "IGUI_MQ_Code_SHOP_OFF": "服主已關閉這個積分用途，積分沒有扣。",
   "IGUI_MQ_Code_SHIELD_HELD": "你手上已經有 1 天保護，用掉之後才能再買。",

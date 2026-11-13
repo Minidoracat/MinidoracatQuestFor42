@@ -1531,7 +1531,7 @@
   "IGUI_MQ_UI_TitleCondNewbie": "Finish every newcomer quest step within %1 days",
   "IGUI_MQ_UI_TitleCondRank": "Season %1 points: %2",
   "IGUI_MQ_UI_TitleCondFirst": "Season %1: #1 on \"%2\"",
-  "IGUI_MQ_WhatsNew": "Hordes cut by a restart carry on, and horde corpses get cleared. Die in a horde and your corpse glows.",
+  "IGUI_MQ_WhatsNew": "Points have new uses: extra quest swaps, a streak shield and point titles. See the Points page.",
   "IGUI_MQ_Code_PRICE_CHANGED": "The server owner just changed the price. The screen now shows the new price; check it and try again.",
   "IGUI_MQ_Code_SHOP_OFF": "The server owner has turned this use of points off. No points were spent.",
   "IGUI_MQ_Code_SHIELD_HELD": "You already have a streak shield. You can buy another once it is used.",

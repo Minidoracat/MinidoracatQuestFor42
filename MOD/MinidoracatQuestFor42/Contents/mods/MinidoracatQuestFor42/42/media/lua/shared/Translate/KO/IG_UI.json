@@ -1531,7 +1531,7 @@
   "IGUI_MQ_UI_TitleCondNewbie": "%1일 안에 신규 생존자 퀘스트의 모든 단계 완료",
   "IGUI_MQ_UI_TitleCondRank": "시즌 %1 포인트 %2",
   "IGUI_MQ_UI_TitleCondFirst": "시즌 %1 \"%2\" 순위 1위",
-  "IGUI_MQ_WhatsNew": "서버 재시작으로 끊긴 좀비 떼는 이어서 진행되고, 좀비 떼의 시체는 자동으로 치워집니다. 좀비 떼에서 죽으면 내 시체가 빛납니다.",
+  "IGUI_MQ_WhatsNew": "새 포인트 사용처: 퀘스트 추가 교체, 연속 달성 보호권, 포인트 칭호. '포인트' 페이지를 보십시오.",
   "IGUI_MQ_Code_PRICE_CHANGED": "서버 관리자가 방금 가격을 바꿨습니다. 화면에 새 가격이 표시되어 있으니 확인한 뒤 다시 시도하십시오.",
   "IGUI_MQ_Code_SHOP_OFF": "서버 관리자가 이 포인트 사용처를 껐습니다. 포인트는 차감되지 않았습니다.",
   "IGUI_MQ_Code_SHIELD_HELD": "이미 연속 달성 보호권이 있습니다. 사용된 뒤에 다시 구매할 수 있습니다.",

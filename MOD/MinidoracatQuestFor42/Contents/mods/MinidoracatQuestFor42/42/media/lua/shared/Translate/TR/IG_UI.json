@@ -1531,7 +1531,7 @@
   "IGUI_MQ_UI_TitleCondNewbie": "Acemi görevlerinin her adımını %1 gün içinde bitir",
   "IGUI_MQ_UI_TitleCondRank": "%1. sezon puanı: %2",
   "IGUI_MQ_UI_TitleCondFirst": "%1. sezon: \"%2\" tablosunda 1.",
-  "IGUI_MQ_WhatsNew": "Yeniden başlatma sonrası sürüler devam eder, cesetleri temizlenir. Sürüde ölürsen cesedin parlar.",
+  "IGUI_MQ_WhatsNew": "Yeni puan kullanımları: ek görev değiştirme, seri koruması, puan unvanları. Puanlar sayfasına bakın.",
   "IGUI_MQ_Code_PRICE_CHANGED": "Sunucu sahibi fiyatı az önce değiştirdi. Ekranda artık yeni fiyat görünüyor; kontrol edip tekrar deneyin.",
   "IGUI_MQ_Code_SHOP_OFF": "Sunucu sahibi puanların bu kullanımını kapattı. Puan harcanmadı.",
   "IGUI_MQ_Code_SHIELD_HELD": "Zaten bir seri korumanız var. O kullanılınca yenisini alabilirsiniz.",

@@ -132,7 +132,7 @@ local function newAccount(t, sno)
 end
 
 -- Every title grant goes through here: titleAt keeps the first grant time, titleSrc what granted it ("a:<achId>:<tier>",
--- "streak:<days>", "newbie", "season:<no>:<rank>", "first:<boardId>"); revoke goes by titleSrc (owner 2026-10-27).
+-- "streak:<days>", "newbie", "season:<no>:<rank>", "first:<boardId>", "shop:<id>"); revoke goes by titleSrc (owner 2026-10-27).
 -- Titles granted before titleAt / titleSrc existed have neither and stay without them.
 function St.grantTitle(acc, id, src)
     acc.titles = acc.titles or {}

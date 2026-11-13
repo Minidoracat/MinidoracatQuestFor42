@@ -3,10 +3,11 @@
 -- Dispatch is the MinidoracatSafehouse server/Server.lua S.define pipeline: module -> principal (unverified replies
 -- rate-limited by claimed name) -> per-player rate limit (5 s / 20) -> command lookup -> per-command cooldown (drop,
 -- no reply) -> field whitelist and types (protocol, requestId, unknown fields, NaN/Inf, lengths) -> admin gate ->
--- mutation result cache by requestId (60 s) -> run in pcall -> reply ok + code.
+-- mutation result cache by requestId (60 s) -> a spend's spendSeq (STALE, or moved on) -> run in pcall -> reply ok + code.
 -- Additions: field type "json" (decoded server-side), Server.defineAdmin for ops under the "admin" command, admin by
 -- sandbox AdminRoles (SP: always), and the SP direct call through Net.send.
--- Reply rules: player mutations get "result" then a fresh "state" on success; queries reply themselves through
+-- Reply rules: player mutations get "result" then a fresh "state" on success (a spend that reached its spendSeq check:
+-- whatever the answer); queries reply themselves through
 -- Net.send and get a "result" only on failure; admin ops reply "admin" { op, ok, code, requestId, ... }.
 -- Background work runs on OnTickEvenPaused (OnTick stops when the server is empty) with ms throttles.
 
@@ -42,9 +43,14 @@ S.LATER = S.LATER or {}       -- run returns true, S.LATER: no reply now; the op
 S.unverified = S.unverified or {}
 
 -- spec = { kind = "query" | "mutation", fields = { f = "type" | "type?" }, admin = bool, cooldownMs, run(ctx) }
+-- spend = true: the command takes points (or a free use: the daily swap). Its request carries seq, the account's
+-- spendSeq the client saw when the player confirmed, and is run only while that still is the account's: see
+-- onClientCommand. Every command that takes points must set it. done(acc, seq) -> data | nil (optional): the result
+-- of the request that used up seq, for a command whose client asks again with the same packet (exchange).
 -- run returns true, data | false, code, data
 function S.define(name, spec)
     spec.fields = spec.fields or {}
+    if spec.spend then spec.fields.seq = "int" end
     S.commands[name] = spec
 end
 
@@ -270,13 +276,32 @@ function S.onClientCommand(module, command, player, args)
             return reply(cached)
         end
     end
+    -- A command that spends does not rest on that cache (it lets go of a result after CACHE_TTL_MS or CACHE_PER_ACTOR
+    -- newer ones), on timeouts or on the order packets come in (ClientCommand is RELIABLE, not RELIABLE_ORDERED:
+    -- PacketTypes.java:508, 42.22.2). Its request names the account's spendSeq the player's screen had; the account's
+    -- moves on before the command runs, whatever it then answers (a refusal, an error). So of all the requests made
+    -- on one screen at most one is ever run, in any order and after any delay, and the others get STALE with the
+    -- state that shows what happened. spendSeq is saved with the balance (a restart, an older save).
     local res
+    local spendAcc = nil
     if not S.ready or not Q.Store.ready() or (mutation and Q.Store.readOnly) then
         res = { ok = false, code = CODE.NOT_READY }
     else
+        if spec.spend then spendAcc = Q.Store.account(user, true) end
+    end
+    if res == nil and spec.spend and (spendAcc == nil or fields.seq ~= (spendAcc.spendSeq or 0)) then
+        -- spec.done(acc, seq, requestId): what this request did when it used up that seq, when the command keeps
+        -- that (the exchange, whose dialog asks again with the same packet). Then the answer is that, not STALE.
+        local was = spec.done ~= nil and spec.done(spendAcc, fields.seq, requestId) or nil
+        res = was ~= nil and merged({ ok = true, code = CODE.OK, replay = true }, was) or { ok = false, code = CODE.STALE }
+    elseif res == nil then
+        if spendAcc ~= nil then spendAcc.spendSeq = (spendAcc.spendSeq or 0) + 1 end
         local ctx = { player = player, user = user, args = fields, now = now, admin = admin, command = command, op = op,
             requestId = requestId }
+        local was = Q.Points.open
+        Q.Points.open = spec.spend == true
         local ok, a, b = runSpec(spec, ctx)
+        Q.Points.open = was
         if ok == true then
             if a == S.LATER then return end   -- the op replies later itself (Report: snapshot built over ticks)
             if not mutation and op == nil then return end   -- queries reply on their own
@@ -290,9 +315,12 @@ function S.onClientCommand(module, command, player, args)
         end
     end
     if not res.ok then Q.Audit.deny(user, key, res.code) end
-    if mutation then storeResult(user, cacheKey, res, now) end
+    -- NOT_READY is not kept: the request was not looked at, the same one may come again once the server is up
+    if mutation and res.code ~= CODE.NOT_READY then storeResult(user, cacheKey, res, now) end
     reply(res)
-    if res.ok and mutation and op == nil then
+    -- a spend that reached its spendSeq check: the state goes out whatever the answer (the client's next spend needs
+    -- the new spendSeq, and after STALE the screen that made the request was old)
+    if (res.ok or spendAcc ~= nil) and mutation and op == nil then
         local acc = Q.Store.account(user, false)
         if acc ~= nil then Q.Net.send(player, "state", Q.Sync.state(user, acc)) end
     end
@@ -447,6 +475,7 @@ S.define("records", { kind = "query", run = function(ctx)
     -- the player Hordes page (design r12): the recent results with this player's kills and points
     local hordes = Q.Hordes ~= nil and Q.Hordes.recent(ctx.user, Q.Hordes.RECENT) or nil
     Q.Net.send(ctx.player, "records", { rows = rows, points = { season = p.season, total = p.total, balance = p.balance },
+        spendSeq = acc.spendSeq or 0,   -- the client takes the points only into the state of this spendSeq
         hordes = hordes })
     return true
 end })

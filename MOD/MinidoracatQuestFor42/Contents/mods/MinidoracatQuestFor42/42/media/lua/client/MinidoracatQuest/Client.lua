@@ -4,8 +4,8 @@
 --   Every command carries protocol + requestId; result/admin replies are matched by requestId, 10 s without a
 --   reply delivers { ok = false, code = "NO_REPLY" } once.
 --   defs(): effective definitions = shared Catalog defaults merged with the catalog push (overrides, custom
---   achievements, facade packs). Pure model helpers (board page state machine, exchange quote) live here so the
---   offline harness can test them without UI classes.
+--   achievements, facade packs). Pure model helpers (board page state machine, exchange quote, points uses, points
+--   history, pledge quote) live here so the offline harness can test them without UI classes.
 
 if isServer() then return end
 
@@ -87,6 +87,22 @@ function C.send(command, args, cb)
     end
     sendClientCommand(player, K().MODULE, command, args)
     return rid
+end
+
+-- A request that spends (a command the server defines with spend = true) names in args.seq the spendSeq of the state
+-- the player decided on; the server runs it only while that is still the account's, and moves it on. So of the
+-- requests made on one screen at most one is ever run, and nothing is sent again from here: after NO_REPLY the
+-- player decides again on the state shown then (a request whose screen is old gets STALE and the new state).
+-- spendSeq comes only with the full state, never from a reply: a reply can arrive before the state it belongs to.
+function C.spendSeq() return C.state ~= nil and tonumber(C.state.spendSeq) or 0 end
+
+-- the requestId, or nil: no player yet, or a spend still waits for its reply. args.seq is set here only when the
+-- caller did not take it earlier (a question that stays open takes it as it opens: Draw.askSpend)
+function C.sendSpend(command, args, cb)
+    if C.isPending(C.spendRid) then return nil end
+    if args.seq == nil then args.seq = C.spendSeq() end
+    C.spendRid = C.send(command, args, cb)
+    return C.spendRid
 end
 
 function C.isPending(rid) return rid ~= nil and C.pending[rid] ~= nil end
@@ -496,6 +512,110 @@ function C.exchangeQuote(state, text)
     return q
 end
 
+-- ===== points uses (plan points-sinks 2026-11-12, contract 1 and 7) =====
+local function balance(s)
+    local pts = s and type(s.points) == "table" and s.points or {}
+    return math.max(0, math.floor(tonumber(pts.balance) or 0))
+end
+C.balance = balance
+
+local function part(t, k) return type(t) == "table" and type(t[k]) == "table" and t[k] or nil end
+
+-- the uses on now: { swap, shield, titles } = their cfg.shop table while enabled, horde = state.hordes.paid while on
+-- (enabled with a spot); a missing part reads as off
+function C.uses(s)
+    local sh, out = part(C.defs().cfg, "shop"), {}
+    for _, k in ipairs({ "swap", "shield", "titles" }) do
+        local p = part(sh, k)
+        if p ~= nil and p.enabled ~= false then out[k] = p end
+    end
+    local hp = part(part(s, "hordes"), "paid")
+    if hp ~= nil and hp.on == true then out.horde = hp end
+    return out
+end
+
+-- the titles sold for points, in shop order: the four fixed ids at their list price, then s<no>_patron while
+-- season > 0 (contract 7). t = cfg.shop.titles (the admin passes its draft); -> { { id, pts, season? } }
+C.SHOP_TITLES = { "spend_1", "spend_2", "spend_3", "spend_4" }
+function C.titleShop(t, no)
+    local out = {}
+    if type(t) ~= "table" then return out end
+    local list = type(t.list) == "table" and t.list or {}
+    for _, id in ipairs(C.SHOP_TITLES) do
+        local pts = tonumber(list[id])
+        if pts ~= nil and pts > 0 then out[#out + 1] = { id = id, pts = pts } end
+    end
+    local sp = tonumber(t.season) or 0
+    if tonumber(no) ~= nil and sp > 0 then out[#out + 1] = { id = "s" .. math.floor(no) .. "_patron", pts = sp, season = true } end
+    return out
+end
+
+-- what the Points page lists: {} while titles are off
+function C.shopTitles(s)
+    local t = C.uses(s).titles
+    if t == nil then return {} end
+    return C.titleShop(t, s and type(s.season) == "table" and s.season.no or nil)
+end
+
+-- Points history: state.exchange.hist and state.spent merged newest first, at most LOG_MAX rows;
+-- each { at, ex = hist row } or { at, spent = { at, what, n, ref } }
+C.LOG_MAX = 10
+function C.pointsLog(s)
+    local rows = {}
+    local function add(list, key)
+        for _, r in ipairs(type(list) == "table" and list or {}) do
+            if type(r) == "table" then
+                local e = { at = tonumber(r.at) or 0 }
+                e[key] = r
+                local i = #rows + 1   -- insertion sort, newest first (no table.sort in Kahlua)
+                while i > 1 and rows[i - 1].at < e.at do
+                    rows[i] = rows[i - 1]
+                    i = i - 1
+                end
+                rows[i] = e
+            end
+        end
+    end
+    add(part(s, "exchange") and s.exchange.hist, "ex")
+    add(s and s.spent, "spent")
+    for i = #rows, C.LOG_MAX + 1, -1 do rows[i] = nil end
+    return rows
+end
+
+-- the pledge dialog (sponsored hordes, contract 4 and 6). target: the fund's pts, or the setting's with no fund (what
+-- the server checks `total` against); left: what it still needs; min = min(minPledge, left); dflt = min(left, 100,
+-- balance). text nil = the default amount. Returns { balance, target, got, left, min, dflt, amount, after, ok, reason }
+function C.pledgeQuote(s, text)
+    local hs = part(s, "hordes") or {}
+    local paid, fund = part(hs, "paid") or {}, part(hs, "fund")
+    local q = { balance = balance(s) }
+    q.target = math.floor(tonumber(fund and fund.pts or paid.pts) or 0)
+    q.got = fund and math.floor(tonumber(fund.total) or 0) or 0
+    q.left = math.max(0, q.target - q.got)
+    q.min = math.max(1, math.min(math.floor(tonumber(paid.minPledge) or 1), q.left))
+    q.dflt = math.max(0, math.min(q.left, 100, q.balance))
+    local amount = text == nil and q.dflt or math.floor(tonumber(text) or 0)
+    if amount < 0 then amount = 0 end
+    q.amount, q.after = amount, q.balance - amount
+    if paid.on ~= true then
+        q.reason = "FUND_OFF"
+    elseif q.left <= 0 or (fund and fund.state == "ready") then
+        q.reason = "FUND_FULL"
+    elseif fund == nil and (tonumber(paid.left) or 0) <= 0 then
+        q.reason = "FUND_DAY"
+    elseif amount <= 0 then
+        q.reason = "EMPTY"
+    elseif amount > q.balance then
+        q.reason = "NOT_ENOUGH_POINTS"
+    elseif amount > q.left then
+        q.reason = "PLEDGE_MAX"
+    elseif amount < q.min then
+        q.reason = "PLEDGE_MIN"
+    end
+    q.ok = q.reason == nil
+    return q
+end
+
 -- ===== tracker pins (state.pins: "d1".."d4" daily slots, "w1".."w3" weekly slots, "a:<achId>") =====
 function C.pins() return C.state ~= nil and type(C.state.pins) == "table" and C.state.pins or {} end
 
@@ -532,6 +652,9 @@ function H.catalog(p)
 end
 
 function H.state(p)
+    -- states are not sure to come in the order sent: one from before a spend must not replace the one after it
+    -- (the deltas that follow are for the newer one: H.delta). spendSeq only grows while connected.
+    if C.state ~= nil and (tonumber(p.spendSeq) or 0) < C.spendSeq() then return end
     C.state = p
     if type(p.now) == "number" then C.skew = p.now - getTimestampMs() end
     C.helloWaiting, C.helloTries, C.helloCode = false, 0, nil
@@ -543,6 +666,10 @@ function H.delta(p)
         if not C.helloWaiting then C.hello() end
         return
     end
+    -- a delta is for the state of its spendSeq only (server Sync), and never brings a spendSeq itself
+    local seq = p.spendSeq
+    p.spendSeq = nil
+    if seq ~= nil and seq ~= C.spendSeq() then return end
     C.applyDelta(C.state, p)
     C.emit("delta", p)
 end
@@ -571,7 +698,8 @@ function H.records(p)
         if type(r) == "table" and r.stat ~= nil then by[r.stat] = r end
     end
     C.recordsBy = by
-    if C.state ~= nil and type(p.points) == "table" then C.state.points = p.points end
+    -- the points only into the state they belong to (like a delta: H.delta)
+    if C.state ~= nil and type(p.points) == "table" and p.spendSeq == C.spendSeq() then C.state.points = p.points end
     C.emit("records", p)
 end
 
@@ -643,6 +771,7 @@ function C.onGameStart()
     C.state, C.catalog, C.records, C.recordsBy, C.recordsAt, C.recordsSentAt = nil, nil, nil, nil, nil, nil
     C.boards, C.boardQueue, C.boardSentAt, C.pending = {}, nil, nil, {}
     C.helloTries, C.started = 0, false
+    C.spendRid = nil
     C.invalidate()
     Events.OnTick.Add(firstTick)
 end

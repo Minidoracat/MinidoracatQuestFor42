@@ -1,7 +1,7 @@
 -- MinidoracatQuest/AdminPages.lua: admin tabs other than achievements and history (spec 9.4, 11.2-11.4, 13.5-13.8).
 -- basic (the guided first page: difficulty, season, rewards, exchange, newcomer quests and notices), quests (the
 -- players-see-the-list switch, daily and weekly pools by theme with whole-theme buttons, shared goal, streak,
--- newbie, timed events), season (length preview/apply, review, rewards), exchange, players (account view, revoke,
+-- newbie, timed events), season (length preview/apply, review, rewards), exchange (and the uses for points), players (account view, revoke,
 -- hide, anomalies, per-minute limits), balance, towns. Config edits go through the draft (AdminPanel);
 -- season/events/revoke/hide use their own ops (ARCHITECTURE.md 6.2), and the sections holding them say so
 -- (IGUI_MQ_Admin_ImmediateNote).
@@ -671,6 +671,32 @@ A.pages.season = { layout = layoutSeason, load = function(P) loadSeason(P) end }
 
 -- ===== exchange =====
 
+-- a title price is labelled with the title's name; the others read like their settings
+local function useLabel(path)
+    local tid = string.match(path, "^shop%.titles%.list%.(.+)$")
+    return tid and getText("IGUI_MQ_Admin_ShopTitlePts", A.titleText(tid)) or A.fLabel(path)
+end
+
+-- uses for points (plan points-sinks-1112 claim 5.2): after the exchange whatever ex.status says (they do not need
+-- the economy mod); a switch carries its own label, so a click on the words toggles it; one field per row (review M)
+local function layoutUses(P, pg, F)
+    F:gap()
+    F:head("hu", getText("IGUI_MQ_Admin_UsesHead"))
+    F:text("un", getText("IGUI_MQ_Admin_UsesNote"), "textMuted")
+    local lw = 0
+    for _, r in ipairs(AM.USES) do
+        if r[2] ~= "bool" then lw = math.max(lw, A.textW(useLabel(r[1]))) end
+    end
+    lw = math.min(lw + A.GAP, 260)
+    for _, r in ipairs(AM.USES) do
+        if r[2] == "bool" then
+            F:row({ A.boolField(P, pg, r[1], A.fLabel(r[1]), r[1]) })
+        else
+            formRow(F, r[1], useLabel(r[1]), lw, { A.numField(P, pg, r[1], r[1], nil, r[2]) })
+        end
+    end
+end
+
 local function layoutExchange(P, pg, F)
     local d = pg.data
     F:head("h", getText("IGUI_MQ_Admin_ExHead"))
@@ -712,6 +738,7 @@ local function layoutExchange(P, pg, F)
     F:head("hs", getText("IGUI_MQ_Admin_ExSettings"))
     form(P, pg, F, { { "exchange.enabled", "bool" }, { "exchange.rate", "rate" }, { "exchange.perDay", "perDay" },
         { "exchange.min", "exMin" } })
+    layoutUses(P, pg, F)
 end
 
 A.pages.exchange = { layout = layoutExchange, load = function(P) loadExchange(P) end }

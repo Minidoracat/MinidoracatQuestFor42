@@ -5,7 +5,8 @@
 -- applied preset, its warning and wait minutes), the last 5 results (a list box). Below it the settings: spots (a
 -- list box with a Map button; add = towns.here, the admin's own position), horde corpses (the most kept, the minutes
 -- after the end before the rest go), windows (days, clock, chance, preset, warning and wait minutes per window; the
--- hordes per day and the wait after a server start), presets (the one the page edits, copy, delete, its name, the
+-- hordes per day and the wait after a server start), sponsored hordes (hordes.paid: price, limits, preset, warning and
+-- wait; the fund line in the status), presets (the one the page edits, copy, delete, its name, the
 -- windows using it), then that preset's waves (base and % per extra player, previews for 1 and 4 players), kinds
 -- (weight, computed share, points per kill, toughness) and reward (the cap and an estimate for 1 / 4 / 8 players).
 -- Every setting goes through the draft and the bottom Apply (cfg.preview / cfg.apply), so History and config.json
@@ -202,7 +203,7 @@ local function curPreset(c)
     return type(c.preset) == "string" and c.preset ~= "" and c.preset or getText("IGUI_MQ_Admin_HordePresetDefault")
 end
 
-local function curText(P, c)
+local function curLine(P, c)
     local st = getText("IGUI_MQ_Admin_HordeState_" .. tostring(c.state))
     local w, n = A.num(tonumber(c.wave) or 1), A.num(waveCount(c))
     if c.state == "active" then
@@ -217,11 +218,33 @@ local function curText(P, c)
     return getText("IGUI_MQ_Admin_HordeCurPlan", st, place(c), A.time(c.startMs), n, kindsText(P, c.weights), curPreset(c))
 end
 
+-- a sponsored horde (contract 6: cur.sponsors, actor "fund") says so on its status line
+local function curText(P, c)
+    local s = curLine(P, c)
+    if type(c.sponsors) == "table" or c.actor == "fund" then s = getText("IGUI_MQ_Admin_HordeCurPaid", s) end
+    return s
+end
+
 local function rollText(roll)
     if roll.enabled ~= true then return getText("IGUI_MQ_Admin_HordeAutoOff") end
     local n, max = A.num(tonumber(roll.n) or 0), A.num(tonumber(roll.max) or 0)
     if tonumber(roll.nextAt) then return getText("IGUI_MQ_Admin_HordeToday", n, max, A.time(roll.nextAt)) end
     return getText("IGUI_MQ_Admin_HordeTodayDone", n, max)
+end
+
+-- the fund line (contract 6: horde.status fund and paid): while a fund is open or full, or sponsoring is on (applied:
+-- the status is live); nil = no line. A fund counts its sponsors from fund.by
+local function fundText(P, d)
+    local f = type(d.fund) == "table" and d.fund or nil
+    if f == nil and applied(P, "hordes.paid.enabled") ~= true then return nil end
+    local paid = type(d.paid) == "table" and d.paid or {}
+    local pn, pmax = A.num(tonumber(paid.n) or 0), A.num(tonumber(paid.max) or 0)
+    if f == nil then return getText("IGUI_MQ_Admin_HordeFundNone", pn, pmax) end
+    local n = 0
+    for _ in pairs(type(f.by) == "table" and f.by or {}) do n = n + 1 end
+    local total = A.num(tonumber(f.total) or 0)
+    if f.state == "ready" then return getText("IGUI_MQ_Admin_HordeFundReady", total, A.num(n), pn, pmax) end
+    return getText("IGUI_MQ_Admin_HordeFundOpen", total, A.num(tonumber(f.pts) or 0), A.num(n), A.time(f.expireAt), pn, pmax)
 end
 
 local function resultText(e)
@@ -330,6 +353,8 @@ local function layoutStatus(P, pg, F)
         F:text("cur", getText("IGUI_MQ_Admin_HordeNone"), "textMuted")
     end
     if d and type(d.roll) == "table" then F:text("roll", rollText(d.roll), "textMuted") end
+    local fund = d and fundText(P, d)
+    if fund then F:text("fund", fund, "textMuted") end
     nowRow(P, pg, F)
     F:head("hl", getText("IGUI_MQ_Admin_HordeLogHead"))
     local log = d and type(d.log) == "table" and d.log or {}
@@ -620,6 +645,26 @@ local function layoutWindows(P, pg, F, lw, ids)
     F:text("rmn", getText("IGUI_MQ_Admin_HordeResumeNote"), "textMuted")
 end
 
+-- ===== sponsored hordes (hordes.paid; plan points-sinks-1112 claims 4, 5.2) =====
+
+local function paidUses(P, id) return AM.get(P.S, "hordes.paid.preset") == id end
+
+-- between the windows and the presets: a horde the players fund; its preset dropdown lists the presets like a window's
+local function layoutPaid(P, pg, F, lw, ids)
+    F:head("hpd", getText("IGUI_MQ_Admin_HordePaidHead"))
+    F:text("pdn", getText("IGUI_MQ_Admin_HordePaidNote"), "textMuted")
+    for _, r in ipairs(AM.PAID) do
+        local path, range = r[1], r[2]
+        if range == "bool" then
+            F:row({ A.boolField(P, pg, path, A.fLabel(path), path) })
+        elseif range == "pick" then
+            formRow(F, path, A.fLabel(path), lw, { A.pickField(P, pg, path, path, presetOptions(P, ids)) })
+        else
+            formRow(F, path, A.fLabel(path), lw, { A.numField(P, pg, path, path, nil, range, numW(range)) })
+        end
+    end
+end
+
 -- ===== horde corpses (hordes.corpses; plan quest-horde-restart-corpses-1101) =====
 
 local function layoutCorpses(P, pg, F, lw)
@@ -724,6 +769,11 @@ local function deletePreset(P, id, name)
         if AM.same(wins, applied(P, "hordes.windows")) then AM.draftUnset(P.S.draft, "hordes.windows")
         else AM.draftSet(P.S.draft, "hordes.windows", wins) end
     end
+    -- the sponsored horde's preset too, the same way as a window's
+    if paidUses(P, id) then
+        if applied(P, "hordes.paid.preset") == "default" then AM.draftUnset(P.S.draft, "hordes.paid.preset")
+        else AM.draftSet(P.S.draft, "hordes.paid.preset", "default") end
+    end
     local under = {}
     for _, dp in ipairs(P.S.draft.order) do
         if string.sub(dp, 1, #path + 1) == path .. "." then under[#under + 1] = dp end
@@ -746,13 +796,16 @@ local function onPresetDel(P)
     local name = nameOf(P.S, id)
     local used = windowsOf(P, id)
     local text
-    if #used == 0 then
-        text = getText("IGUI_MQ_Admin_HordePresetUnused")
-    else
+    if #used > 0 then
         local lines = {}
         for i, u in ipairs(used) do lines[i] = windowShort(u.w) end
         text = A.count("IGUI_MQ_Admin_HordePresetDelAsk", #used) .. "\n" .. table.concat(lines, "\n")
     end
+    if paidUses(P, id) then
+        local paid = getText("IGUI_MQ_Admin_HordePresetDelPaid")
+        text = text and (text .. "\n" .. paid) or paid
+    end
+    text = text or getText("IGUI_MQ_Admin_HordePresetUnused")
     A.ask(P, { title = getText("IGUI_MQ_Admin_HordePresetDelTitle", name), danger = true,
         text = text .. "\n\n" .. getText("IGUI_MQ_Admin_AfterApply"), confirm = getText("IGUI_MQ_Admin_HordePresetDel"),
         cancel = getText("IGUI_MQ_Admin_Keep"), onOk = function() deletePreset(P, id, name) end })
@@ -1058,7 +1111,9 @@ end
 
 -- every form label of the tab, one column (A.labelWidth; preset fields read as hordes.<field>, A.fLabel)
 local PATHS = { "hordes.maxPerDay", "hordes.resumeMin", "hordes.corpses.max", "hordes.corpses.afterMin", "hordes.name",
-    "hordes.restSec", "hordes.limitMin", "hordes.maxAlive", "hordes.cap" }
+    "hordes.restSec", "hordes.limitMin", "hordes.maxAlive", "hordes.cap", "hordes.paid.pts", "hordes.paid.minPledge",
+    "hordes.paid.maxPerDay", "hordes.paid.rewardPct", "hordes.paid.fundMin", "hordes.paid.preset", "hordes.paid.leadMin",
+    "hordes.paid.waitMin" }
 
 local function layout(P, pg, F)
     -- no page heading: the tab already says Hordes (review). Its notes wrap narrower (Flow:text)
@@ -1073,6 +1128,7 @@ local function layout(P, pg, F)
     layoutSpots(P, pg, F, lw)
     layoutCorpses(P, pg, F, lw)
     layoutWindows(P, pg, F, lw, ids)
+    layoutPaid(P, pg, F, lw, ids)
     layoutPresets(P, pg, F, lw, ids)
     layoutWaves(P, pg, F, lw)
     layoutKinds(P, pg, F, kinds, lw)

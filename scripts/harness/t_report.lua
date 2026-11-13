@@ -62,6 +62,11 @@ return function(T)
         Q.Points.award(accA, "alice", 50, "admin")
         Q.Points.award(accA, "alice", 30, "import")
         T.check(d.pts.admin == 50 and d.pts.import == nil, "points by kind; import not counted")
+        Q.Points.award(accB, "bob", 40, "season")   -- balance only; ptsBy.admin stays 50
+        Q.Points.pay(accB, "bob", 20, "title", "spend_1")
+        Q.Points.pay(accB, "bob", 10, "shield")
+        Q.Points.unpay(accB, "bob", 4, "hordeRefund")
+        T.check(d.spent.title == 20 and d.spent.shield == 10 and d.spent.horde == -4, "spent by what; a refund comes off horde")
         local zk = Q.Achievements.get("zombie_kills")
         accB.total["zombie.kills"] = zk.tiers[2]
         Q.Achievements.evaluate(accB, "bob", { stat = "zombie.kills" })
@@ -129,6 +134,10 @@ return function(T)
         T.check(r.sum.coins == 40 and r.sum.swaps == 1 and r.sum.ptsBy.admin == 50 and r.sum.tiers == d.tiers,
             "window sums: coins, swaps, points by kind, tiers (" .. tostring(r.sum.coins) .. "/" .. tostring(r.sum.swaps) .. "/"
                 .. tostring(r.sum.ptsBy.admin) .. "/" .. tostring(r.sum.tiers) .. ")")
+        local rowSpent = 0
+        for _, row in ipairs(r.rows) do rowSpent = rowSpent + row.spent end
+        T.check(r.sum.spent == 26 and r.sum.spentBy.title == 20 and r.sum.spentBy.horde == -4 and rowSpent == 26,
+            "report.get: spent per row and in the sums (" .. tostring(r.sum.spent) .. ")")
         reply = T.deepcopy(r)
         local rr = admin(a, "report.get", { days = 30 })
         T.check(rr and rr.ok and #rr.rows == 30, "within 5 minutes the snapshot answers at once")
@@ -147,6 +156,10 @@ return function(T)
         local doc = Q.Util.decode(text)
         T.check(doc and doc.days == 30 and #doc.daily == 30 and doc.points.unspent == reply.snap.unspent
             and doc.achv.zombie_kills[1] == 2, "file holds the 30 day rows, points and achievement counts")
+        local spentRow = nil
+        for _, row in ipairs(doc.daily) do if type(row.spent) == "table" and row.spent.title then spentRow = row end end
+        T.check(doc.sum.spent == 26 and doc.sum.spentBy.shield == 10 and spentRow and spentRow.spent.horde == -4,
+            "export: spent by what per day and in the sums")
         T.silentWrites = true
         T.advance(3100)
         r = admin(a, "report.export")

@@ -20,6 +20,10 @@ AM.RANGE = {
     hordeBase = { 1, 9999, true }, hordePerPlayer = { 0, 1000, true }, hordeRest = { 0, 600, true }, hordeAlive = { 10, 2000, true },
     hordeWeight = { 0, 100, true }, hordePoints = { 0, 1000, true }, hordeLimit = { 1, 120, true }, hordeCap = { 1, 1000000, true },
     hordeHp = { 0.1, 10 }, hordeResume = { 0, 60, true }, hordeCorpses = { 0, 5000, true }, hordeCorpseAfter = { 0, 240, true },
+    -- uses for points: shop.* and hordes.paid.* (Config.SCHEMA; leadMin / waitMin / maxPerDay reuse the horde ranges)
+    swapPts = { 1, 10000, true }, swapPerDay = { 1, 10, true }, shieldPts = { 1, 10000, true }, shieldPerWeek = { 1, 7, true },
+    titlePts = { 1, 100000, true }, titleSeason = { 0, 100000, true },
+    paidPts = { 100, 100000, true }, paidPledge = { 1, 10000, true }, paidFund = { 5, 240, true }, paidReward = { 0, 90, true },
 }
 AM.MAX_SPOTS = 32
 AM.MAX_WINDOWS = 8   -- hordes.windows items (Config.SCHEMA.hordes)
@@ -27,6 +31,20 @@ AM.MAX_WAVES = 10    -- a preset's waves items
 AM.MAX_NAME = 32     -- a preset's name (characters: Kahlua's # and string.sub count UTF-16 units, so 32 Chinese too)
 AM.MAX_TIERS = 10
 AM.DEL = {}   -- draft marker: path removed (falls back to defaults)
+
+-- uses for points (exchange tab) and sponsored hordes (hordes tab): { path, AM.RANGE key | "bool" | "pick" } in the
+-- order shown, one field per row; each path is its own draft entry (Config.SCHEMA has every key as a node)
+AM.USES = {
+    { "shop.swap.enabled", "bool" }, { "shop.swap.pts", "swapPts" }, { "shop.swap.perDay", "swapPerDay" },
+    { "shop.shield.enabled", "bool" }, { "shop.shield.pts", "shieldPts" }, { "shop.shield.perWeek", "shieldPerWeek" },
+    { "shop.titles.enabled", "bool" }, { "shop.titles.list.spend_1", "titlePts" }, { "shop.titles.list.spend_2", "titlePts" },
+    { "shop.titles.list.spend_3", "titlePts" }, { "shop.titles.list.spend_4", "titlePts" }, { "shop.titles.season", "titleSeason" },
+}
+AM.PAID = {
+    { "hordes.paid.enabled", "bool" }, { "hordes.paid.pts", "paidPts" }, { "hordes.paid.minPledge", "paidPledge" },
+    { "hordes.paid.maxPerDay", "hordePerDay" }, { "hordes.paid.rewardPct", "paidReward" }, { "hordes.paid.fundMin", "paidFund" },
+    { "hordes.paid.preset", "pick" }, { "hordes.paid.leadMin", "hordeLead" }, { "hordes.paid.waitMin", "hordeWait" },
+}
 
 -- ===== numbers =====
 

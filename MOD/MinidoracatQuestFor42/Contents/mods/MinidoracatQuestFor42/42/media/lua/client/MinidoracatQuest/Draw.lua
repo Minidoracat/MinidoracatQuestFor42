@@ -187,8 +187,8 @@ end
 local RANK_KEY = { top1 = "IGUI_MQ_UI_RewardTop1", top3 = "IGUI_MQ_UI_RewardTop3", top10 = "IGUI_MQ_UI_RewardTop10" }
 local RANKS = { "top1", "top3", "top10" }
 
--- "s<no>_top1" / "s<no>_first_<board>" (Seasons.lua pay) -> a row; nil for any other id or a board no longer
--- defined (a removed pack's): the caller shows "source removed" instead of a raw key
+-- "s<no>_top1" / "s<no>_first_<board>" (Seasons.lua pay) / "s<no>_patron" (bought for points, Shop.lua) -> a row; nil
+-- for any other id or a board no longer defined (a removed pack's): the caller shows "source removed" instead of a raw key
 function D.seasonTitle(id, cfg)
     local no, kind = string.match(id, "^s(%d+)_(.+)$")
     if no == nil then return nil end
@@ -200,6 +200,11 @@ function D.seasonTitle(id, cfg)
         cond = getText("IGUI_MQ_UI_TitleCondFirst", no, b.nameKey ~= nil and getText(b.nameKey) or getText("IGUI_MQ_Board_" .. board))
     elseif RANK_KEY[kind] ~= nil then
         cond = getText("IGUI_MQ_UI_TitleCondRank", no, getText(RANK_KEY[kind]))
+    elseif kind == "patron" then
+        local t = type(cfg.shop) == "table" and type(cfg.shop.titles) == "table" and cfg.shop.titles or {}
+        local pts = tonumber(t.season) or 0
+        return { id = id, name = D.titleText(id), group = "shop", off = (t.enabled == false or pts <= 0) or nil,
+            cond = pts > 0 and getText("IGUI_MQ_UI_TitleCondShop", D.num(pts)) or getText("IGUI_MQ_UI_TitleCondShopOwned") }
     else
         return nil
     end
@@ -235,7 +240,7 @@ function D.newbieTitleCond(cfg)
 end
 
 -- achs: achievement entries as C.defs builds them (the admin passes its draft view): id, kind, cat, hidden, tiers,
--- titles, defTitles (the titles before admin edits), off; cfg: streak, newbie, rewards; no: the season number.
+-- titles, defTitles (the titles before admin edits), off; cfg: streak, newbie, rewards, shop.titles; no: the season number.
 -- Rows in catalog order: { id, name, group, cond, ach?, tier?, hidden?, hint?, off?, custom?, alt? }. ach / tier:
 -- the source achievement and tier; custom: the admin replaced the default text; alt: that default id, so a player
 -- who got it before the edit still finds the condition.
@@ -264,6 +269,12 @@ function D.titleSources(achs, cfg, no)
     if nb.title ~= nil then
         out[#out + 1] = { id = nb.title, name = D.titleText(nb.title), group = "other",
             cond = D.newbieTitleCond(cfg), off = nb.enabled == false or nil }
+    end
+    -- the point titles (group "shop"): the four fixed ones and this season's patron title, off while titles are not sold
+    local st = type(cfg.shop) == "table" and type(cfg.shop.titles) == "table" and cfg.shop.titles or nil
+    for _, r in ipairs(C.titleShop(st, no)) do
+        out[#out + 1] = { id = r.id, name = D.titleText(r.id), group = "shop",
+            cond = getText("IGUI_MQ_UI_TitleCondShop", D.num(r.pts)), off = st.enabled == false or nil }
     end
     for _, k in ipairs(RANKS) do out[#out + 1] = D.seasonTitle("s" .. no .. "_" .. k, cfg) end
     for _, b in ipairs(C.defs().boards) do
@@ -377,7 +388,9 @@ end
 function D.toast(title, message, border)
     local UI = D.ui({ "toast" })
     if UI ~= nil and UI.Toast ~= nil then
-        UI.Toast.show({ title = title, message = message ~= "" and message or title, maxLines = 6,
+        -- one sentence goes without a title line: as title and message the framework shows it twice
+        local one = message == nil or message == ""
+        UI.Toast.show({ title = not one and title or nil, message = one and title or message, maxLines = 6,
             colors = border and { border = border } or nil })
         return
     end
@@ -387,6 +400,47 @@ function D.toast(title, message, border)
         if message ~= nil and message ~= "" and message ~= title then line = title .. " - " .. message end
         HaloTextHelper.addText(p, line)
     end
+end
+
+-- ===== spending points (plan points-sinks 2026-11-12): every spend asks first, saying what it costs and the balance
+-- after (o = { title, text, confirm, danger }); cmd / args go out on yes. A refusal toasts why: PRICE_CHANGED says the
+-- price changed, the catalog push already redrew the page with the new one. page[ridKey] holds the request while out.
+--
+-- args.seq is taken as the question opens (Client.spendSeq): what goes out on yes is the request for the screen the
+-- question was asked on. A state that came while it was open makes that request STALE; the player asks again.
+
+local function spendReply(page, ridKey)
+    return function(r)
+        page[ridKey] = nil
+        if not r.ok then D.toast(r.code == "NO_REPLY" and getText("IGUI_MQ_UI_ExNoReply") or D.codeText(r.code), "", nil) end
+        page.dirty = true
+    end
+end
+
+function D.askSpend(page, ridKey, o, cmd, args)
+    if C.isPending(page[ridKey]) then return end
+    args.seq = C.spendSeq()
+    if not D.has(page.UI, "dialog") then
+        D.toast(getText("IGUI_MQ_UI_NeedFramework"), "")
+        return
+    end
+    page.UI.Dialog.show({ title = o.title, text = o.text, confirmText = o.confirm, cancelText = getText("UI_Cancel"),
+        danger = o.danger == true, theme = page.theme, opaque = true,
+        onResult = function(ok) if ok then MinidoracatQuest.Draw.sendAction(page, ridKey, cmd, args) end end })
+end
+
+function D.sendAction(page, ridKey, cmd, args)
+    if C.isPending(page[ridKey]) then return end
+    local rid = C.sendSpend(cmd, args, spendReply(page, ridKey))
+    -- not sent: a spend from another page still waits for its reply (Client.sendSpend); say so, do not drop it silently
+    if rid == nil then D.toast(D.codeText("RATE_LIMITED"), "", nil) end
+    page[ridKey], page.dirty = rid, true
+end
+
+-- "Points balance 1,240 -> 1,190", the last line of every spend question
+function D.balanceAfter(pay)
+    local bal = C.balance(C.state)
+    return getText("IGUI_MQ_UI_BalanceAfter", D.num(bal), D.num(bal - pay))
 end
 
 -- ===== Canvas: display list =====
@@ -752,17 +806,21 @@ function B:header(x, y, maxX, title, chips)
 end
 
 -- tinted banner box: title line + wrapped body; footH leaves room at the bottom for a button row the caller places
--- (its top at the returned y - D.GAP - 6 - its height). Returns y below
-function B:banner(x, y, w, token, title, body, rightText, footH)
+-- (its top at the returned y - D.GAP - 6 - its height); chip = { text, token }: a chip after the title (the sponsored
+-- horde). Returns y below
+function B:banner(x, y, w, token, title, body, rightText, footH, chip)
     local c = self:col(token)
     local lh = D.fontH(UIFont.Small)
     local lines = body ~= nil and D.wrap(self.UI, body, w - 20, UIFont.Small) or {}
-    local h = 10 + lh + #lines * (lh + 2) + 8 + (footH or 0)
+    local extra = chip ~= nil and 4 or 0   -- the chip is 6 px taller than the title line
+    local h = 10 + lh + extra + #lines * (lh + 2) + 8 + (footH or 0)
     self:fill(x, y, w, h, { r = c.r, g = c.g, b = c.b, a = 0.12 })
     self:border(x, y, w, h, c)
-    local rw = rightText ~= nil and self:textRight(x + w - 10, y + 6, rightText, c) or 0
-    self:fitText(x + 10, y + 6, title, w - 30 - rw, c)
-    local ly = y + 8 + lh
+    local rw = rightText ~= nil and self:textRight(x + w - 10, y + 6 + extra / 2, rightText, c) or 0
+    local cw = chip ~= nil and D.chipW(chip[1]) + 8 or 0
+    local tw = self:fitText(x + 10, y + 6 + extra / 2, title, w - 30 - rw - cw, c)
+    if chip ~= nil then self:chip(x + 10 + tw + 8, y + 3 + extra / 2, chip[1], chip[2], true) end
+    local ly = y + 8 + lh + extra
     for _, line in ipairs(lines) do
         self:text(x + 10, ly, line, "text")
         ly = ly + lh + 2

@@ -1,5 +1,5 @@
 -- MinidoracatQuest/AdminReport.lua: the admin "report" tab (report.get / report.export, ARCHITECTURE.md 6.5).
--- Usage (players, new accounts, daily completion, per-day bars), points (issued by kind, coins, unspent, top 10%
+-- Usage (players, new accounts, daily completion, per-day bars), points (issued by kind, spent by use, coins, unspent, top 10%
 -- share) and achievements (players at each tier). Totals only; per-template quest rows stay on the balance tab.
 
 require "MinidoracatQuest/AdminPanel"
@@ -11,6 +11,8 @@ local ROMAN = { "I", "II", "III", "IV", "V" }
 -- Points kinds grouped the way the legend reads (Contract.POINT_KINDS; anything else is "other")
 local KIND_GROUP = { quest = "daily", shared = "daily", week = "weekly", achv = "achv", goal = "goal" }
 local GROUPS = { "daily", "weekly", "achv", "goal", "other" }
+-- points spent by use (contract 8: sum.spentBy; a fund's refund comes off "horde")
+local SPENT = { "swap", "shield", "title", "horde" }
 
 local function pct(rate)
     if type(rate) ~= "number" then return "-" end
@@ -215,6 +217,26 @@ local function layoutReport(P, pg, F)
         end
     end
     if #parts > 0 then F:text("pk", table.concat(parts, getText("IGUI_MQ_UI_ListSep")), "textMuted") end
+    -- a server before the uses for points sends no spent: nothing drawn
+    if type(sum.spent) == "number" then
+        F:text("ps", getText("IGUI_MQ_Admin_ReportSpent", data.days, A.num(sum.spent)), "text")
+        local sb, sparts = type(sum.spentBy) == "table" and sum.spentBy or {}, {}
+        -- a fund pledged before these days and paid back inside them makes horde negative: every row that is not 0
+        -- shows, so the rows add up to the total, and the shares (which need all rows >= 0) are left out
+        local shares = sum.spent > 0
+        for _, w in ipairs(SPENT) do
+            if (tonumber(sb[w]) or 0) < 0 then shares = false end
+        end
+        for _, w in ipairs(SPENT) do
+            local n = tonumber(sb[w]) or 0
+            if n ~= 0 then
+                local name = getText("IGUI_MQ_Admin_ReportSpent_" .. w)
+                sparts[#sparts + 1] = shares and getText("IGUI_MQ_Admin_ReportShare", name, A.num(n), pct(n / sum.spent))
+                    or getText("IGUI_MQ_Admin_UseRow", name, A.num(n))
+            end
+        end
+        if #sparts > 0 then F:text("psk", table.concat(sparts, getText("IGUI_MQ_UI_ListSep")), "textMuted") end
+    end
     F:text("pe", getText("IGUI_MQ_Admin_ReportEcon", A.num(sum.coins or 0), A.num(s.exPlayers or 0), A.num(s.unspent or 0),
         pct(s.top10)), "text")
     F:gap()

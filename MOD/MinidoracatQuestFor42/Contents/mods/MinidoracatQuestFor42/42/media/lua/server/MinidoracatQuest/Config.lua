@@ -221,6 +221,10 @@ local function hordeWaves(v)
     end
     return true
 end
+local function presetRef(v)
+    if not presetId(v) then return false, "value" end
+    return true
+end
 local spotName, spotXY, spotZ = str(64), int(0, 100000), int(-32, 31)
 local function hordeSpots(v)
     if not isArray(v, 32) then return false, "spots" end
@@ -250,6 +254,11 @@ Cf.SCHEMA = {
     difficulty = { preset = oneOf({ "easy", "normal", "hard", "custom" }), mult = num(0.1, 10) },
     rewards = { top1 = ptsV, top3 = ptsV, top10 = ptsV, participation = ptsV, participationMin = ptsV, firstTitles = bool },
     exchange = { enabled = bool, rate = num(0.01, 1000), perDay = int(0, 1e6), min = int(1, 1e6) },
+    -- point sinks (Shop.lua, Quests.swap); titles.list has exactly the four fixed ids, each a path of its own
+    shop = { swap = { enabled = bool, pts = int(1, 10000), perDay = int(1, 10) },
+        shield = { enabled = bool, pts = int(1, 10000), perWeek = int(1, 7) },
+        titles = { enabled = bool, season = int(0, 100000),
+            list = { spend_1 = int(1, 100000), spend_2 = int(1, 100000), spend_3 = int(1, 100000), spend_4 = int(1, 100000) } } },
     broadcast = { enabled = bool, minTier = int(1, 10), perMinute = int(0, 60) },
     titles = { head = bool, chat = bool },
     boards = { inactiveDays = int(7, 365), rebuildSeasonMs = int(60000, 86400000), rebuildTotalMs = int(60000, 86400000) },
@@ -258,13 +267,15 @@ Cf.SCHEMA = {
     -- ("vanilla", "runner", "<modId>:<id>") -> weight, points: kindId -> points per kill, hp: kindId -> health
     -- multiplier; windows, waves and spots are whole-set only. validateAll checks the result: at most
     -- C.LIMIT.MAX_PRESETS presets, each but "default" whole (hp may be left out) with a name of its own, and every
-    -- window's preset exists.
+    -- window's preset exists, and so does the paid one (paid.preset).
     hordes = { enabled = bool, windows = hordeWindows, maxPerDay = int(1, 24), resumeMin = int(0, 60),
         corpses = { max = int(0, 5000), afterMin = int(0, 240) },
         presets = { ["*id"] = { name = presetName, waves = hordeWaves, kinds = { ["*"] = int(0, 100) },
             points = { ["*"] = int(0, 1000) }, hp = { ["*"] = num(0.1, 10) }, limitMin = int(1, 120),
             restSec = int(0, 600), maxAlive = int(10, 2000), cap = int(1, 1000000) } },
-        spots = hordeSpots },
+        spots = hordeSpots,
+        paid = { enabled = bool, pts = int(100, 100000), minPledge = int(1, 10000), fundMin = int(5, 240),
+            maxPerDay = int(1, 24), rewardPct = int(0, 90), preset = presetRef, leadMin = leadV, waitMin = waitV } },
     ceilings = ceilingsMap,
     -- season.lengthDays only changes through the season ops (section 3.4); not a config path
 }
@@ -451,6 +462,7 @@ local function validateAll(changes)
     for i, w in ipairs(hz.windows) do
         if hz.presets[w.preset] == nil then return false, { why = "preset", path = "hordes.windows." .. i .. ".preset" } end
     end
+    if hz.presets[hz.paid.preset] == nil then return false, { why = "preset", path = "hordes.paid.preset" } end
     return true, after
 end
 

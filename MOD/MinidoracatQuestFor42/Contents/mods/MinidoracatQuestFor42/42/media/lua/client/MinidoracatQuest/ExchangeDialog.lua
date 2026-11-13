@@ -1,8 +1,10 @@
 -- MinidoracatQuest/ExchangeDialog.lua: points -> survivor coins (spec 10.1, 10.3; C33).
 --   Balance, today's remaining allowance, amount field with 50 / 100 / all-in quick picks, live coins at the
 --   server's rate, balance after, then the result: paid (green), queued (orange, paid after the next reset),
---   refunded (red). No reply in 10 s: the same request (same requestId) can be asked again; the server replays
---   the original result instead of exchanging twice. Opened only from the Exchange page when state.exchange.available.
+--   refunded (red). No reply in 10 s: the same request (same requestId, same seq) can be asked again. The server
+--   runs it once and, asked again, says what that exchange became (server Exchange.made); STALE: the server knows
+--   of no exchange by this request (refused, never run, or older than the last Exchange.LOG finished ones).
+--   Opened only from the Exchange page when state.exchange.available.
 
 if isServer() then return end
 
@@ -96,7 +98,11 @@ end
 function X.send()
     X.phase = "held"
     X.layout()
-    C.send("exchange", X.args, function(r) MinidoracatQuest.ExchangeDialog.onReply(r) end)
+    local args = X.args   -- a reply is for the request it answers: not for a dialog closed and opened again since
+    C.send("exchange", args, function(r)
+        local D = MinidoracatQuest.ExchangeDialog
+        if D.args == args then D.onReply(r) end
+    end)
 end
 
 function X.onSubmit()
@@ -111,7 +117,9 @@ function X.onSubmit()
     local q = C.exchangeQuote(C.state, X.text)
     if not q.ok then return end
     X.held = q
-    X.args = { amount = q.amount }
+    -- seq: the state this was pressed on (see Client.sendSpend). Ask again sends these same args: the one request
+    -- the client sends twice, and only as the same packet
+    X.args = { amount = q.amount, seq = C.spendSeq() }
     X.field:setEnabled(false)
     X.send()
 end

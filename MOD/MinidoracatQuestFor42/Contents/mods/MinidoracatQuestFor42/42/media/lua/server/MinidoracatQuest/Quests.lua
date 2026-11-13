@@ -247,7 +247,7 @@ local function genDay(acc, user, day, now, cfg)
         quests[4] = { tid = sh.tid, stat = sh.stat, theme = sh.theme, target = sh.target, prog = 0, pts = sh.pts,
             state = "active", shared = true, startMs = now }
     end
-    acc.day = { key = day, quests = quests, swaps = cfg.daily.swapsPerDay, done = 0, offline = true }
+    acc.day = { key = day, quests = quests, swaps = cfg.daily.swapsPerDay, paid = 0, done = 0, offline = true }
     if player then countGiven(acc.day, now) end
 end
 
@@ -271,6 +271,7 @@ end
 
 -- ---------- streak (C23) ----------
 
+-- shield / shieldWeek / shieldN (Shop.buyShield) are absent until the first purchase
 local function streakOf(acc)
     local s = acc.streak
     if not s then
@@ -281,6 +282,7 @@ local function streakOf(acc)
     s.marks = s.marks or {}
     return s
 end
+Q.streakOf = streakOf
 
 local function mark(s, day, what, now)
     s.marks[day] = what
@@ -311,7 +313,9 @@ local function countDay(acc, user, s, day, now, cfg, what)
     MQ.Sync.dirty(user, "streak")
 end
 
--- Day change: yesterday missed -> grace once per week (counts as a day), otherwise reset.
+-- Day change: missed days are covered by the weekly grace (yesterday only, once per week) and then by shield days,
+-- at most 2 days; when they cannot cover every missed day the streak resets and the shield is kept (plan
+-- points-sinks 2026-11-12). Without a shield this is the old rule: one missed day with the grace free, else reset.
 function Q.rollStreak(acc, user, now, cfg)
     local s = streakOf(acc)
     if (s.days or 0) == 0 or not s.last then return end
@@ -322,16 +326,28 @@ function Q.rollStreak(acc, user, now, cfg)
         missed[#missed + 1] = ms
     end
     if #missed == 0 then return end
-    if #missed == 1 and (cfg.streak.gracePerWeek or 0) > 0 then
-        local wk = MQ.Clock.weekKey(missed[1])
-        if s.graceWeek ~= wk then
-            s.graceWeek, s.graceUsed = wk, true
-            countDay(acc, user, s, MQ.Clock.dayKey(missed[1]), now, cfg, "grace")
-            return
+    local wk = MQ.Clock.weekKey(missed[1])
+    local grace = (cfg.streak.gracePerWeek or 0) > 0 and s.graceWeek ~= wk
+    local need = #missed - (grace and 1 or 0)
+    if #missed > 2 or need > (s.shield or 0) then
+        s.days, s.paid = 0, {}
+        MQ.Sync.dirty(user, "streak")
+        return
+    end
+    for k = #missed, 1, -1 do   -- oldest first; missed[1] is yesterday
+        local day = MQ.Clock.dayKey(missed[k])
+        -- countDay feeds the best-streak stat, whose listener runs Q.ensure again before the day key moves: that
+        -- inner roll already counted the days after this one
+        if day > s.last then
+            if k == 1 and grace then
+                s.graceWeek, s.graceUsed = wk, true
+                countDay(acc, user, s, day, now, cfg, "grace")
+            else
+                s.shield = s.shield - 1
+                countDay(acc, user, s, day, now, cfg, "shield")
+            end
         end
     end
-    s.days, s.paid = 0, {}
-    MQ.Sync.dirty(user, "streak")
 end
 
 -- ---------- newbie (C18, C35) ----------
@@ -570,25 +586,41 @@ end
 
 -- ---------- swap and preferences ----------
 
-function Q.swap(acc, user, slot)
+-- Free swaps first (pay ignored); then paid ones (shop.swap): pay must be the price the player saw (PRICE_CHANGED),
+-- the new quest is made before the points are taken, so NOT_FOUND (or an error making it) costs nothing.
+-- at: the startMs of the quest the player saw in that slot; another one there now (the day changed while the request
+-- was on its way) is STALE.
+function Q.swap(acc, user, slot, pay, at)
     if type(slot) ~= "number" or slot ~= math.floor(slot) or slot < 1 or slot > 3 then return false, code("BAD_SLOT") end
     local now = MQ.Clock.now()
     Q.ensure(acc, user, now)
     local d = acc.day
     local q = d.quests[slot]
     if not q or q.state ~= "active" then return false, code("BAD_SLOT") end
-    if (d.swaps or 0) <= 0 then return false, code("NO_SWAPS") end
+    if at ~= nil and q.startMs ~= at then return false, code("STALE") end
     local cfg = MQ.Config.get()
+    local free = (d.swaps or 0) > 0
+    local seed = user .. "|" .. d.key .. "|swap|" .. tostring(d.swaps)
+    local price = nil
+    if not free then
+        local sc = cfg.shop.swap
+        if not sc.enabled or (d.paid or 0) >= sc.perDay then return false, code("NO_SWAPS") end
+        if pay ~= sc.pts then return false, code("PRICE_CHANGED") end
+        price = sc.pts
+        seed = seed .. "|paid|" .. tostring(d.paid or 0)   -- d.swaps stays 0: each paid swap needs its own draw
+    end
     local used = {}
     for i = 1, 4 do
         if d.quests[i] then used[d.quests[i].stat] = true end
     end
-    local rng = MQ.Util.rng(MQ.Util.hash(user .. "|" .. d.key .. "|swap|" .. tostring(d.swaps)))
+    local rng = MQ.Util.rng(MQ.Util.hash(seed))
     local t = pickT(playerPool(cfg, MQ.Net.playerOf(user)), q.theme, rng, used, slotAlts(acc.prefs, slot))
     if not t then return false, code("NOT_FOUND") end
+    local fresh = newQuest(t, rollTarget(t, cfg.daily.pool and cfg.daily.pool[t.tid], rng, diffMult(cfg)), dailyPts(cfg, t), now)
+    if price ~= nil and not MQ.Points.pay(acc, user, price, "swap", q.tid) then return false, code("NOT_ENOUGH_POINTS") end
     q.state = "swapped"
-    d.quests[slot] = newQuest(t, rollTarget(t, cfg.daily.pool and cfg.daily.pool[t.tid], rng, diffMult(cfg)), dailyPts(cfg, t), now)
-    d.swaps = d.swaps - 1
+    d.quests[slot] = fresh
+    if free then d.swaps = d.swaps - 1 else d.paid = (d.paid or 0) + 1 end
     MQ.Balance.swapped(q.tid, now)
     MQ.Balance.given(t.tid, now)
     report("swaps", q.tid)
@@ -679,7 +711,8 @@ function Q.stateDay(acc, user, now)
     Q.ensure(acc, user, now)
     local sh = MQ.Store.root().shared
     local d = acc.day
-    local out = { quests = {}, swaps = d.swaps, done = d.done, sharedDone = sh and sh.day == d.key and sh.done or 0 }
+    local out = { quests = {}, swaps = d.swaps, paid = d.paid or 0, done = d.done,
+        sharedDone = sh and sh.day == d.key and sh.done or 0 }
     for i = 1, 4 do
         local q = d.quests[i]
         if q then out.quests[i] = copyQuest(q, now) end
@@ -715,7 +748,10 @@ function Q.stateStreak(acc, user, now)
             break
         end
     end
-    return { days = s.days or 0, graceUsed = s.graceUsed == true, week = week, today = wd, next = nextM }
+    -- shield: days held (0 / 1); shieldLeft: purchases left this week
+    local bought = s.shieldWeek == MQ.Clock.weekKey(now) and (s.shieldN or 0) or 0
+    return { days = s.days or 0, graceUsed = s.graceUsed == true, week = week, today = wd, next = nextM,
+        shield = s.shield or 0, shieldLeft = math.max(0, cfg.shop.shield.perWeek - bought) }
 end
 
 function Q.stateNewbie(acc, user, now)
@@ -776,8 +812,8 @@ end
 
 local function accOf(ctx) return MQ.Store.account(ctx.user, true) end
 
-MQ.Server.define("swap", { kind = "mutation", fields = { slot = "int" },
-    run = function(ctx) return Q.swap(accOf(ctx), ctx.user, ctx.args.slot) end })
+MQ.Server.define("swap", { kind = "mutation", spend = true, fields = { slot = "int", pay = "int?", at = "int?" },
+    run = function(ctx) return Q.swap(accOf(ctx), ctx.user, ctx.args.slot, ctx.args.pay, ctx.args.at) end })
 
 MQ.Server.define("prefs", { kind = "mutation", fields = { themes = "str?" },
     run = function(ctx) return Q.setPrefs(accOf(ctx), MQ.Util.split(ctx.args.themes or "", ",")) end })

@@ -66,6 +66,41 @@ return function(T)
     check(#late == 1 and late[1].code == "NO_REPLY", "10 s without a reply: NO_REPLY once")
     T.tick(20)
     check(#late == 1, "NO_REPLY only once")
+    -- A spend (Client.sendSpend) names the spendSeq of the state on screen. One waits for its reply at a time, and the
+    -- client sends nothing again: the server runs a request once (t_systems_shop "a spend request is run at most once").
+    local spend = {}
+    local function sentOf(rid)
+        local n = 0
+        for _, m in ipairs(T.clientSent) do if m.args.requestId == rid then n = n + 1 end end
+        return n
+    end
+    local function note(r) spend[#spend + 1] = r end
+    local keptSeq = C.state.spendSeq
+    C.state.spendSeq = 7
+    local srid = C.sendSpend("pledge", { n = 100, total = 600 }, note)
+    check(srid ~= nil and lastSent().command == "pledge" and lastSent().args.seq == 7, "a spend goes out with the state's spendSeq")
+    check(C.sendSpend("buyShield", { pay = 200 }, note) == nil and sentCount("buyShield") == 0, "while it waits for its reply: no other spend")
+    T.advance(10000)
+    T.tick(6)
+    check(#spend == 1 and spend[1].code == "NO_REPLY" and sentOf(srid) == 1, "no reply: NO_REPLY, and nothing is sent again")
+    push("result", { ok = true, code = "OK", command = "pledge", requestId = srid, n = 100, spendSeq = 8 })
+    local brid = C.sendSpend("buyShield", { pay = 200 }, note)
+    check(brid ~= nil and brid ~= srid and lastSent().args.seq == 7,
+        "after NO_REPLY the next spend is a new request; spendSeq is the state's, a reply does not move it")
+    push("result", { ok = false, code = "STALE", command = "buyShield", requestId = brid })
+    check(spend[#spend].code == "STALE", "STALE is an answer like any refusal")
+    push("state", { v = 1, user = "alice", now = T.now, points = { season = 0, total = 0, balance = 0 }, spendSeq = 8 })
+    local crid = C.sendSpend("buyShield", { pay = 200 }, note)
+    check(lastSent().args.seq == 8, "the state brings the spendSeq the next spend names")
+    push("result", { ok = false, code = "SHIELD_WEEK", command = "buyShield", requestId = crid })
+    crid = C.sendSpend("buyShield", { pay = 200, seq = 3 }, note)
+    check(lastSent().args.seq == 3, "a seq taken earlier (as the question opened) is kept")
+    push("result", { ok = false, code = "STALE", command = "buyShield", requestId = crid })
+    C.state.spendSeq = nil
+    crid = C.sendSpend("buyShield", { pay = 200 }, note)
+    check(lastSent().args.seq == 0, "a state without spendSeq: 0")
+    push("result", { ok = false, code = "STALE", command = "buyShield", requestId = crid })
+    C.state.spendSeq = keptSeq
     local adminSeen = {}
     C.on("admin", "test", function(p) adminSeen[#adminSeen + 1] = p end)
     C.send("admin", { op = "cfg.get" })
@@ -160,9 +195,31 @@ return function(T)
     check(C.recordsError == "NO_REPLY" and C.recordsSentAt == nil, "records timeout -> error state")
     C.requestRecords(true)
     push("records", { rows = { { stat = "zombie.kills", season = 3, life = 2, total = 9 } },
-        points = { season = 1, total = 2, balance = 3 } })
+        points = { season = 1, total = 2, balance = 3 }, spendSeq = C.spendSeq() })
     check(C.statRow("zombie.kills").total == 9 and C.recordsError == nil and C.state.points.balance == 3,
         "records indexed by stat; points refreshed")
+    -- what was sent before a spend and comes after the state that followed it: not put on that state's screen
+    push("records", { rows = {}, points = { season = 1, total = 2, balance = 777 }, spendSeq = C.spendSeq() - 1 })
+    push("delta", { points = { balance = 888 }, spendSeq = C.spendSeq() - 1 })
+    check(C.state.points.balance == 3, "a records reply or a delta of an older spendSeq does not change the points shown")
+    local seqNow = C.spendSeq()
+    push("delta", { points = { balance = 999 }, spendSeq = seqNow + 1 })
+    check(C.state.points.balance == 3 and C.spendSeq() == seqNow, "a delta of a newer spendSeq waits for its state; it never moves spendSeq")
+    push("delta", { points = { balance = 4 }, spendSeq = seqNow })
+    check(C.state.points.balance == 4 and C.spendSeq() == seqNow, "a delta of this spendSeq applies")
+    -- two full states out of order: the older one does not replace the newer, so the deltas after it still apply
+    local older = {}
+    for k, v in pairs(C.state) do older[k] = v end
+    older.points, older.spendSeq = { season = 0, total = 0, balance = 111 }, seqNow
+    local newer = {}
+    for k, v in pairs(C.state) do newer[k] = v end
+    newer.points, newer.spendSeq = { season = 0, total = 0, balance = 222 }, seqNow + 1
+    push("state", newer)
+    push("state", older)
+    check(C.spendSeq() == seqNow + 1 and C.state.points.balance == 222, "a full state of an older spendSeq that comes late is dropped")
+    push("delta", { points = { balance = 223 }, spendSeq = seqNow + 1 })
+    check(C.state.points.balance == 223, "and the deltas of the newer one go on applying")
+    C.state.spendSeq = nil   -- the states pushed below carry none
     local before = sentCount("records")
     C.requestRecords(false)
     check(sentCount("records") == before, "fresh records are reused (no extra request)")
@@ -343,6 +400,32 @@ return function(T)
     local res = nil
     C.send("anon", { on = true }, function(r) res = r end)
     check(res ~= nil and res.ok == true and C.state.anon == true, "SP mutation: result delivered, state refreshed")
+    -- spends through the real server: the client's request, the server's dispatch and Points.pay together
+    local sacc = MQ.Store.account("solo", false)
+    MQ.Points.award(sacc, "solo", 3000, "admin", "t")
+    T.cmd(T.player({ name = "solo" }), "hello")
+    local bal0, got = sacc.points.balance, {}
+    local function cb(r) got[#got + 1] = r end
+    local seq0 = C.state.spendSeq
+    check(seq0 == (sacc.spendSeq or 0), "the client's state has the account's spendSeq")
+    C.sendSpend("buyShield", { pay = 200 }, cb)
+    check(#got == 1 and got[1].ok == true and sacc.points.balance == bal0 - 200 and sacc.streak.shield == 1
+        and C.state.streak.shield == 1 and C.state.spendSeq == seq0 + 1, "a spend: paid once, and the state that follows has the next spendSeq")
+    -- a request made on the screen before that purchase (the question was open while the state came): not run
+    C.sendSpend("buyTitle", { id = "spend_1", pay = 1000, seq = seq0 }, cb)
+    check(got[#got].code == "STALE" and sacc.titles.spend_1 == nil and sacc.points.balance == bal0 - 200
+        and C.state.spendSeq == seq0 + 1, "the old screen's request: STALE, nothing taken")
+    T.advance(400)   -- past the command's cooldown (a request inside it is dropped without a reply)
+    C.sendSpend("buyTitle", { id = "spend_1", pay = 1000 }, cb)
+    check(got[#got].ok == true and sacc.titles.spend_1 == true and sacc.points.balance == bal0 - 1200
+        and C.state.spendSeq == seq0 + 2, "asked again on the state shown now: bought")
+    -- a refusal moves on too, and the client hears of it through the state
+    T.advance(400)
+    C.sendSpend("buyShield", { pay = 200 }, cb)
+    check(got[#got].code == "SHIELD_HELD" and C.state.spendSeq == seq0 + 3, "after a refusal the state has the next spendSeq")
+    -- the records reply replaces state.points: spendSeq is not in there
+    C.requestRecords(true)
+    check(C.state.spendSeq == seq0 + 3, "spendSeq survives the records reply")
     C.requestBoard("points", "season")
     local be = C.board("points", "season")
     check(be.status == "ready" or be.status == "empty", "SP board reply resolves the page state (" .. tostring(be.status) .. ")")
@@ -359,6 +442,8 @@ return function(T)
     local saved = {}
     for _, n in ipairs(names) do saved[n] = _G[n] end
     local ok, err = pcall(dofile("scripts/harness/t_client_ui.lua"), T)
+    -- the points uses (plan points-sinks 2026-11-12): daily swap and shield, the Points page, Sponsor a horde
+    if ok then ok, err = pcall(dofile("scripts/harness/t_client_shop.lua"), T) end
     for _, n in ipairs(names) do _G[n] = saved[n] end
     if not ok then error(err, 0) end
 end

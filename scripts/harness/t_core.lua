@@ -109,6 +109,31 @@ return function(T)
         r = T.cmd(admin, "admin", { op = "cfg.apply", changes = b[1], summary = "bad" })
         T.check(r and r.code == CODE.BAD_CONFIG and r.detail ~= nil, "rejected: " .. b[2])
     end
+    -- point sinks (contract points-sinks 1): range checks of the new groups, and the paid horde's preset must exist
+    local sinkBad = {
+        { "shop.swap.pts", 0 }, { "shop.swap.pts", 10001 }, { "shop.swap.perDay", 11 }, { "shop.swap.enabled", 1 },
+        { "shop.shield.perWeek", 0 }, { "shop.shield.perWeek", 8 }, { "shop.shield.pts", 1.5 },
+        { "shop.titles.season", -1 }, { "shop.titles.season", 100001 }, { "shop.titles.list.spend_1", 0 },
+        { "shop.titles.list.spend_5", 100 }, { "hordes.paid.pts", 99 }, { "hordes.paid.minPledge", 0 },
+        { "hordes.paid.fundMin", 4 }, { "hordes.paid.maxPerDay", 25 }, { "hordes.paid.rewardPct", 91 },
+        { "hordes.paid.leadMin", Q.Contract.LIMIT.MAX_LEAD + 1 }, { "hordes.paid.waitMin", 0 },
+        { "hordes.paid.preset", "1bad" }, { "hordes.paid.preset", "nosuch" },
+    }
+    for _, b in ipairs(sinkBad) do
+        local ok, c = Q.Config.apply({ { op = "set", path = b[1], value = b[2] } }, "bad", "boss")
+        T.check(ok == false and c == CODE.BAD_CONFIG, "rejected: " .. b[1] .. " = " .. tostring(b[2]))
+    end
+    T.check(Q.Config.get().shop.swap.pts == 50 and Q.Config.get().hordes.paid.preset == "default", "refused sets change nothing")
+    local okSet = Q.Config.apply({ { op = "set", path = "shop.titles.list.spend_2", value = 2500 },
+        { op = "set", path = "hordes.paid.rewardPct", value = 0 }, { op = "set", path = "shop.titles.season", value = 0 } },
+        "sinks", "boss")
+    local cfgNow = Q.Config.get()
+    T.check(okSet == true and cfgNow.shop.titles.list.spend_2 == 2500 and cfgNow.shop.titles.list.spend_1 == 1000
+        and cfgNow.hordes.paid.rewardPct == 0 and cfgNow.shop.titles.season == 0, "in-range sink settings apply one key at a time")
+    local dj = T.files[Q.Store.path("defaults.json")]
+    local defs = dj and Q.Util.decode(table.concat(dj.lines, "\n"))
+    T.check(defs and defs.shop and defs.shop.swap.pts == 50 and defs.hordes.paid.pts == 600, "defaults.json has the new groups")
+    Q.Config.apply({ { op = "del", path = "shop" }, { op = "del", path = "hordes.paid" } }, "sinks back", "boss")
     r = T.cmd(admin, "admin", { op = "cfg.apply", summary = "rot",
         changes = '[{"op":"set","path":"goal.rotation","value":["zombie.kills"]},'
             .. '{"op":"set","path":"custom.c1","value":{"name":"Doc","cat":"job","stat":"t.count","tiers":[1,5],"pts":[10,20],"titles":{"2":"Legend"}}}]' })
@@ -279,6 +304,34 @@ return function(T)
     T.check(acc.sno == 2 and count(acc.season) == 0 and acc.points.season == 0 and acc.anomalies == 0, "new season resets season fields lazily")
     T.check(acc.total["t.count"] == 13 and acc.points.total == keepTotal and acc.points.balance == bal, "lazy reset keeps total and balance")
 
+    T.section("points: pay / unpay (point sinks)")
+    bal = acc.points.balance
+    local p1 = { season = acc.points.season, total = acc.points.total }
+    T.check(not Q.Points.pay(acc, "bob", bal + 1, "swap", "d_x") and acc.spent == nil and acc.points.balance == bal,
+        "pay over the balance refused, nothing recorded")
+    Q.Sync.dirtyMap.bob = nil
+    for i = 1, 12 do Q.Points.pay(acc, "bob", 1, "title", "t" .. i) end
+    T.check(#acc.spent == 10 and acc.spent[1].ref == "t12" and acc.spent[1].n == -1 and acc.spent[1].what == "title"
+        and acc.spent[1].at == T.now and acc.spent[10].ref == "t3", "spent keeps the newest 10, newest first")
+    T.check(acc.points.balance == bal - 12 and acc.points.season == p1.season and acc.points.total == p1.total,
+        "pay takes the balance only (season and total stay)")
+    T.check(Q.Sync.dirtyMap.bob and Q.Sync.dirtyMap.bob.all, "pay marks a full state")
+    T.check(Q.Points.unpay(acc, "bob", 5, "hordeRefund") and acc.points.balance == bal - 7 and acc.spent[1].n == 5
+        and acc.spent[1].what == "hordeRefund" and #acc.spent == 10, "unpay gives back and records +n")
+    local spendLines = 0
+    for _, e in ipairs(Q.EventLog.buffer) do
+        if string.find(e.line, '"k":"spend"', 1, true) then spendLines = spendLines + 1 end
+    end
+    T.check(spendLines == 13, "every pay / unpay writes a spend event (" .. spendLines .. ")")
+    local today = Q.Store.root().daily[Q.Clock.dayKey(T.now)]
+    T.check(today and today.spent and today.spent.title == 12 and today.spent.horde == -5,
+        "report: spent by what, a refund taken off horde")
+    Q.Store.readOnly = true
+    local spent1 = acc.spent[1]
+    T.check(not Q.Points.pay(acc, "bob", 1, "shield") and not Q.Points.unpay(acc, "bob", 1, "hordeRefund")
+        and acc.points.balance == bal - 7 and acc.spent[1] == spent1, "read-only store: pay and unpay refused")
+    Q.Store.readOnly = false
+
     T.section("shard routing")
     local tag = string.format("MinidoracatQuest_A%02d", Q.Util.hash("bob") % 16)
     T.check(Q.Store.shardTag("bob") == tag and T.gmd[tag].accounts.bob ~= nil, "account stored in hash % 16 shard")
@@ -309,6 +362,7 @@ return function(T)
     T.check(r and r.ok and acc.unseen == 0, "seen clears unseen")
     T.check(T.cmd(bob, "records", {}) == nil, "successful query sends no result")
     local rec = T.lastOf(bob, "records")
+    T.check(rec.spendSeq == (acc.spendSeq or 0), "the records reply says which spendSeq's state its points are for")
     local found = false
     for _, row in ipairs(rec.rows) do if row.stat == "t.count" and row.total == 13 then found = true end end
     T.check(found and rec.points.balance == acc.points.balance, "records lists stats and points")
@@ -347,6 +401,11 @@ return function(T)
     T.tick(1)
     local d = T.lastOf(wat, "delta")
     T.check(d and d.points and d.points.balance == wacc.points.balance, "watcher gets a points delta")
+    wacc.spendSeq = 4
+    Q.Points.award(wacc, "wat", 10, "admin", "t")
+    T.advance(1000)
+    T.tick(1)
+    T.check(T.lastOf(wat, "delta").spendSeq == 4, "a delta says which spendSeq's state it is for")
     Q.Sync.toast("wat", { kind = "achv", id = "a1", tier = 1, pts = 10 })
     Q.Sync.toast("wat", { kind = "achv", id = "a2", tier = 2, pts = 20 })
     T.tick(1)

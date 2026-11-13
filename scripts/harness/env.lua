@@ -590,6 +590,8 @@ function T.boot(opts)
         T.fire("OnLoadedMapZones")
         if not opts.sp then T.fire("OnServerStarted") end
     end
+    -- scenarios call Points.spend / pay directly; inside a command the server sets this itself (spend = true only)
+    if MinidoracatQuest.Points then MinidoracatQuest.Points.open = true end
     return MinidoracatQuest
 end
 
@@ -633,6 +635,12 @@ function T.cmd(player, command, args, requestId)
         if spec == nil or spec.kind == "mutation" then args.requestId = T.newRequestId() end
     elseif requestId ~= false then
         args.requestId = requestId
+    end
+    -- a spend command names the account's spendSeq, as an up-to-date client does (give args.seq to send another)
+    local sp = specOf(command, args)
+    if sp ~= nil and sp.spend and args.seq == nil then
+        local acc = MinidoracatQuest.Store.ready() and MinidoracatQuest.Store.account(player.name, false) or nil
+        args.seq = acc ~= nil and acc.spendSeq or 0
     end
     T.advance(300)
     local box = T.outbox[player.name] or {}

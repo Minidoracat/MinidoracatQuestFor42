@@ -182,6 +182,11 @@ function E.toastText(t)
     elseif k == "hordePaid" then
         return getText("IGUI_MQ_Horde_Paid", D.num(t.pts or 0)),
             D.hordeCapped(getText("IGUI_MQ_Horde_PaidBody", D.num(t.kills or 0)), t.capped), D.EXTRA.success
+    elseif k == "fundRefund" then
+        -- the fund ran out of time; or the full one could not play (no spot left, the plan failed) or its horde
+        -- ended before a zombie came (cancelled, nobody there)
+        local why = t.why == "expired" and "IGUI_MQ_UI_FundRefund" or "IGUI_MQ_UI_FundRefundFail"
+        return getText(why, D.num(t.pts or 0)), "", D.EXTRA.gold
     end
     return nil
 end
@@ -200,6 +205,22 @@ local function names(t)
     return out
 end
 
+-- who sponsored a horde (soon / open of a sponsored one, t.sponsors = { names, anon }): the shown accounts are named,
+-- the anonymous ones only counted ("A, B and 2 more sponsored it")
+local function sponsorsText(sp)
+    local shown = {}
+    for _, n in ipairs(type(sp.names) == "table" and sp.names or {}) do shown[#shown + 1] = tostring(n) end
+    local n = #shown + math.floor(tonumber(sp.anon) or 0)
+    if #shown == 0 then return getText("IGUI_MQ_Horde_SponsorsAnon", tostring(n)) end
+    if n == 1 then return getText("IGUI_MQ_Horde_Sponsors1", shown[1]) end
+    return getText("IGUI_MQ_Horde_SponsorsN", table.concat(shown, getText("IGUI_MQ_UI_ListSep")), tostring(n))
+end
+
+local function sponsored(t, body)
+    if type(t.sponsors) ~= "table" then return body end
+    return getText("IGUI_MQ_Horde_Join", sponsorsText(t.sponsors), body)
+end
+
 -- server-wide horde toasts (t.ev) and "remind", the personal one to players near the spot just before the start;
 -- the warning names the kinds that may appear and the number of waves, never how many zombies. Every wave has its
 -- spawn toast ("Wave W/N - " in front when N > 1; "resume" for a wave carried on after a server start, with what was
@@ -210,14 +231,17 @@ function E.hordeToast(t)
     local place, ev = D.hordePlace(t), t.ev
     local waves = tostring(t.waves or 1)
     if ev == "soon" then
-        return getText("IGUI_MQ_Horde_Title_soon", place),
-            getText("IGUI_MQ_Horde_SoonBody", tostring(minsTo(t.startMs)), D.hordeKinds(t.kinds), waves), D.EXTRA.hordeSoon
+        return getText("IGUI_MQ_Horde_Title_soon", place), sponsored(t,
+            getText("IGUI_MQ_Horde_SoonBody", tostring(minsTo(t.startMs)), D.hordeKinds(t.kinds), waves)), D.EXTRA.hordeSoon
+    elseif ev == "fund" then   -- somebody started a fund: where it stands and how long it has
+        return getText("IGUI_MQ_Horde_Title_fund"), getText("IGUI_MQ_Horde_FundBody", D.num(t.total or 0), D.num(t.pts or 0),
+            tostring(minsTo(t.expireAt))), D.EXTRA.gold
     elseif ev == "remind" then
         return getText("IGUI_MQ_Horde_Title_remind", tostring(minsTo(t.startMs)), place), getText("IGUI_MQ_Horde_Remind"),
             D.EXTRA.hordeSoon
     elseif ev == "open" then
-        return getText("IGUI_MQ_Horde_Title_wait", place), getText("IGUI_MQ_Horde_OpenBody", D.hordeKinds(t.kinds), waves),
-            D.EXTRA.hordeSoon
+        return getText("IGUI_MQ_Horde_Title_wait", place), sponsored(t,
+            getText("IGUI_MQ_Horde_OpenBody", D.hordeKinds(t.kinds), waves)), D.EXTRA.hordeSoon
     elseif ev == "spawn" then
         return getText("IGUI_MQ_Horde_Title_spawn", D.hordeName(t)),
             getText("IGUI_MQ_Horde_SpawnBody", tostring(t.limitMin or 0), D.num(t.size or 0)), D.EXTRA.horde

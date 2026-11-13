@@ -111,7 +111,7 @@ return function(T)
             "swap replaces slot 1")
         T.check(acc.day.quests[1].stat ~= old.stat and acc.day.quests[1].stat ~= acc.day.quests[2].stat, "swap keeps stats distinct")
         r = cmd(p, "swap", { slot = 2 })
-        T.check(r and r.code == "NO_SWAPS", "second swap refused (swapsPerDay = 1)")
+        T.check(r and r.code == "PRICE_CHANGED", "second swap without a price refused (swapsPerDay = 1; paid ones need pay)")
 
         nextDay(Q, acc, "alice")
         local t1, t2 = acc.day.quests[1].theme, acc.day.quests[2].theme
@@ -705,6 +705,78 @@ return function(T)
     end)
 
     -- ===================== Seasons =====================
+    -- 0.1.0 - 0.6.3 exchanged twice here: the dialog's "ask again" sends the same packet, and only the result cache
+    -- (CACHE_TTL_MS) stood between it and a second exchange. Now the exchange is a spend (Server: spendSeq).
+    section("exchange: the same request again never exchanges twice", function()
+        local credits = {}
+        local fake = { v1 = { API_MAJOR = 1, API_REVISION = 1, registerSource = function()
+            return { credit = function(u, cur, n, opts)
+                if credits.fail then return { ok = false, error = "cap_exceeded" } end
+                credits[#credits + 1] = { n = n, rid = opts.requestId }
+                return { ok = true }
+            end }
+        end } }
+        local Q = boot({ economy = fake })
+        local a = T.player{ name = "alice", admin = true }
+        cmd(a, "hello")
+        local acc = Q.Store.account("alice")
+        Q.Points.award(acc, "alice", 500, "admin")
+        local seq, rid = acc.spendSeq or 0, T.newRequestId()
+        T.advance(3100)
+        local r1 = T.cmd(a, "exchange", { amount = 40, seq = seq }, rid)
+        T.advance(20000)
+        local r2 = T.cmd(a, "exchange", { amount = 40, seq = seq }, rid)
+        T.check(r1 and r1.ok and r1.state == "paid" and r2 and r2.ok and r2.replay == true and r2.state == "paid"
+            and acc.points.balance == 460 and #credits == 1, "asked again inside the cache: the first answer, 40 exchanged once")
+        T.now = T.now + Q.Contract.LIMIT.CACHE_TTL_MS + 1000
+        local n0 = #T.sentTo(a, "state")
+        local r3 = T.cmd(a, "exchange", { amount = 40, seq = seq }, rid)
+        T.check(r3 and r3.ok and r3.replay == true and r3.state == "paid" and r3.coins == 40 and acc.points.balance == 460
+            and #credits == 1 and acc.ex.used == 40,
+            "asked again after the cache's lifetime: told what that exchange became, no second exchange")
+        T.check(#T.sentTo(a, "state") == n0 + 1 and T.lastOf(a, "state").spendSeq == seq + 1, "and the state goes out")
+        -- another request made on that same old screen (its own requestId) is not the first one asked again: it made
+        -- no exchange and must not be told the first one's result, whatever amount it names
+        T.advance(3100)
+        local r4 = T.cmd(a, "exchange", { amount = 40 })
+        T.check(r4 and r4.ok and r4.replay == nil and acc.points.balance == 420 and #credits == 2, "a request on the current state is a new exchange")
+        T.now = T.now + Q.Contract.LIMIT.CACHE_TTL_MS + 1000
+        local r5 = T.cmd(a, "exchange", { amount = 77, seq = seq })
+        T.advance(3100)
+        local r5b = T.cmd(a, "exchange", { amount = 40, seq = seq })
+        T.check(r5 and r5.ok == false and r5.code == "STALE" and r5b and r5b.ok == false and r5b.code == "STALE"
+            and acc.points.balance == 420 and #credits == 2,
+            "a new request with the first spendSeq (another amount, the same amount): STALE, not the first one's result")
+        T.advance(3100)
+        local r5c = T.cmd(a, "exchange", { amount = 40, seq = seq }, rid)
+        T.check(r5c and r5c.ok and r5c.replay == true and r5c.coins == 40 and acc.points.balance == 420 and #credits == 2,
+            "the first packet once more, after other exchanges: still the answer of that first exchange")
+        -- a request that was refused made no exchange: asked again later it is STALE, not a made-up result
+        seq, rid = acc.spendSeq, T.newRequestId()
+        T.advance(3100)
+        local r6 = T.cmd(a, "exchange", { amount = 5000, seq = seq }, rid)
+        T.now = T.now + Q.Contract.LIMIT.CACHE_TTL_MS + 1000
+        local r7 = T.cmd(a, "exchange", { amount = 5000, seq = seq }, rid)
+        T.check(r6 and r6.ok == false and r6.code ~= "STALE" and r7 and r7.code == "STALE" and acc.points.balance == 420,
+            "a refused request asked again after the cache: STALE (" .. tostring(r6 and r6.code) .. " the first time)")
+        -- one still queued (the economy's cap): asked again it is queued
+        credits.fail = true
+        seq, rid = acc.spendSeq, T.newRequestId()
+        T.advance(3100)
+        local r8 = T.cmd(a, "exchange", { amount = 20, seq = seq }, rid)
+        T.now = T.now + Q.Contract.LIMIT.CACHE_TTL_MS + 1000
+        local r9 = T.cmd(a, "exchange", { amount = 20, seq = seq }, rid)
+        T.check(r8 and r8.ok and r8.state == "queued" and r9 and r9.ok and r9.replay == true and r9.state == "queued"
+            and acc.points.balance == 400 and #acc.ex.queue == 1, "a queued one asked again: queued, held once")
+        -- the queued one is known by both: a new request with its spendSeq, and its requestId with another spendSeq
+        T.advance(3100)
+        local r10 = T.cmd(a, "exchange", { amount = 20, seq = seq })
+        T.now = T.now + Q.Contract.LIMIT.CACHE_TTL_MS + 1000
+        local r11 = T.cmd(a, "exchange", { amount = 20, seq = seq - 1 }, rid)
+        T.check(r10 and r10.code == "STALE" and r11 and r11.code == "STALE" and acc.points.balance == 400
+            and #acc.ex.queue == 1, "another request with the queued one's spendSeq, or its requestId with another: STALE")
+    end)
+
     section("seasons", function()
         local Q = boot()
         local a = T.player{ name = "alice", admin = true }
@@ -1028,4 +1100,6 @@ return function(T)
         T.check(Q.Achievements.get("skill_axe").tiers[5] == 10 and Q.Achievements.get("towns").tiers[5] == 11
             and Q.Achievements.get("h_peak").tiers[1] == 10, "difficulty leaves ceiling stats (skill levels, towns) alone")
     end)
+
+    dofile("scripts/harness/t_systems_shop.lua")(T)
 end

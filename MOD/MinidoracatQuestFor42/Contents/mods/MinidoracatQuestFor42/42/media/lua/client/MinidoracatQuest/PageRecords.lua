@@ -85,6 +85,7 @@ local function recordedCond(src, defs)
     local days = string.match(src, "^streak:(%d+)$")
     if days ~= nil then return D.streakTitleCond(days, defs.cfg) end
     if src == "newbie" then return D.newbieTitleCond(defs.cfg) end
+    if string.sub(src, 1, 5) == "shop:" then return getText("IGUI_MQ_UI_TitleCondShopOwned") end   -- Shop.lua buyTitle
     return nil
 end
 

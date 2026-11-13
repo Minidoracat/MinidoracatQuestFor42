@@ -1,14 +1,16 @@
 -- MinidoracatQuest/PageHordes.lua: the player Hordes page (design r12): the current horde (the daily page banner),
+--   Sponsor a horde (plan points-sinks 4: no fund / fund open / fund full; the sponsored horde itself is the banner),
 --   my horde totals (stats horde.joined / wins / kills / mvp from the records query) and the recent results
 --   (records.hordes: the last announced ones on the server, newest first, each with my kills and points;
 --   Hordes.recent), each one somebody joined with a View results button (the hordeResult query; it opens at once,
---   anyone may look). In the nav while automatic hordes are on or there are results (state.hordes.on).
+--   anyone may look). In the nav while automatic or sponsored hordes are on or there are results (state.hordes.on).
 
 if isServer() then return end
 
 require "MinidoracatQuest/Client"
 require "MinidoracatQuest/Draw"
 require "MinidoracatQuest/Window"
+require "MinidoracatQuest/PledgeDialog"
 
 local Q = MinidoracatQuest
 local C, D, W = Q.Client, Q.Draw, Q.Window
@@ -31,6 +33,59 @@ function P.onResult(page, btn) C.send("hordeResult", { id = btn.internal }) end
 local function now(page, b, x, y, w, s)
     return Q.PageDaily.hordeBlock(page, b, x, y, w, s)
         or b:para(x, y, getText("IGUI_MQ_UI_HordesNone"), w, "textMuted") + GAP
+end
+
+-- ===== Sponsor a horde: the fund state (state.hordes.paid / fund, contract 6) =====
+function P.onPledge() Q.PledgeDialog.open() end
+
+local function fund(b, page, x, y, w, s)
+    local hs = type(s.hordes) == "table" and s.hordes or {}
+    local paid = type(hs.paid) == "table" and hs.paid or {}
+    local f = type(hs.fund) == "table" and hs.fund or nil
+    if paid.on ~= true and f == nil then return y end
+    local q = C.pledgeQuote(s, nil)
+    local chips, lines, label = {}, {}, nil
+    if f == nil then
+        local left = math.floor(tonumber(paid.left) or 0)
+        if left <= 0 then
+            lines[1] = { getText("IGUI_MQ_UI_FundDayUsed"), "textMuted" }
+        else
+            chips[1] = { getText("IGUI_MQ_UI_FundLeftToday", tostring(left)), "textMuted" }
+            -- paid.cap: the server's figure (the preset's cap may be lower than the share of the fund)
+            local cap = math.floor(tonumber(paid.cap) or q.target * (tonumber(paid.rewardPct) or 0) / 100)
+            lines[1] = { getText("IGUI_MQ_UI_FundIdle", D.num(q.target), tostring(paid.leadMin or 0), D.num(cap)), "textMuted" }
+            label = "IGUI_MQ_UI_FundStart"
+        end
+    elseif f.state == "ready" then
+        chips[1] = { getText("IGUI_MQ_UI_FundFull"), D.EXTRA.gold }
+        lines[1] = { getText("IGUI_MQ_UI_FundFullBody", tostring(f.n or 0), D.num(f.pts or 0)), "text" }
+        lines[2] = { getText(D.hordeLive(hs.cur) and "IGUI_MQ_UI_FundFullWait" or "IGUI_MQ_UI_FundFullSoon"), "textMuted" }
+    else
+        chips[1] = { getText("IGUI_MQ_UI_FundOpen"), "warning" }
+        lines[1] = { getText("IGUI_MQ_UI_FundOpenBody", tostring(f.n or 0), D.num(f.mine or 0)), "textMuted" }
+        label = "IGUI_MQ_UI_FundPledge"
+    end
+    y = b:header(x, y, x + w, getText("IGUI_MQ_UI_Fund"), chips)
+    if f ~= nil and f.state ~= "ready" then
+        local lh = D.fontH()
+        b:text(x, y, getText("IGUI_MQ_UI_FundProgress", D.num(q.got), D.num(q.target)), "text")
+        b:textRight(x + w, y, getText("IGUI_MQ_UI_FundExpires", D.duration(D.left(f.expireAt))), "textMuted")
+        y = y + lh + 4
+        b:bar(x, y, w, 6, q.target > 0 and q.got / q.target or 0, "warning")
+        y = y + 12
+    end
+    for _, l in ipairs(lines) do y = b:para(x, y, l[1], w, l[2]) end
+    if label ~= nil and paid.on == true then
+        if q.balance < q.min then   -- not enough for the least pledge: no button, how many are missing
+            y = b:para(x, y + 4, getText("IGUI_MQ_UI_PointsShort", D.num(q.min - q.balance)), w, "textMuted")
+        else
+            local btn = page.pool:button("pledge", page.UI, page.theme, getText(label), page, P.onPledge)
+            btn:setX(x)
+            btn:setY(y + 4)
+            y = y + 4 + btn.height
+        end
+    end
+    return y + GAP
 end
 
 -- ===== my totals: one tile per stat, the all-time value =====
@@ -180,6 +235,7 @@ function P.layout(page)
     end
     refresh(s)
     y = now(page, b, x, y, w, s)
+    y = fund(b, page, x, y, w, s)
     y = tiles(b, page, x, y, w)
     y = recent(page, b, x, y, w)
     D.finish(page, y)

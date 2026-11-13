@@ -60,6 +60,9 @@ function Y.state(user, acc)
         achv = acc.achv, titles = titles, titleAt = acc.titleAt, titleSrc = acc.titleSrc, title = acc.title, prefs = acc.prefs,
         anon = acc.anon == true,
         unseen = acc.unseen or 0, pins = acc.pins or {}, trk = Y.trk(acc),
+        spent = acc.spent or {},   -- last 10 point-sink entries, newest first (Points.pay / unpay mark "all")
+        -- what a spend request must name (Server.onClientCommand); only in the full state, with the screen it is for
+        spendSeq = acc.spendSeq or 0,
     }
     for _, part in ipairs(Y.PARTS) do
         local fn = Y.providers[part]
@@ -270,6 +273,9 @@ local function push(user, parts, player)
             any = true
         end
     end
+    -- which state this delta belongs to: the client drops one of another spendSeq (an older one that comes late
+    -- would put the screen from before a spend next to the spendSeq after it; a newer one has its state on the way)
+    d.spendSeq = acc.spendSeq or 0
     if any then Q.Net.send(player, "delta", d) end
 end
 
@@ -354,8 +360,11 @@ function Y.broadcastToast(t, achiever)
     return true
 end
 
+-- state carries values worked out from the settings (hordes.paid, streak.shieldLeft): open windows and tracker
+-- panels get a full state too, or they would keep asking with the old price (PRICE_CHANGED)
 function Y.catalogChanged()
     Q.Net.broadcast("catalog", Y.catalog())
+    Y.dirty(nil, "all")
 end
 
 function Y.forget(user)

@@ -611,6 +611,9 @@ return function(T)
         and string.find(badPreset, "IGUI_MQ_Admin_BadConfig|hordes.windows.2.preset|IGUI_MQ_Admin_Why_preset", 1, true),
         "a rejected config.json names the line, or the key path as written in the file and why (translated when it says how to fix it)")
     getText = gt
+    -- uses for points, sponsored hordes, spent points, point titles (plan points-sinks-1112): its own file, same fakes
+    dofile("scripts/harness/t_admin_shop.lua")(T, { Q = Q, P = P, pool = pool, press = press, answer = answer, last = last,
+        dialogs = dialogs, replies = replies, unclosed = unclosed, now = now })
     -- the tier editor keeps its own copy: a push changing the achievement while it is open, then Save, would put the old
     -- tiers back on the new settings, and no Apply would refuse them (review r2)
     A.select(P, "achv")

@@ -106,6 +106,7 @@ S("horde.joined", "count", 10, nil, true)   -- hordes that ended after spawning,
 S("horde.wins", "count", 10, nil, true)     -- hordes cleared with at least one kill of your own (Hordes.lua)
 S("horde.kills", "count", 120, nil, true)   -- kills of horde zombies
 S("horde.mvp", "count", 10, nil, true)      -- cleared hordes (2+ participants) where you had the most kills, ties too
+S("horde.sponsored", "count", 10, nil, true) -- sponsored hordes you pledged to that got planned (Hordes.lua fund)
 for _, p in ipairs(Cat.perks) do S("level." .. p, "max", nil, "level") end
 for _, p in ipairs(Cat.perks) do S("xp." .. p, "count", 5000, "xp") end
 
@@ -446,6 +447,14 @@ Cat.DEFAULTS = {
     boards = { inactiveDays = 180, rebuildSeasonMs = 300000, rebuildTotalMs = 1800000 },
     towns = { custom = {}, disabled = {} },
     ceilings = {},
+    -- point sinks (plan points-sinks 2026-11-12): spending takes balance only. swap: paid swaps once the free ones are
+    -- used, perDay a day; shield: one streak-shield day held at most, bought perWeek times a week; titles: the four
+    -- fixed list ids at their price, plus s<season no>_patron at `season` points (0 = not sold)
+    shop = {
+        swap = { enabled = true, pts = 50, perDay = 3 },
+        shield = { enabled = true, pts = 200, perWeek = 1 },
+        titles = { enabled = true, season = 1500, list = { spend_1 = 1000, spend_2 = 2000, spend_3 = 3500, spend_4 = 5000 } },
+    },
     -- timed horde events (Hordes.lua). windows: { days ("1".."7", 1 = Monday), from / to "HH:MM" in the sandbox
     -- TimezoneOffset (to < from runs past midnight, to == from is all day), chance % per hourly roll, preset (the
     -- presets id its hordes play), leadMin (warning minutes), waitMin (minutes each wave waits for a player) };
@@ -466,7 +475,12 @@ Cat.DEFAULTS = {
             default = { name = "", waves = { { base = 30, perPlayer = 50 } }, kinds = { vanilla = 80, runner = 20 },
                 points = { vanilla = 5, runner = 8 }, hp = {}, limitMin = 15, restSec = 30, maxAlive = 200, cap = 500 },
         },
-        spots = {} },
+        spots = {},
+        -- sponsored hordes: players pool `pts` points (at least minPledge each) within fundMin minutes; a full fund plays
+        -- `preset` after leadMin with waitMin per wave, at most maxPerDay a day apart from the timed ones, its cap
+        -- rewardPct % of the pooled points
+        paid = { enabled = false, pts = 600, minPledge = 50, fundMin = 30, maxPerDay = 1, rewardPct = 50, preset = "default",
+            leadMin = 15, waitMin = 60 } },
 }
 
 -- zombies in a horde wave: base, plus perPlayer % of base for every player near the spot after the first (the server

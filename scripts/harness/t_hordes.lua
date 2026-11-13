@@ -2600,4 +2600,9 @@ return function(T)
         z:Kill(alice)
         T.check(cur.waveGot.alice == 4, "a registered kind's own points")
     end)
+
+    -- sponsored hordes (hordes.paid): their own file, over these fixtures
+    dofile("scripts/harness/t_hordes_fund.lua")(T, { SPOT = SPOT, section = section, boot = boot, step = step,
+        apply = apply, cmd = cmd, adm = adm, near = near, toasts = toasts, killAlive = killAlive, lastLog = lastLog,
+        sum = sum, spyAwards = spyAwards, encoded = encoded, today = today, keyOf = keyOf, wave = wave })
 end

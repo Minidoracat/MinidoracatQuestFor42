@@ -18,7 +18,7 @@
 |---|---|---|
 | C1 | 榜單數 | 16 個內建榜。`skill_total`（技能總等級）只有總榜，其餘 15 個有本季與總榜，共 31 份名次。職業類由 facade `board=true` 的統計加入，內建 0 個 |
 | C2 | 兌換退款 | 經濟系統回 `cap_exceeded`／`rate_limited`／`not_ready`／沒回應 → 排隊；其他錯誤一律退回積分並記稽核 `exchange_refused` |
-| C3 | 每天換任務 | `daily.swapsPerDay = 1`，只限個人任務（全服任務不能換） |
+| C3 | 每天換任務 | `daily.swapsPerDay = 1` 次免費，只限個人任務（全服任務不能換）；免費用完後可以付積分再換（`shop.swap`，§5.8，服主 2026-11-12） |
 | C4 | 改偏好 | 不限次數；今天的任務已經產生就從下次換日生效，還沒產生就立刻生效 |
 | C5 | 成就數 | 內建約 110 項（目標 105～115），各類項數以 `Catalog.lua` 為準 |
 | C6 | 職業 | 原版 25 個（含無業） |
@@ -35,7 +35,7 @@
 | C19 | 儲存 | 共用表 `MinidoracatQuest`＋16 張帳號表 `MinidoracatQuest_A00`～`A15`（帳號名 hash 取 16 的餘數）。共用表不放帳號 |
 | C21 | 分類字彙 | 三套各自獨立，見 §4.1：主題 11 個（每日任務與偏好）、成就分類 9 個、榜單分類 8 個 |
 | C22 | 冷門任務 | 任務樣板帶 `rare = true` 的給 20 分，內建冷門：釣魚、誘捕、畜牧、縫紉、搜尋的任務 |
-| C23 | 連續天數 | 一天完成 4 個中的 3 個算一天；每週一可補 1 次（漏的那天算寬限，仍計入天數）；週一重置寬限；換日時昨天沒達成且寬限已用 → 歸零；里程碑 3／7／14／30 天每次連續各領一次，歸零後重新累積可再領 |
+| C23 | 連續天數 | 一天完成 4 個中的 3 個算一天；每週一可補 1 次（漏的那天算寬限，仍計入天數）；週一重置寬限；玩家可以先用積分買 1 天保護（`shop.shield`，手上最多 1 天），漏掉而寬限不夠時自動用掉，一次換日最多補 2 天（寬限 1＋保護 1，§5.8）；換日時補不滿 → 歸零（保護不扣）；里程碑 3／7／14／30 天每次連續各領一次，歸零後重新累積可再領 |
 | C24 | 全服任務算不算 | 算，4 個裡任 3 個 |
 | C26 | 帳號欄位 | 補齊 `prefs`、`imported`、`hidden`、`titles`、`unseen` 等，見 §3.2 |
 | C27 | 全服通知門檻 | 以等級序號判斷：`tier >= broadcast.minTier`（預設 3）。等級少於 3 的成就（隱藏成就、facade 加的）在最後一級解鎖時也通知 |
@@ -67,6 +67,7 @@
 | `lua/server/MinidoracatQuest/Config.lua` | Core | 有效設定＝Catalog 預設＋管理員覆寫；預覽、套用、復原、歷史 20 筆、`config.json` 同步（§3.5） |
 | `lua/server/MinidoracatQuest/Stats.lua` | Core | `add`／`max`／`seed`、每分鐘上限、三個範圍、監聽者 |
 | `lua/server/MinidoracatQuest/Points.lua` | Core | 發積分、扣積分、退回，三個數字的規則 |
+| `lua/server/MinidoracatQuest/Shop.lua` | Core | 用積分買的東西：連續保護、積分稱號（指令 `buyShield`、`buyTitle`；§5.8） |
 | `lua/server/MinidoracatQuest/Net.lua` | Core | 送出（含 SP 直呼）、全服廣播、對在線帳號推播 |
 | `lua/server/MinidoracatQuest/Server.lua` | Core | 指令分派（照 Safehouse `S.define`）與玩家指令 `hello`／`watch`／`seen`／`title`／`anon`／`records`／`hordeResult`；管理 op `cfg.*`、`acct.view`、`anom.list`、`towns.here` |
 | `lua/server/MinidoracatQuest/Sync.lua` | Core | 組 `state`／`catalog`／`delta`，節流推送，通知佇列與合併 |
@@ -123,6 +124,8 @@ root = {
              log = { },                       -- 結束的場次，新的在後，最多 20 筆（形狀見下）
              corpses = { { x, y, z, h } },    -- 屍潮殭屍的屍體（h＝屍潮 id），舊的在前；hordes.corpses.max 為 0 時清空、不記
              sweeps = { { x, y, z, h, at, row, col, miss, tries } } },   -- 每個地點最多一筆待掃（最多 Hordes.SWEEPS 32 筆）：at 起清掉地點周圍 h 以前的屍潮屍體；row／col 是掃到哪，miss 是這一輪碰到幾格沒載入，tries 是重掃過幾輪
+  -- hordes 另有（贊助屍潮，§5.10）：fund = nil | { by = { [user] = pts }, total, pts（發起當下的 hordes.paid.pts）, startMs, expireAt, state = "open" | "ready" }；
+  --   paidDay = { [day] = n }：每個當地日期排定了幾場贊助場，只留最近 3 天
 }
 ```
 
@@ -179,11 +182,13 @@ Account = {
   prefs = {},                                   -- 最多 3 個主題 id
   anon = false,                                 -- 玩家自己選匿名
   hidden = nil,                                 -- 管理員移出排行榜：{ reason, actor, at }
-  ex = { day, used = 0, seq = 0, queue = {}, log },  -- queue: { { seq, amount, coins, state = "queued", at, tries } }；log：結束的兌換 { at（結束時間）, amount, coins, state = "paid"|"refunded" }，新的在前，最多 10 筆（`Exchange.LOG`）
+  ex = { day, used = 0, seq = 0, queue = {}, log },  -- queue: { { seq, amount, coins, state = "queued", at, tries, day, sseq, rid } }；log：結束的兌換 { at（結束時間）, amount, coins, state = "paid"|"refunded", sseq, rid }（`sseq`＝那筆請求用掉的 `spendSeq`，`rid`＝它的 `requestId`；`Exchange.made` 靠這兩個回答「再問一次」，遷移或清理時要留著），新的在前，最多 10 筆（`Exchange.LOG`）
   unseen = 0,                                   -- Dock 徽章：還沒看過的完成與解鎖數
   pins = {},                                    -- 追蹤面板：最多 LIMIT.MAX_PINS（5）個，"d1"～"d4" 今天的每日格、"w1"～"w3" 本週格、"a:<achId>"
   imported = false,
   anomalies = 0,                                -- 本季超量次數（結算名單標示用）
+  spent = {},                                   -- 用積分買東西的紀錄，新的在前、最多 10 筆：{ at, what, n, ref }；n < 0 花掉、n > 0 退回；what：swap／shield／title／horde／hordeRefund（§5.5 `Points.pay`）
+    spendSeq = 0,                                 -- 花費序號：spend 指令每評估一筆加一（Server.onClientCommand）
 }
 ```
 
@@ -197,7 +202,7 @@ Quest = { tid, stat, theme, target, prog = 0, pts, state = "active", shared = ni
 ### 3.3 範圍與重置
 
 - `total`：跨角色累計，成就看這欄。`life`：這條命，死亡時清空（伺服器 `OnCharacterDeath`，`OnPlayerDeath` 在專用伺服器不觸發）。`season`：本季，懶重置（C30）。
-- 帳號層級統計（Catalog `S(…, account = true)`：`quest.daily`、`quest.weekly`、`streak.best`、`achv.tiers`、`goal.done`、`season.joined`、`horde.joined`、`horde.wins`、`horde.kills`、`horde.mvp`）不寫 `life`；我的紀錄頁「這條命」欄顯示「-」，跟「賺到的積分」一樣。
+- 帳號層級統計（Catalog `S(…, account = true)`：`quest.daily`、`quest.weekly`、`streak.best`、`achv.tiers`、`goal.done`、`season.joined`、`horde.joined`、`horde.wins`、`horde.kills`、`horde.mvp`、`horde.sponsored`）不寫 `life`；我的紀錄頁「這條命」欄顯示「-」，跟「賺到的積分」一樣。
 - 每日任務的進度是「指派之後的增量」，不是統計總量。
 
 ### 3.4 設定
@@ -232,6 +237,15 @@ DEFAULTS = {
                  points = { vanilla = 5, runner = 8 }, hp = { }, limitMin = 15, restSec = 30, maxAlive = 200, cap = 500 } },
              spots = { } },                             -- presets：方案 id -> 方案（name "" 時客戶端顯示翻譯的「預設」）；spots：{ { name, x, y, z } }；§5.10
 }
+
+-- 積分的用途（設計稿 temp/plan-points-sinks-1112，服主 2026-11-12）
+shop = { swap   = { enabled = true, pts = 50, perDay = 3 },          -- 付費換任務：每次積分 1～10000、每天最多 1～10 次
+         shield = { enabled = true, pts = 200, perWeek = 1 },        -- 連續保護：積分 1～10000、每週最多買 1～7 次；手上最多 1 天
+         titles = { enabled = true, season = 1500,                   -- 每季限定 `s<季數>_patron` 的價格 0～100000，0＝不賣
+                    list = { spend_1 = 1000, spend_2 = 2000, spend_3 = 3500, spend_4 = 5000 } } },   -- 固定四個鍵，值 1～100000
+hordes.paid = { enabled = false, pts = 600, minPledge = 50, fundMin = 30, maxPerDay = 1,
+                rewardPct = 50, preset = "default", leadMin = 15, waitMin = 60 },
+-- pts 100～100000；minPledge 1～10000；fundMin 5～240 分；maxPerDay 1～24；rewardPct 0～90；preset 要是存在的方案；leadMin 0～MAX_LEAD；waitMin 1～240
 ```
 
 - 修改單位是 change：`{ op = "set" | "del", path, value }`。`Config.validate` 依路徑家族檢查型別與範圍（門檻嚴格遞增且 1～1e9、積分 0～10000、等級最多 10、倍率 0.1～10、天數 7～180…）。
@@ -357,7 +371,8 @@ boards[i] = { id = "kills", cat = "combat", stat = "zombie.kills", periods = { "
   - 一般：本季、累計、餘額都加。
   - `import`：只加累計。`season`（賽季獎勵）：只加餘額。
   - 限時活動倍率由呼叫端算好再傳。寫事件記錄 `points`。標記 `points` 榜為 dirty。
-- `Points.spend(acc, amount)` → bool（只扣餘額）。`Points.refund(acc, amount)`。
+- `Points.spend(acc, amount)` → bool（只扣餘額）。`Points.refund(acc, amount)`。兌換用這兩個，自己記 `ex.log`。
+- `Points.pay(acc, user, amount, what, ref)` → bool：其他用途一律走這裡。`spend` 成功後在 `acc.spent` 前插一筆（留 10 筆）、寫事件記錄 `spend { what, ref, n }`、`Report.add("spent", what, amount)`、`Sync.dirty(user, "all")`。`Points.unpay(acc, user, amount, what, ref)`：`refund`＋`acc.spent` 記一筆正數＋事件 `spend`（`n` 為負）＋報表從 `horde` 那一格扣。兩個都只動餘額，本季、累計與榜單不變。
 
 ### 5.6 Net、Sync（Core）
 
@@ -382,11 +397,13 @@ boards[i] = { id = "kills", cat = "combat", stat = "zombie.kills", periods = { "
 ### 5.8 Systems 模組（Systems 擁有）
 
 - `Quests.ensure(acc, user, now)`：換日／換週時處理過期、連續天數結算、產生新任務、共同目標換週，回傳是否有變；換了任務清單就標 `all`（delta 只帶進度，不帶 `tid`／`target`，開著視窗的人改收完整 `state`）。`hello`、`Stats` 監聽、`Quests.tick` 都會呼叫。
-- `Quests.swap(acc, user, slot)` → ok, code。`Quests.setPrefs(acc, list)` → ok, code。
+- `Quests.swap(acc, user, slot, pay, at)` → ok, code。`at`（選填）＝玩家看到的那一格任務的 `startMs`，格子裡已經是別的任務回 `STALE`。免費次數還有時照舊；用完後是付費（`shop.swap`）：關閉或 `day.paid >= perDay` → `NO_SWAPS`，`pay ~= pts` → `PRICE_CHANGED`，先抽到新任務才 `Points.pay(…, "swap", 舊 tid)`（抽不到不扣），成功 `day.paid + 1`；亂數種子含 `day.paid`（付費時 `day.swaps` 一直是 0）。`Quests.setPrefs(acc, list)` → ok, code。
+- `Quests.rollStreak`（換日）：`missed`＝`last` 之後漏掉的日子（最多看 3 天）。`grace`＝本週寬限還沒用（只看昨天那一週）；`need = #missed −（grace 有 1）`；`#missed > 2` 或 `need > streak.shield` → 歸零，保護不扣；否則由舊到新補記，昨天那天有寬限時記 `grace`，其餘記 `shield` 並扣保護。沒買保護的人和以前一樣。
+- `Shop.buyShield(acc, user, pay, now)`：`SHOP_OFF`／`SHIELD_HELD`（手上已有）／`SHIELD_WEEK`（這週買滿 `perWeek`）／`PRICE_CHANGED`／`NOT_ENOUGH_POINTS`。`Shop.buyTitle(acc, user, id, pay)`：id 只能是 `spend_1`～`spend_4` 或本季的 `s<目前季數>_patron`（`season > 0`），否則 `NOT_FOUND`；`TITLE_OWNED`／`PRICE_CHANGED`／`NOT_ENOUGH_POINTS`；成功 `Store.grantTitle(acc, id, "shop:" .. id)`，不自動戴上。客戶端一律送它顯示的價格 `pay`，和伺服器設定不同就拒絕（管理員剛改價時不會照舊價扣）。
 - `Quests.tick(now)`：換日時處理全服任務、共同目標結算發獎（達成時貢獻 ≥ minContrib 的帳號各得 pts），並對開著視窗的玩家呼叫 `ensure`，視窗在重置那一刻就換成新任務。
 - `Achievements.list()` → `list, byStat, all`：合併內建、自訂、facade 的有效清單（含設定覆寫的門檻）；`all` 是 id → 定義，含停用的（撤銷用）。每個定義帶 `defTitles`（定義本身的稱號，撤銷時給沒有 `titleSrc` 的舊稱號用）。`Achievements.evaluate(acc, user, opts)`：判定所有統計相關的成就，`opts.quiet` 時不通知、不發本季積分（只發累計）。`Achievements.revoke(user, achId, toTier, reason, actor)`：停用的成就也能撤（服主 2026-10-27）；刪 `titleSrc` 是 `a:<achId>:<被撤的級>` 的稱號，沒有紀錄的稱號另刪那一級現在設定的 id 與 `defTitles` 的 id（有別的來源紀錄的不刪）。
 - `Import.baseline(acc, user, player)`：每個帳號一次（`hello` 時）。目前角色的擊殺數、存活天數、35 個技能等級寫進 `total`，擊殺數也寫進 `life`（原版的擊殺數是這個角色的，不殺生天數靠它判斷）；符合的成就安靜解鎖。其他統計沒有舊值，從裝上那天開始算。
-- `Exchange.init()`：`OnServerStarted` 探測 `MinidoracatEconomy.v1` 並 `registerSource({ modId = "MinidoracatQuestFor42", nameKey = "IGUI_MQ_Name", displayName = { EN = "Quests & Achievements" }, currencies = { "survivor" }, reasonCodes = { "mq_exchange" } })`。經濟系統的管理台用 `IGUI_MinidoracatEconomy_Reason_<原因碼>` 顯示原因（`ECWidgets.lua` `U.reasonText`，找不到鍵才寫「其他模組的原因：<碼>」）；這個鍵放在本 MOD 的 16 種語言翻譯檔，原因碼加 `mq_` 前綴，避免和其他整合來源的碼共用同一個鍵。`Exchange.available()`。`Exchange.request(acc, user, amount)` → ok, code, { state, coins }。`Exchange.tick(now)`：排隊重試，有一筆結束就標記 `points` 與 `exchange` 要重送。
+- `Exchange.init()`：`OnServerStarted` 探測 `MinidoracatEconomy.v1` 並 `registerSource({ modId = "MinidoracatQuestFor42", nameKey = "IGUI_MQ_Name", displayName = { EN = "Quests & Achievements" }, currencies = { "survivor" }, reasonCodes = { "mq_exchange" } })`。經濟系統的管理台用 `IGUI_MinidoracatEconomy_Reason_<原因碼>` 顯示原因（`ECWidgets.lua` `U.reasonText`，找不到鍵才寫「其他模組的原因：<碼>」）；這個鍵放在本 MOD 的 16 種語言翻譯檔，原因碼加 `mq_` 前綴，避免和其他整合來源的碼共用同一個鍵。`Exchange.available()`。`Exchange.request(acc, user, amount, sseq, rid)` → ok, code, { state, coins }。`Exchange.made(acc, sseq, rid)` → { state, coins } 或 nil（`exchange` 指令的 `done`，規則在 §5.10）。`Exchange.tick(now)`：排隊重試，有一筆結束就標記 `points` 與 `exchange` 要重送。
 - `Seasons.current()`、`Seasons.tick(now)`、`Seasons.previewLength(days)` → `{ endMs, nextStartMs }` 或 nil, code（新結算時刻至少在 24 小時後）、`Seasons.applyLength(days, actor)`、`Seasons.review()`、`Seasons.exclude(user, on, reason, actor)`、`Seasons.confirm(actor)`。
 - `Boards.dirty(stat)`、`Boards.dirtyAll()`（`Config.apply`／`undo` 動到 `boards.*` 時呼叫：所有榜在接下來的 tick 重算，之後照新間隔排）、`Boards.tick(now)`（每 tick 最多重排一個榜）、`Boards.page(boardId, period, user, admin)`、`Boards.setHidden(user, on, reason, actor)`。
 - `Balance.given(tid, now)`、`Balance.swapped(tid, now)`（換掉的那個樣板）、`Balance.done(tid, startMs, doneMs)`、`Balance.report(now)`：完成率＝done ÷（given − swaps），分母 0 時 `rate` 為 nil；每日樣板看近 7 天，每週樣板只看上一個已結束的週；(given − swaps) ≥ `Balance.MIN_GIVEN`（10）才給建議。
@@ -429,6 +446,8 @@ boards[i] = { id = "kills", cat = "combat", stat = "zombie.kills", periods = { "
 - `Hordes.stateHordes(acc, user, now)`：Sync provider `hordes`，見 §6.3。
 - `Hordes.recent(user, n)`：`log` 裡預告過的最近 n 場（`Hordes.RECENT` 10），新的在前，每場帶這個帳號的擊殺 `mine`、得分 `got` 與參加人數 `joined`；`records` 回覆的 `hordes`（§6.3）。全服共用 `log`，不另存每個帳號的紀錄。
 - `Hordes.logged(id)` → `log` 裡預告過的那一場或 nil；`Hordes.result(e, user, admin)` → 給這個人看的結算（形狀見 §6.3 `hordeResult`）：參加者依擊殺多到少、同分照帳號名（同 `Boards` 的排序），最多 `Hordes.RESULT_ROWS`（100）列；自己在 100 名外時，自己那列另外附在最後（帶真正的名次 `r`）。匿名帳號（`anon`）的列與死亡名單沒有 `n`、帶 `anon = true`，`admin` 時多 `a`＝帳號。
+- 贊助屍潮（設計稿 `temp/plan-points-sinks-1112`，服主 2026-11-12；設定 `hordes.paid`，預設關）：`Hordes.pledge(acc, user, n, total, now)`（指令 `pledge`）：關閉或沒有地點 `FUND_OFF`；沒有募集而今天（屍潮的當地日）`paidDay >= maxPerDay` → `FUND_DAY`；募集已 `ready` → `FUND_FULL`；`total` 不是這次募集的目標 → `PRICE_CHANGED`；實收 `min(n, 目標 − 已湊)`，少於 `min(minPledge, 剩下的)` → `BAD_ARGS`；`Points.pay(…, "horde")` 不夠 → `NOT_ENOUGH_POINTS`。第一筆建立 `fund`（目標＝當下的 `pts`，`expireAt = now + fundMin`）並全服通知 `fund`；湊滿 → `ready`。`Hordes.tick`：`open` 到期 → 每位贊助者 `Points.unpay(…, "hordeRefund")`（不在線也退）＋個人通知 `fundRefund`；`ready` 而且沒有 `cur` → 沒有地點就全退，否則 `plan(cfg, now + leadMin, "fund", { preset, leadMin, waitMin })`（回 nil 也全退），`cur.cap = min(方案的 cap, floor(total × rewardPct ÷ 100))`、`cur.sponsors = fund.by`、`paidDay + 1`，不算進 `perDay`。`ready` 之後就算管理員關掉也照開（積分已收）。`cap` 可以是 0：沒有人得分。誰都能打，獎勵照擊殺分；`soon`／`open` 通知帶 `sponsors = { names, anon }` 與 `capPts`。`fund` 存在 Global ModData，跟著世界存檔；停機期間過期的在開機後第一個 tick 退回。
+  - 審查後補的規則（2026-11-12）：`pledge` 先看募集是否已過期（`open` 而且 `now >= expireAt`），過期的先全退，這一筆再照第一筆開新的募集；贊助場在第一隻殭屍出現前結束（`Hordes.finish` 時 `cur.firstSpawnAt == nil`：取消、停止、沒人到場、生不出來）→ `Hordes.refund(cur.sponsors, "ended")` 全額退回、`paidDay` 不減；`horde.sponsored` 在打過的贊助場結束時才加；`state.hordes.paid.cap`＝`min(方案的 cap, floor(pts × rewardPct ÷ 100))`，玩家頁的「這一場最多發」用它。設定套用後 `Sync.catalogChanged` 另外把完整 `state` 推給開著視窗或追蹤面板的人。會扣積分（或用掉免費次數）的指令在 `Server.define` 標 `spend = true`：`swap`、`buyShield`、`buyTitle`、`pledge`、`exchange`。帳號有一個花費序號 `acc.spendSeq`（和餘額一起存檔），客戶端只從完整的 `state` 取（`state.spendSeq`；`delta` 與 `records` 也帶一個，只用來標明它們屬於哪一份 state）。這些指令的請求必須帶 `seq`＝玩家確認時畫面上那份 state 的 `spendSeq`：`Server.onClientCommand` 在驗證與 `NOT_READY` 之後比對，不相等回 `STALE`、不執行、不動序號；相等就先把 `acc.spendSeq` 加一再執行，不管結果是成功、拒絕還是丟錯。所以同一個畫面上做出的請求，不論幾筆、到達順序、延遲多久、伺服器有沒有重啟，最多一筆被執行；不靠結果快取（`CACHE_TTL_MS`／`CACHE_PER_ACTOR`）、逾時或封包順序（`ClientCommand` 是 RELIABLE、不是 RELIABLE_ORDERED：42.22.2 `PacketTypes.java:508`）。過了序號檢查的請求（含 `STALE`）回覆之後一律推完整 `state`。欄位驗證的 `BAD_ARGS`、`RATE_LIMITED`、`NOT_READY`、cooldown 丟棄都不動序號（指令自己回的 `BAD_ARGS`，例如 `pledge` 低於最少金額，是在序號加一之後）；`NOT_READY` 不進結果快取。`Points.spend` 只能在這類指令執行中呼叫（`Points.open`），忘了標的新指令第一次用就丟錯。客戶端不重送花費請求，唯一的例外是兌換視窗的「再問一次」（重送同一個封包，見後）：`Client.sendSpend` 一次只讓一筆等回覆（另一筆還在等時不送並跳通知；兌換視窗自己用 `Client.send`），逾時（`NO_REPLY`）後玩家重新按、重新確認；`seq` 在確認框打開時就取（`Draw.askSpend`、`PageDaily.onSwap`），確認框開著時到的 state 不會讓舊畫面的確認被執行。`swap` 另帶 `at`＝那一格任務的 `startMs`，格子裡已經是別的任務（跨日）回 `STALE`。兌換視窗的「再問一次」重送同一個封包（同 `requestId`、同 `seq`）：快取命中時回原結果；沒命中時照下面的規則查。兌換的每一列記下它用掉的序號與那筆請求的 `requestId`（`row.sseq`、`row.rid`；一個序號只會被一筆請求用掉，但同一個畫面上的每筆請求都帶同一個序號，所以要兩個都對上才是「同一筆再問一次」），指令的 `done = Exchange.made`：序號對不上時伺服器先用請求的 `seq` 與 `requestId` 找那筆兌換，找到就回它現在的結果（`ok`、`replay = true`、`state`、`coins`），找不到（那筆請求被拒絕或沒被執行過；或是同一個舊畫面上另送的新請求，例如逾時後關掉視窗重開再送）才回 `STALE`。所以「再問一次」不論隔多久都得到那筆兌換的實際結果，客戶端不從畫面上的紀錄猜；已結束的列只留最近 `X.LOG` 筆，更早的查不到時回 `STALE`。視窗的回覆只給送出它的那一次（關掉重開後舊回覆不動新視窗）。配戴稱號不是花費，走一般的 `Client.send`。
 
 ## 6. 網路協定
 
@@ -443,17 +462,22 @@ boards[i] = { id = "kills", cat = "combat", stat = "zombie.kills", periods = { "
 | `track` | query | `on: bool` | 追蹤面板開著：視窗關著也收追蹤中的進度 |
 | `pin` | mutation | `id: text`、`on: bool` | `result`＋`state`；`BAD_ARGS`（不能追蹤的項目）、`TOO_MANY_PINS` |
 | `seen` | mutation | — | `result`；`unseen` 歸零 |
-| `swap` | mutation | `slot: int`（1～3） | `result`＋`state` |
+| `swap` | mutation | `slot: int`（1～3）、`pay: int?`（付費時客戶端顯示的價格）、`at: int?`（那一格任務的 `startMs`）、`seq: int` | `result`＋`state`；付費時另有 `PRICE_CHANGED`、`NOT_ENOUGH_POINTS` |
+| `buyShield` | mutation | `pay: int`、`seq: int` | `result`＋`state`（§5.8） |
+| `buyTitle` | mutation | `id: str`、`pay: int`、`seq: int` | `result`＋`state`（§5.8） |
+| `pledge` | mutation | `n: int`、`total: int`（客戶端顯示的目標）、`seq: int` | `result { n = 實收 }`＋`state`（§5.10） |
 | `prefs` | mutation | `themes: str`（逗號分隔，最多 3 個） | `result`＋`state` |
 | `title` | mutation | `id: str?`（空＝不用） | `result`＋`state`；所有人收到 `titles { u, t }` |
 | `anon` | mutation | `on: bool` | `result`＋`state` |
 | `board` | query | `board: str`、`period: str` | `board` |
 | `records` | query | — | `records` |
 | `hordeResult` | query | `id: int` | `hordeResult`；`log` 裡沒有這一場（只留最近 20 場，或預告前就取消）回 `NOT_FOUND` |
-| `exchange` | mutation | `amount: int` | `result`（含 `state`＝`paid`／`queued`／`refunded`、`coins`）＋`state` |
+| `exchange` | mutation | `amount: int`、`seq: int` | `result`（含 `state`＝`paid`／`queued`／`refunded`、`coins`）＋`state` |
 | `admin` | 依 op | `op: str`＋該 op 的欄位 | `admin` |
 
-錯誤碼（`Contract.CODE`，客戶端用 `IGUI_MQ_Code_<CODE>`）：`OK`、`PROTOCOL_MISMATCH`、`BAD_ARGS`、`IDENTITY_UNVERIFIED`、`NOT_READY`、`FORBIDDEN`、`RATE_LIMITED`、`NO_SWAPS`、`BAD_SLOT`、`BAD_THEME`、`TOO_MANY_PREFS`、`TOO_MANY_PINS`、`TITLE_LOCKED`、`EXCHANGE_OFF`、`EXCHANGE_MIN`、`EXCHANGE_DAY_LIMIT`、`NOT_ENOUGH_POINTS`、`ECONOMY_MISSING`、`BAD_BOARD`、`BAD_CONFIG`、`BAD_SEASON_LENGTH`、`TOO_SOON`、`NOT_FOUND`、`FILE_ERROR`、`INTERNAL`、`HORDE_BUSY`、`NO_SPOTS`、`CONFIG_CHANGED`。
+`seq`（花費序號，上表五個指令必填）：客戶端確認當下那份完整 state 的 `spendSeq`；規則在 §5.10「會扣積分…的指令」。`delta` 與 `records` 回覆各帶一個 `spendSeq`，說明它們屬於哪一份 state：`spendSeq` 和目前 state 不同的 `delta` 整份丟棄（較舊的是花費前的畫面；較新的代表它的 state 還在路上，而那份 state 是在這個 delta 之前建的，所以這個 delta 的變動要到下一次 delta 或下一份完整 state 才會出現在畫面上：只影響顯示，要封包亂序才會發生），`records` 只是不把 `points` 放進 state；兩者都絕不更新 `state.spendSeq`。完整 `state` 的 `spendSeq` 比目前的小時整份忽略（封包不保序，舊的不能蓋掉新的；序號在一次連線裡只會變大，重新連線會清掉 state）。
+
+錯誤碼（`Contract.CODE`，客戶端用 `IGUI_MQ_Code_<CODE>`）：`OK`、`PROTOCOL_MISMATCH`、`BAD_ARGS`、`IDENTITY_UNVERIFIED`、`NOT_READY`、`FORBIDDEN`、`RATE_LIMITED`、`NO_SWAPS`、`BAD_SLOT`、`BAD_THEME`、`TOO_MANY_PREFS`、`TOO_MANY_PINS`、`TITLE_LOCKED`、`EXCHANGE_OFF`、`EXCHANGE_MIN`、`EXCHANGE_DAY_LIMIT`、`NOT_ENOUGH_POINTS`、`ECONOMY_MISSING`、`BAD_BOARD`、`BAD_CONFIG`、`BAD_SEASON_LENGTH`、`TOO_SOON`、`NOT_FOUND`、`FILE_ERROR`、`INTERNAL`、`HORDE_BUSY`、`NO_SPOTS`、`CONFIG_CHANGED`、`PRICE_CHANGED`、`SHOP_OFF`、`SHIELD_HELD`、`SHIELD_WEEK`、`TITLE_OWNED`、`FUND_OFF`、`FUND_DAY`、`FUND_FULL`、`STALE`（花費請求的 `seq` 不是帳號現在的 `spendSeq`，或 `swap` 的 `at` 對不上：沒有執行）。
 
 ### 6.2 管理 op（`admin = true`，mutation 都寫稽核與事件記錄）
 
@@ -506,29 +530,34 @@ boards[i] = { id = "kills", cat = "combat", stat = "zombie.kills", periods = { "
 ```lua
 { v = 1, user, admin, now, dayKey, resetAt, weekKey, weekResetAt,
   points = { season, total, balance },
-  day = { quests = { … 4 個 Quest＋ptsNow }, swaps, done, sharedDone },   -- ptsNow：進行中＝基礎分 × 現在的活動倍率；完成＝got（客戶端沒有這欄就顯示 pts）
+  day = { quests = { … 4 個 Quest＋ptsNow }, swaps, paid, done, sharedDone },   -- ptsNow：進行中＝基礎分 × 現在的活動倍率；完成＝got（客戶端沒有這欄就顯示 pts）；paid：今天付費換了幾次
   week = { quests = { … 3 個，同上 }, goalPart },
   goal = { stat, target, progress, minContrib, pts, endsAt, reached } | nil,
-  streak = { days, graceUsed, week = { 7 個 "done" | "grace" | "miss" | "" }, today = 1..7（週一＝1，`Clock.weekday`；客戶端金圈標示）, next = { days, pts } | nil },
+  streak = { days, graceUsed, shield（手上的保護 0／1）, shieldLeft（這週還能買幾次）, week = { 7 個 "done" | "grace" | "shield" | "miss" | "" }, today = 1..7（週一＝1，`Clock.weekday`；客戶端金圈標示）, next = { days, pts } | nil },
   newbie = { steps = { … 5 個 bool }, pts } | nil,
   achv = { [achId] = tier }, titles = { titleId… }, titleAt = { [titleId] = ms } | nil, titleSrc = { [titleId] = src } | nil, title, prefs = { … }, anon,
   season = { no, startMs, endsAt, state },
   exchange = { available, enabled, rate, perDay, used, min, queued, hist },   -- hist：排隊中的（新的在前，at＝申請時間）接著 ex.log，合計最多 10 筆；兌換頁的「兌換紀錄」
   events = { { name, theme, mult, endsAt } },
-  hordes = { on, cur = HordeView | nil, last = HordeLast | nil },   -- §5.10；on：玩家「屍潮任務」頁要不要列出
+  hordes = { on, cur = HordeView | nil, last = HordeLast | nil,   -- §5.10；on：玩家「屍潮任務」頁要不要列出（贊助開著而且有地點、或有募集時也是 true）
+             paid = { on, pts, minPledge, rewardPct, leadMin, cap, left },   -- 贊助屍潮：on＝開著而且有地點；cap＝照目前設定一場最多發幾分；left＝今天還能開幾場
+             fund = { total, pts, n, mine, expireAt, state } | nil },    -- 募集：n＝贊助人數，mine＝我出的；別人各出多少不送。HordeView 另有 paid、sponsorN、capPts
+  spent = { { at, what, n, ref } … ≤ 10 },      -- §3.2；「積分」頁的積分紀錄
+  spendSeq,                                     -- 花費請求要帶的序號（§5.10 會扣積分的指令）；delta 與 records 也帶，但只標明屬於哪一份 state，客戶端不拿來更新這一欄
   unseen,
   pins = { … }, trk = { [achId] = { t, v } } }     -- 追蹤面板（§5.6）
 ```
 
-- `delta`：`{ day = { [i] = { prog, state, ptsNow } }, week = { [i] = { prog, state, ptsNow } }, goal = { progress, reached }, points = { … }, unseen, trk = { … }, pins = { … }, hordes = { on, cur, last } }`，只帶有變的欄位（`ptsNow` 只在完成時帶 `got`；活動開始或結束時 `Quests.watchEvents` 讓開著視窗的人收到完整 `state`）。只開追蹤面板的人不收 `goal`、`points`；`hordes` 兩種人都收。
+- `delta`：`{ day = { [i] = { prog, state, ptsNow } }, week = { [i] = { prog, state, ptsNow } }, goal = { progress, reached }, points = { … }, unseen, trk = { … }, pins = { … }, hordes = { on, cur, last }, spendSeq }`（`spendSeq`＝它屬於哪一份 state，見 §6.1），只帶有變的欄位（`ptsNow` 只在完成時帶 `got`；活動開始或結束時 `Quests.watchEvents` 讓開著視窗的人收到完整 `state`）。只開追蹤面板的人不收 `goal`、`points`；`hordes` 兩種人都收。
 - `hordes.on`：自動屍潮開著（`hordes.enabled`）、`log` 有紀錄或目前有一場（不含 `planned`）時為 true；套用設定不推 `hordes`，管理員剛打開自動屍潮時，玩家下次開視窗（`watch` 送完整 `state`）或下一次屍潮推送才看到分頁。`HordeView`（`planned` 時不給玩家）：`{ id, name, town, x, y, z, state, kinds = { { id, nameKey } }, announceAt, startMs, expireAt, endsAt, nextAt, wave, waves（波數）, size（這一波隻數，開波前 0）, left, killed（這一波）, limitMin, mine（我的擊殺）, got（我在清光的波次的擊殺價值，未套上限）, joined（到現在擊殺 ≥ 1 的人數，＝結算的參加人數）, holdUntil（開服後這個時刻前不開波）, resume（開服時打到一半的那一波，`left` 是剩下的隻數） }`。`HordeLast`：最新一筆 `log`，結束後 10 分鐘內（`Hordes.LAST_MS`；預告前就取消的不給）：`{ id, name, town, state, why, endedAt, waves, cleared, spawned, killed, pool, capped, mine, got（我拿到的積分，沒拿到為 nil） }`。
 - `titles`：`{ full = true, map = { [user] = titleId } }`（登入時，在線玩家）或 `{ u, t }`（一人換了稱號或剛登入；`t` 為 nil 表示不戴）。
 - `corpseMark`：`{ mark = { u, key, at, t, state, x, y, z, oid } }`（`marks.json` 的那一筆，§3.5）或 `{ mark = false }`（沒有或剛刪掉；不能送空表：`sendServerCommand` 把空表當成沒有參數，客戶端 `OnServerCommand` 拿到 nil，`GameServer.java:3501`、`GameClient.java:1059-1071`），只送給死者本人（`Net.toUser`）：標記改變、刪除與 `hello` 時。不走 `Sync`：`hordes` 部分只送給開著視窗或追蹤面板的人。
 - `toast`：`{ kind = "achv", id, tier, pts }`、`{ kind = "achvMany", ids = { … 最多 3 }, n }`、`{ kind = "quest", tid, target, pts }`、`{ kind = "week", tid, target, pts }`（帶 `target`：視窗關著時客戶端的任務清單是登入時的快照，跨日後查不到新任務）、`{ kind = "goal", stat, pts }`、`{ kind = "streak", days, pts }`、`{ kind = "newbie", pts }`、`{ kind = "exchange", state, coins }`、`{ kind = "season", no, rank, pts }`、`{ kind = "broadcast", who, a, id, tier, titleId }`（`who` 為匿名時是 nil；`a` 是匿名者的帳號，只在送給管理員的那份，客戶端顯示「名字（匿名）」）。
 - 屍潮通知：全服 `{ kind = "horde", ev, id, name, town, … }`，`ev`：`soon`（`startMs`、`kinds = { { id, nameKey } }`、`waves`，不帶隻數）、`open`（同 `soon`；預告 0 分或手動開始）、`spawn`（每一波：`wave`、`waves`、`size`、`endsAt`、`limitMin`）、`resume`（開服時打到一半的那一波接著打，`left > 0` 才送：`wave`、`waves`、`left`＝剩下的隻數、`endsAt`、`limitMin`）、`rest`（一波清光、還有下一波：`wave`＝清光的那一波、`waves`、`nextAt`）、`death`（屍潮中有人死，2 秒內的合成一則：`names`＝不匿名的帳號、`anon`＝匿名人數、`wave`、`waves`）、`win`（`waves`、`spawned`、`killed`、`pool`、`capped`、`n`＝參加人數）、`mvp`（成功且有 MVP 時接在 `win` 後：`names`、`anon`、`kills`＝最高擊殺）、`fail`（`why`、`wave`＝失敗的那一波、`waves`、`cleared`、`pool`＝清光的波次發出的、`capped`）、`cancel`（只在預告過的場次）。個人 `{ kind = "horde", ev = "remind", id, name, town, startMs }`（開始前 2 分，地點 30 格內的人）與 `{ kind = "hordePaid", id, name, town, pts, kills, capped }`（`kills`＝清光的波次裡的擊殺 `gotKills`，就是這筆積分算的那些；失敗那一波的擊殺只在 `log.kills`）。客戶端把 `startMs` 寫成「N 分鐘後」（至少 1），不寫時刻：玩家會當成遊戲內時間。
+- 贊助屍潮的通知（§5.10）：全服 `{ kind = "horde", ev = "fund", total, pts, expireAt }`（第一筆贊助建立募集時；一人出滿也送）；贊助場的 `soon`／`open` 多帶 `sponsors = { names = { 不匿名的帳號 }, anon = 匿名人數 }` 與 `capPts`（這一場的積分上限）；個人 `{ kind = "fundRefund", pts, why }`（`why`：`expired` 到期沒湊滿、`spots`／`file` 湊滿了但開不成、`ended` 贊助場在殭屍出現前結束；只送給在線的人，不在線的在「積分紀錄」看到退回那一筆）。
 - `hordeClear`：`{ ids = { onlineId … } }`，每場一次：失敗時還在場上而被伺服器清掉（`Hordes.clearZombie`）的屍潮殭屍，送給位置在這些殭屍外框 120 格內的玩家（客戶端只拿得到 96 格內的殭屍，42.21.0 `GameServer.java:2808-2809`、`UdpConnection.java:224-226`；onlineId 是會繞回的 short 計數，`IsoObjectID.java:48-54`，遠方客戶端可能有別隻同 id 的殭屍）。伺服器的 `removeFromWorld` 不送引擎的刪除封包，客戶端照引擎 `ZombieDeleteOnClient` 的做法（`ZombieDeleteOnClientPacket.java:44-47`）自己移除這些 id 的殭屍（自己擁有的也移除）；不送的話客戶端要等遠端殭屍逾時（`IsoZombie.java:3294-3295`）才清掉，200 隻圍著玩家時 15～91 秒。只在專用伺服器送：單機只有一個世界，`clearZombie` 已經移除；而且單機每隻殭屍的 id 都是 −1，送了客戶端會把 cell 裡每一隻殭屍都刪掉。
 - `board`：`{ board, period, status = "ok", season = { no, endsAt }, rows = { { r, n, a, v, t, d } … ≤ 50 }, me = { r, v, d } | nil, count }`。`n` 是名字（匿名時 nil，客戶端顯示「匿名倖存者」），`a` 是匿名那一列的帳號（只送給管理員，客戶端顯示「名字（匿名）」），`t` 稱號 id（匿名那一列只送給管理員：同一個稱號在頭上與聊天認得出是誰），`d` 名次變化（正＝上升，nil＝新上榜）。
-- `records`：`{ rows = { { stat, season, life, total } … }, points = { season, total, balance }, hordes = { { id, name, town, state, why, endedAt, waves, cleared, spawned, killed, mine, got, joined } … ≤ 10 } }`（`hordes`：`Hordes.recent`，新的在前）。客戶端不列沒有定義的統計（pack 移除後留下的 id）。
+- `records`：`{ rows = { { stat, season, life, total } … }, points = { season, total, balance }, spendSeq, hordes = { { id, name, town, state, why, endedAt, waves, cleared, spawned, killed, mine, got, joined } … ≤ 10 } }`（`hordes`：`Hordes.recent`，新的在前）。客戶端不列沒有定義的統計（pack 移除後留下的 id）。
 - `hordeResult`（`Hordes.result`）：`{ id, name, town, state, why, spawnAt, endedAt, waves, cleared, spawned, killed, pool, capped, joined, me, rows = { { r, n, anon, a, k, p, mvp, dead } … }, deaths = { { n, anon, a, wave } … }, push }`。`rows` 依擊殺排（`r` 名次、`k` 擊殺、`p` 拿到的積分、`mvp`／`dead` 只在是的時候帶 true），最多 100 列，自己在 100 名外時多附自己那一列；`me`＝自己在 `rows` 的第幾列（沒有擊殺是 nil）。匿名的列與死亡沒有 `n`、帶 `anon = true`，`a`（帳號）只在送給管理員的那份。`push = true` 只在結束時推給在場的人那份（§5.10 `finish`），查詢回的不帶。
 - `admin`：`{ op, ok, code, … }`。
 
@@ -544,9 +573,10 @@ boards[i] = { id = "kills", cat = "combat", stat = "zombie.kills", periods = { "
 
 ```lua
 { days, at,                                   -- at：快照時間
-  rows = { { day, active, fresh, dGiven, dDone, dPlayers, wGiven, wDone, swaps, pts, coins, tiers } },  -- days 列，舊的在前，最後一列是今天；swaps、pts 是當天合計
+  rows = { { day, active, fresh, dGiven, dDone, dPlayers, wGiven, wDone, swaps, pts, coins, tiers, spent } },  -- days 列，舊的在前，最後一列是今天；swaps、pts 是當天合計
   sum = { fresh, dGiven, dDone, dPlayers, wGiven, wDone, coins, tiers, swaps, pts,
           swapsBy = { tid = n }, ptsBy = { kind = n },
+          spent, spentBy = { what = n },      -- 用積分買東西花掉的（§5.5 `Points.pay`；what：swap／shield／title／horde，贊助退回已從 horde 扣）
           dRate,                              -- dDone ÷ (dGiven − swaps)，分母 0 時 nil
           wRate },                            -- 只算已結束的週（7 天窗 1 週、30 天窗 3 週）的 wDone ÷ wGiven
   snap = { active, none, tierSum, streak7, exPlayers,   -- 窗內有活動的人數、其中沒有任何成就的、已解鎖級數合計、連續 ≥ 7 天、窗內兌換過的人
@@ -558,7 +588,7 @@ boards[i] = { id = "kills", cat = "combat", stat = "zombie.kills", periods = { "
 
 ```lua
 { at, day, days = 30,
-  daily = { { day, active, fresh, dGiven, dDone, dPlayers, wGiven, wDone, coins, tiers, swaps = { tid = n }, pts = { kind = n } } },
+  daily = { { day, active, fresh, dGiven, dDone, dPlayers, wGiven, wDone, coins, tiers, swaps = { tid = n }, pts = { kind = n }, spent = { what = n } } },
   sum = { … 同 report.get },
   players = { active7, active30, noAchv, tierSum, streak7, exchanged },
   achv = { [achId] = { n1, n2, … } },
@@ -571,7 +601,8 @@ boards[i] = { id = "kills", cat = "combat", stat = "zombie.kills", periods = { "
 - 接 UI 框架：`require "MinidoracatUI/V1"`，`MIN_REV = 22`，逐項探 `CAPABILITIES`（`window`、`controls`、`navList`、`scrollPanel`、`table`、`virtualList`、`tileGrid`、`toast`、`dock`、`dialog`、`dropdown`、`textWrap`）。缺框架或版本不足時只用 `HaloTextHelper` 顯示通知、視窗不開，不 error。
 - Dock：`{ id = "quest", order = 70, icon = "media/ui/MinidoracatQuest/dock_trophy.png", iconKey = …, bind = "MinidoracatQuest_Toggle", getBadge = unseen }`。
 - 更新概要（UI 框架 rev 24 `WhatsNew`）：`Entry.lua` 檔案載入時探測 `API_MAJOR == 1`、`API_REVISION >= 24`、`CAPABILITIES.whatsNew` 後呼叫 `WhatsNew.register({ modId, since, name = "IGUI_MQ_Name", text = "IGUI_MQ_WhatsNew" })`，四欄字面值、一欄一行（`release_train.py ready` 用 regex 讀）；有新概要的版本才改 `since`。
-- 視窗：左側 NavList `Window.nav`（每日任務、每週任務、屍潮任務（只在 `state.hordes.on`）、成就、排行榜、我的紀錄、兌換（只在 `state.exchange` 可兌換或 `hist` 有資料時，spec 的 `shown`）；分隔後：設定）；管理（只有 `state.admin`）是另一個 NavList `Window.navAdmin`，貼在左欄底部（`Window.placeNav`：y＝max(`nav` 底＋`ADMIN_GAP` 12 px, 視窗高－自身高－6)，視窗版面或列出的頁面一變就重放；UI 框架的 NavList 沒有置底，所以分成兩個）。非管理員時隱藏。兩個清單只有一個有選取：`Window.select` 把頁面 id 設給擁有它的清單、另一個清掉（`setSelected(nil, true)`），兩個清單的 onSelect 都走 `Window.select`。右側內容；不透明視窗。列出的頁面一變（`Window.syncNav` 比對列出的頁面 id）就重建兩個 NavList，目前那頁不再列出時回到每日任務。預設大小＝內容寬（螢幕寬一半，夾在 640～1000 px）＋NavList 寬、高為螢幕高 82 %（460～1000 px），都不超過螢幕減 40 px（`Window.defaultSize`）；玩家拖過的大小由 ISLayoutManager 記住，大小和預設不同時標題列出現「重設大小」，按下回到預設大小並置中。
+- 視窗：左側 NavList `Window.nav`（每日任務、每週任務、屍潮任務（只在 `state.hordes.on`）、成就、排行榜、我的紀錄、積分（頁 id 仍是 `exchange`；任何一項積分用途開著、能兌換、或有兌換／花費紀錄時，spec 的 `shown`；服主 2026-11-12 把「兌換」頁改名並加內容）；分隔後：設定）；管理（只有 `state.admin`）是另一個 NavList `Window.navAdmin`，貼在左欄底部（`Window.placeNav`：y＝max(`nav` 底＋`ADMIN_GAP` 12 px, 視窗高－自身高－6)，視窗版面或列出的頁面一變就重放；UI 框架的 NavList 沒有置底，所以分成兩個）。非管理員時隱藏。兩個清單只有一個有選取：`Window.select` 把頁面 id 設給擁有它的清單、另一個清掉（`setSelected(nil, true)`），兩個清單的 onSelect 都走 `Window.select`。右側內容；不透明視窗。列出的頁面一變（`Window.syncNav` 比對列出的頁面 id）就重建兩個 NavList，目前那頁不再列出時回到每日任務。預設大小＝內容寬（螢幕寬一半，夾在 640～1000 px）＋NavList 寬、高為螢幕高 82 %（460～1000 px），都不超過螢幕減 40 px（`Window.defaultSize`）；玩家拖過的大小由 ISLayoutManager 記住，大小和預設不同時標題列出現「重設大小」，按下回到預設大小並置中。
+- 積分的用途（設計稿 `temp/plan-points-sinks-1112`）：價格與開關讀 `Client.defs().cfg.shop`、`state.hordes.paid`。每個花積分的動作先開確認框（扣多少、餘額前後）並送出畫面上的價格；積分不夠時不放按鈕，寫「還差 N 積分」。每日任務卡：免費次數用完後按鈕寫價格。連續天數區塊：「保護 1 天」晶片、`shield` 那天用 `lock` 圖示、「連續保護」卡。「積分」頁（`PageExchange.lua`）：餘額卡、「積分用途」清單（開著的才列，跳到每日任務／屍潮任務，或開兌換視窗）、「積分稱號」清單（`spend_1`～`spend_4` 與本季的 `s<no>_patron`；已有的可按「使用」）、「積分紀錄」（`state.exchange.hist` 與 `state.spent` 照時間合併，最多 10 筆）。屍潮任務頁的「贊助屍潮」區塊照 `state.hordes.fund`／`paid` 畫四個狀態，金額在對話框填。
 - 導覽的鍵盤與手把：NavList 到邊時 `onFocusKey` 回 false，Focus 引擎對鍵盤就停在原地，所以 `Window.lua` 只在這兩個實例上包 `onFocusKey`：`nav` 最後一列按下 → `Focus.focusControl(navAdmin)` 並停在它的第一列，`navAdmin` 第一列按上 → 回到 `nav` 最後一列；手把方向也先問同一個 `onFocusKey`（`Focus.onJoypadDir`）。`navAdmin` 隱藏（非管理員）時照原本行為。
 - 頁面資料來源：每日／每週／成就／我的紀錄（積分卡）／兌換用 `state`；我的紀錄表格送 `records`；排行榜送 `board`（狀態機 loading → ready／empty／error，5 秒逾時）；設定頁送 `prefs`／`title`／`anon`。兌換頁的「兌換倖存幣...」開兌換視窗（`ExchangeDialog`），使用者 2026-10-24 要求兌換與兌換紀錄從我的紀錄分出來。屍潮任務頁（`PageHordes.lua`，設計稿 r12）：上方是每日頁同一個屍潮橫幅（沒有進行中的場次時一行說明），接著四格累計（`horde.joined`／`wins`／`kills`／`mvp`，讀 `records` 的統計），再來是 `records.hordes` 的清單框（時間、地點、結果、我的擊殺、得分）；打開時送 `records`，開著時 `state.hordes.last` 換成比清單新的場次就再送一次。清單裡 `joined > 0` 的列有「查看結算」，送 `hordeResult { id }`，回覆立刻打開結算視窗；結束時伺服器推的那份（`push = true`，只給在場的人）等周圍安全才打開（使用者 2026-10-29 裁定）。成就頁的「屍潮」類跟這一頁同一個條件（`PageHordes.shown()`，即 `state.hordes.on`）：沒開過屍潮的伺服器拿不到，卡片、分類按鈕與「已解鎖／總數」都不算它（`PageAchievements.visible`；使用者 2026-10-26 照建議）；統計做不到的成就也一樣（`Catalog.statOn`：多人伺服器 `SleepAllowed` 關閉時的「一夜好眠」與「露宿者」，客戶端讀連線時拿到的伺服器選項；服主 2026-10-29），但玩家已經解鎖的照列（`visible(defs, state.achv)`：伺服器後來才關掉睡覺時，卡片不見會被當成進度被收回）；catalog 不動，通知與管理頁照樣找得到。新手卡也只列 `Catalog.statOn` 為真的步驟，計數寫「完成／列出的步驟數」。「收屍人」的說明在多人 `NoFire` 時改用 `IGUI_MQ_AchDesc_corpses_bury`（`Draw.achDesc`；服主 2026-10-29）。
 - 設定頁最後一段「各主題的任務」（預設收起）：`Client.questList()` 從 shared Catalog＋`catalog` 推送算出啟用的每日與每週樣板、乘過難度的目標範圍（和 `Quests` 的 `rollTarget` 同一捨入）與積分，不另送資料：預設值本來就在每個客戶端，`catalog.overrides` 也送給所有玩家，伺服器擋了也藏不住。`state.admin` 或 `quests.playerList` 為 true 才列出；設定關著時管理員看到的那段附註「只有管理員看得到」。套用設定後伺服器重送 `catalog`，清單跟著更新。
@@ -580,6 +611,7 @@ boards[i] = { id = "kills", cat = "combat", stat = "zombie.kills", periods = { "
 - 稱號（`Titles.lua`）：`titles` 推送存成 `byUser`。聊天：檔案載入時包住 `ISChat.addLineInChat`（原版在 `OnGameStart` 才把它掛到 `OnAddMessage`，`ISChat.lua:1176`），作者戴著稱號時把訊息換成代理，`getTextWithPrefix()` 在 `[作者]` 後面插入 ` <SPACE> <PUSHRGB:…> 「稱號」 <POPRGB> `（稱號裡的 `<`、`>` 先轉成 `&lt;`、`&gt;`），其他方法轉給原訊息。頭上：每 500 ms 從 `getOnlinePlayers()` 挑 40 格內、有稱號、活著、不在車上的玩家；`OnPreUIDraw` 每幀照原版規則（`IsoGameCharacter.renderlast`／`updateUserName`）檢查後在名字上方一行畫字（黑色陰影＋金色）。兩者都只在多人、伺服器開關 `titles.head`／`titles.chat` 與玩家 MOD 選項都開時生效。
 - 稱號清單（設計稿 r13，2026-10-27）：`Draw.titleSources(achs, cfg, no)` 列出每個稱號與條件（成就各級、連續里程碑、新手、本季名次與各榜第一；各榜第一照 `Seasons` 結算，排除 `@points` 榜與沒有賽季期的榜），每列 `{ id, name, group, cond, ach?, tier?, hidden?, hint?, off?, custom?, alt? }`：`custom` 是管理員換掉預設文字、`alt` 是被換掉的預設 id（沒有 `titleSrc` 的舊稱號靠它查條件）。條件文字由 `Draw.achTitleCond(a, tier)`、`streakTitleCond(days, cfg)`、`newbieTitleCond(cfg)` 組。`Draw.seasonTitle(id, cfg)` 解析 `s<季數>_<kind>`，榜單已不存在（拿掉的 MOD）時回 nil。成就的稱號照原始覆寫整份取代預設（`Client.defs` 讀 `catalog.overrides.achievements`，不經 `C.merge` 逐鍵合併；和伺服器 `Config.SCHEMA` 一致）。管理「稱號」分頁（`AdminTitles.lua`，排在「成就」後面，只能看）傳管理員的草稿視圖（`AdminModel.achievements`，含停用、自訂與還沒套用的修改，門檻乘上草稿的 `difficulty.mult`；其他 MOD 的成就來自 `Client.defs()`，乘的是已套用的倍率），依分類分組，停用的變灰加「（停用）」，隱藏成就多一行玩家看到的提示，已結算的前幾季只寫一行（審核期間 `season.reviewNo` 那季還沒發，不算）。玩家「我的紀錄」在稱號選單下面列「我的稱號」：只列已取得的（服主 2026-10-27 選），條件先看 `state.titleSrc`（`a:<achId>:<tier>` 找 `Client.defs().allAch` 的那一級、`streak:<days>`、`newbie`；管理員改名幾次都查得到，服主 2026-10-27），沒有紀錄時用 `titleSources`：同一個 id 有幾個來源時（管理員可以填重複的文字）先用玩家已達成的（`state.achv[ach] >= tier`），其次是其他非隱藏的來源，沒解鎖的隱藏成就不提供條件；都找不到時寫「來源已移除」。`state.titleAt` 新的在前，沒有時間的寫「早期取得」排最後（目錄順序）。
 - 屍潮（伺服器見 §5.10）：管理「屍潮」分頁（`AdminHordes.lua`，排在「城鎮」後面）的狀態來自 `horde.status`，切進分頁、每次操作後與按「重新整理」時讀；設定全走變更草稿與底部「套用」。段落順序（方案制設計稿 `temp/plan-presets-1028/`）：開頭一段說明（`HordeNote`，沒有頁標題）；目前狀態（狀態列、開一場列、最近結果）；地點；屍潮的屍體（計畫 `quest-horde-restart-corpses-1101`，key `hc`：說明只清本 MOD 為屍潮生成的殭屍屍體、玩家與一般殭屍的屍體不動、物品一起清掉，下面「最多留幾具（0＝不清）」`hordes.corpses.max` 與「打完後多久清掉其餘的（分鐘）」`hordes.corpses.afterMin`）；時段；屍潮方案；波次 · <方案名>；種類 · <方案名>；獎勵 · <方案名>。狀態列寫第 W／N 波、已清、方案名稱（`HordeCurPlan` 的「方案「%6」」）、休息時「M:SS 後下一波」（`nextAt − Client.serverNow()`，用伺服器時鐘，倒數以這次排版為準）；最近結果（清光 C／N 波、發出的分數，達上限另外標）載入完才畫標題，讀取中是清單框的「讀取中」占位；「中止／取消這一場」固定在那一列的列尾。地點列有「地圖」鈕（`Draw.showOnMap`，`Draw.mapAllowed()` 為假時不顯示）；移除地點先 `A.ask({ danger = true })`（「移除後，要回到現場才能再加回來。」）；「用我現在的位置新增」是一般按鈕，地點名稱欄和其他欄位同寬。時段是清單框，每段一筆三行：開始～結束（HH:MM）與每小時機率；「方案」下拉（key `w:p<i>`，只列草稿裡看得到的方案）、「預告」（`hordes.windows.<i>.leadMin`）與「等人到場」（`.waitMin`）分鐘；星期一～日 7 顆切換鈕與移除。`hordes.windows` 整組寫進草稿（欄位是 `.N.from／.to／.chance／.leadMin／.waitMin`，方案下拉與星期鈕直接改 `.N.preset`、`.N.days`）；至少 1 段（只剩 1 段時移除停用）、最多 8 段（`AM.MAX_WINDOWS`，新增照 `Catalog.DEFAULTS.hordes.windows[1]`）；某段沒選星期時那段標錯，頁面的 `check` 擋住「套用」。時段下面的全域表單是「每天最多幾場（所有時段合計）」與「伺服器開機後等待（分鐘）」（`hordes.resumeMin`，下面一段說明 `HordeResumeNote`：重開或當機後屍潮從上次存檔接著打，這一場在等待期間不開波）。屍潮方案段：說明「每個方案是一組波次、種類與獎勵…」，一列「編輯方案」下拉（`pre:pick`）、「複製成新方案」（`pre:copy`）、「刪除方案」（`pre:del`），「方案名稱」欄（`hordes.presets.<id>.name`，最多 32 字，`AM.MAX_NAME`；Kahlua 的 `#` 以 UTF-16 字元計），再一行「用到這個方案：<時段>」或「沒有時段用這個方案」。目前編輯的方案存在 `P.pages.hordes.preset`（頁面狀態，不是設定；預設 `"default"`），下面三段的路徑都是 `hordes.presets.<這個 id>.…`。複製：新 id 取 `p2`～`p8` 最小的空號（符合 §3.4 的方案 id 規則），名稱「<原名> 2」、撞名往上加，複製來源合併後的全部欄位，切到新方案並進草稿；滿 8 個（`Contract.LIMIT.MAX_PRESETS`）時按鈕停用、旁邊用警示色寫「最多 8 個方案」。刪除：「預設」的按鈕停用；其他先 `A.ask({ danger = true })`，標題「刪除方案「<名>」」，內文列出會改用「預設」的時段與「按下方「套用」後才生效。」，按鈕「刪除方案」／「保留」；確定後那些時段的 `preset` 改 `"default"`（windows 整組進草稿）、方案本身 `del`，只在草稿裡的方案直接從草稿拿掉，頁面切回「預設」；草稿裡刪掉的方案，名稱退回已套用的值，所以時段預覽的「之前」欄寫名稱、不寫 id。頁面 `check` 另擋：非預設方案名稱空白、所有方案的顯示名稱重複（`name` 為 `""` 的預設方案顯示翻譯的「預設」），訊息寫怎麼改；伺服器的 `validateAll` 也擋（`presetName`／`presetSame`，§3.4），頁面這一層是立即提示。名稱改好後錯誤記號會消失（`A.textField` 重新填值、`A.collect` 收值時都清掉記號）。波次也是清單框：基本隻數、每多 1 人 %、1 人與 4 人的預估（`Catalog.hordeWaveSize`），`.waves` 整組；至少 1 波、最多 10 波（`AM.MAX_WAVES`），新增一波複製最後一列，說明放在「新增一波」那一列下面。新增、移除、方案下拉與星期鈕先把這頁打的值收進草稿（有欄位不合法就不動），清單改完若和套用中的相同就從草稿拿掉。下面是 `.restSec`、`.limitMin`、`.maxAlive`，「場上同時最多」下面列 `horde.status.cull`（伺服器讀到的沙盒 `ZombiesCountBeforeDelete`，讀不到就不列）。時段、波次、方案加滿時「最多 N …」用警示色。種類是清單框：權重大於 0 的種類一列（名稱、權重、占比、每隻積分、耐打（倍）、移除；占比＝權重 ÷ 已登記且權重大於 0 的種類權重總和；耐打是 `.hp.<kind>`，範圍鍵 `hordeHp = { 0.1, 10 }`、可小數，沒設時顯示 1；`AM.check` 對非整數、上限小於 1000 的範圍（`hordeHp`、成長倍率、活動倍率等）把「,」當小數點，`0,5`＝0.5，整數欄位的「,」照舊當千分位刪掉；移除內建種類（`base().kinds` 有的）在任何方案都寫 0、積分不動，其他種類的鍵都刪、送 `del`，只在草稿裡的（剛加入、還沒套用）從草稿拿掉，不送空變更；預設以外的方案一定完整，沒有可以退回的預設值），其餘已登記的種類在框下的下拉選單（選了草稿寫權重 10；沒有自己的積分時寫入一般殭屍那一列目前顯示的積分：欄位上打的值合法就用它，否則草稿的），套用的設定裡有、`horde.status` 沒列出的鍵標「未安裝」、可移除（`del`）；權重寫在 `.kinds.<id>`、積分寫在 `.points.<id>`，維持預設值的欄位不寫成變更。說明多一句「耐打 1 倍照伺服器沙盒的殭屍韌性；2 倍要打兩倍的傷害才會倒。」（「韌性」是原版沙盒選項 `Sandbox_ZToughness` 的繁中名）。獎勵段是「單場積分上限（分）」（`.cap`）、說明與估算框：框內第一行是「「%1」方案估算（每一波都清光）」，下面 1／4／8 人、每一波都清光時發多少（`Catalog.hordeWaveSize`＋`Catalog.hordeMix`＋每隻積分，超過上限的寫上限並標出）。波次預估、占比與估算照欄位上打的值算（`live(pg, key, fallback)`：值合法、而且是這次排版排出、看得到的欄位才用打的值；上次排版沒排出而隱藏的舊欄位（例如剛移除的種類列）不算，改用草稿值），欄位一改就重排（TextField `onChange`）。沒有自己積分的種類（其他 MOD 加的），積分欄位還是繼承來的值時，估算跟著一般殭屍欄位上打的積分走（伺服器發的就是 `points[種類] or points.vanilla`）。確認畫面：時段、波次各寫成一行文字（`A.hordeValue`；時段含方案名稱、預告與等人分鐘）；方案路徑的列寫「方案「<名>」：<欄位標籤>」（`A.fLabel` 對 `hordes.presets.<id>.<欄位>` 用 `F_hordes_<欄位>` 的標籤），整個方案的 set／del 寫「新增方案「<名>」」「刪除方案「<名>」」；權重、積分與耐打列寫出種類名稱。伺服器回的 `why`（`preset`、`presets`、`presetName`、`presetSame`、`presetPart`）由 `A.whyText` 讀 `IGUI_MQ_Admin_Why_<why>`，字串沒有參數、說法對檔案與管理頁都通（大多來自手改 `config.json`），路徑由 `BAD_CONFIG`／`FileBad` 的 `pathLabel` 顯示。`horde.now`／`horde.stop` 先確認、按下就生效（像限時活動）。開一場那一列：「方案」下拉（`now:pre`）只列**已套用**的方案（`AM.get({ overrides, defaults }, …)` 合併，不含草稿；理由同下面的地點），預設選「預設」；「預告」（`now:lead`）與「等人到場」（`now:wait`）初值是 `Catalog.DEFAULTS.hordes.windows[1]` 的 15／60，管理員改過就保留，用 `AM.check` 的 `hordeLead`／`hordeWait` 檢查，不合法時標紅、顯示範圍、不送出；送 `horde.now { lead, wait, preset }`，確認文字寫方案名稱（例：「要用「%1」方案在隨機地點開一場屍潮嗎？玩家現在收到預告，%2 分鐘後開始。」），預告 0 時改成現在開始；套用中的設定沒有地點、地點只在草稿裡時，底列說先按「套用」、不確認也不送（伺服器只看套用的設定，會回 `NO_SPOTS`「請先新增地點」，清單卻看得到剛加的地點；2026-10-26 試玩按了三次）。點「自動屍潮」的文字也會切換開關。`delta.hordes` 走通用的整份取代。`HordeMap.lua`：裝了小地圖才作用，地點前後左右各 10 格一塊區域加一個標記，資料變了才重建、其餘時候回同一張表；檔案載入時與 `OnGameStart` 各試一次註冊。
+- 積分用途的管理頁（設計稿 `temp/plan-points-sinks-1112`）：「積分」分頁（tab id 仍是 `exchange`）在兌換設定下面多一段「積分用途」（`AdminPages.layoutUses`）：換任務、連續保護、積分稱號各一個開關與價格／次數欄（`shop.*`，範圍在 `AdminModel.RANGE`），稱號價格一個稱號一列（`shop.titles.list.<id>`）、本季限定 0＝不賣；「屍潮」分頁多一段「贊助屍潮」（`AdminHordes.layoutPaid`，`hordes.paid.*`；方案下拉只列已套用的方案，刪掉被它用的方案時確認框說明會改用「預設」）與目前狀態下的募集狀態行（`horde.status` 的 `fund`／`paid`：沒有募集、募集中、已湊滿各一句，都帶今天贊助場數）；「報表」多一行花掉的積分（`report.get` 的 `spent`／`spentBy`，四個用途各一個數字）；「稱號」分頁多一組「積分稱號」（`Draw.titleSources` 的 `group = "shop"`，價格讀草稿：`AdminTitles` 逐鍵讀 `shop.titles.list.<id>`，改了還沒套用也看得到）。
 - 屍潮的玩家介面（多波改版，設計稿 `temp/plan-hordes-1027/`；結算、人數與收起 `temp/plan-horde-result-1029/`）：追蹤面板最上面一列是屍潮（預告、等人到場、進行中、波與波之間的休息），不算 5 個追蹤名額，沒有追蹤項目時有屍潮也顯示，倒數只在文字變了才重排。第一行最右邊固定一個 ✕（點擊範圍 `p.hideHit`，停在上面變 `errorText` 色並提示「收起這一場」），按下 `C.setHordeHidden(id)`：只收起這一場，只記在客戶端記憶體，重新登入或下一場（id 不同）會再出現；收起時同一場的全服屍潮通知（kind `horde`）在 `Entry.onToast` 不顯示，`ev = "remind"`、`hordePaid`、結算照常（使用者 2026-10-29）。倒數都寫出是什麼的倒數：預告「4:29 後開始」、等人「等人 52:10」（`IGUI_MQ_Horde_WaitLeft`）、進行中「剩 52:10」、休息「0:24 後下一波」；超過一波時名稱是「第 W／N 波 · 地點」（休息中「第 W／N 波清光 · 地點」），預告不加（`Draw.hordeName`）；追蹤列的地點照設計稿只寫地點名、不寫城鎮（`Draw.hordeName(h, true)`：帶城鎮時前綴與倒數把地點擠掉，`quest-hui-en-1027a`），橫幅與通知帶城鎮。第二行先寫座標（「x, y · 開始時 30 格內有人就出現」「x, y · 有人走進 30 格內就開始」），長的語言截斷時切掉的是規則、不是座標（harness 檢查 16 語都以 `%1, %2` 開頭）；進行中先排「N 人參加 · 已清 n／這一波隻數」（`IGUI_MQ_Horde_HudActive`，N＝`cur.joined`）與地圖按鈕，剩下的寬度給進度條（不足 24 px 不畫；連這段字都放不下時從左邊截字、不畫進度條）；休息時「N 後下一波」放在第二行開頭、後面寫下一波會從外圍出現（第一行留給名稱：英文第一行放不下「Wave 2/3 cleared」加地點加倒數）。預告、等人、進行中、休息時第二行右邊都有「地圖」按鈕（`Draw.HORDE_MAP`；停在上面顯示「在地圖上顯示」）：`Draw.showOnMap(0, x, y)` 開原版世界地圖、中心在地點（`ISWorldMap.ShowWorldMap(playerNum, x, y, 16)`，`ISWorldMap.lua:1500`；小地圖包住它，所以屍潮標記也看得到）；`Draw.mapAllowed()`（`ISWorldMap.IsAllowed()`，`:1491`：教學模式或沙盒關掉世界地圖時為 false）為 false 就不畫；它的點擊範圍是 `p.mapHit`，不在取消追蹤的 `p.hits` 裡。有待開的結算（`HordeResult.pending`）而且沒有屍潮列時，追蹤面板改顯示結算等待列：chip（清光用 success 色）、「已清光 · 地點」／「失敗 · 地點」、右邊「結算」按鈕（立刻打開）、第二行「周圍 20 格沒有殭屍後自動打開」。每日頁在限時活動下面放屍潮橫幅（`PageDaily.hordeBlock`／`hordeBanner`，屍潮任務頁同一個）：預告、等人到場、進行中、休息，結束後 10 分鐘內的成功／失敗／取消；這頁 30 秒才重畫，所以剩餘時間以分鐘計。預告寫可能出現的種類、座標與 30 格規則，右邊「N 後開始」（`IGUI_MQ_Horde_StartsIn`，和追蹤面板同一個鍵）；等人與進行中的標題帶波次，右邊等人「等人 N」（到 `expireAt`）、進行中「剩 N」（到 `endsAt`）；進行中寫已清、這一波隻數與我的擊殺，不寫總獎勵；休息寫下一波與地點、右邊「N 後下一波」；成功寫清光幾波、我的擊殺與得分，失敗寫哪一波、原因、清光的波次照發多少，超過一場上限時加一句「每個人照比例縮小」。預告、等人、進行中、休息時橫幅右下角有「地圖」按鈕（頁面 pool 的按鈕 `hordeMap`），另有一顆「從追蹤面板收起／在追蹤面板顯示」（pool 的按鈕 `hordeHud`，切換 `C.hordeHidden`），鍵盤與手把都按得到。小地圖標記的標籤用 `PageDaily.hordeBanner` 的標題（含狀態與波次），沒有時退回 `Draw.hordePlace(h)`。屍潮任務頁清單的結果寫波次：「清光 3／3 波」、多波失敗「失敗：第 3 波時間到（清光 2 波）」、「已取消」；結果欄放不下時換行、那一列跟著變高（ES 的多波失敗原本截掉清光波數，`quest-hui-es-1027b`）；`C.records` 是 nil（讀取中或失敗）時不畫「最近的屍潮」那段。結算視窗（`HordeResult.lua`）：`receive(s)` 收到 `push` 的（結束時推給在場的人）放進 pending，每秒 `safe(p)`（`getCell():getZombieList()` 20 格內沒有 `not isDead()` 的殭屍）連續 3 次才自動打開，超過 10 分鐘或玩家死亡就丟掉。框架 Window 顯示時會接手鍵盤焦點與手把（`Focus.onFocus`、`Focus.takeJoypad`），所以自動打開分三種：玩家在用手把（`getJoypadData(0)` 有值）就改跳一則通知（`IGUI_MQ_Horde_ResultTitle`＋結果與地點）並丟掉 pending；Quest 主視窗開著，或另一個框架視窗是作用中的焦點 root（`UI.Focus.activeRoot`）而且還在畫面上，就先不開、每秒再看（追蹤面板的「結算」照常可按，10 分鐘照常過期）；都沒有才打開（審查 2026-10-29 第 1 輪）。追蹤面板的「結算」與屍潮頁「查看結算」（沒有 `push`）是玩家自己按的，立刻打開，照框架行為接手手把、按 B 關。視窗用 `UI.Window`（照 `ExchangeDialog`，同時只開一個），Esc（視窗拿到按鍵時）、手把 B 與「關閉」關掉：`onEscape` 直接關窗並回 true（手把 B 也先問它，回 true 框架就不再關 root，`Focus.lua:1101-1108`）；Esc 實體還按著時另外 `GameKeyboard.eatKeyPress(Esc)`，引擎連放開一起吞（`GameKeyboard.java:37-41,71-77`，框架 `settle` 同一個做法），放開不會漏給遊戲開暫停選單。引擎吞掉的放開不會派給 UI，`Focus.onKeyPress` 在 `onEscape` 回 true 後記進框架帳本的 Esc（`Focus.eat`，`Focus.lua:963-965`）就沒人清；一直可見的 Dock 會拿帳本回答下一次 Esc，遊戲收不到、暫停選單開不了（E2E `quest-hres-1029c`）。所以吃掉時記旗標，下一個 tick 由 `HordeResult.settleEsc` 呼叫 `UI.Focus.release`＋`UI.Focus.consumed` 收尾（`Focus.lua:96-107`，同一次放開會做的事）。不等放開事件再關：放開由上往下問 `isKeyConsumed`，點過的 Dock 在上面會先答共用帳本把它吃掉（`UIManager.java:1468-1476`、`Dock.lua:1017-1018`）；手把 B 時 Esc 沒按著就不吞、也不收尾帳本，否則會吞掉玩家下一次的 Esc（審查第 2 輪）。死亡名單最多列 10 個名字，其餘寫「+N」；視窗寬跟字高走（`R.width()`），高度與位置夾在螢幕內，螢幕太矮時排名捲動區少顯示幾列（至少 3 列）。要框架的 `window`、`controls`、`scrollPanel`，缺就改成一則通知；查詢失敗 `NOT_FOUND` 顯示 `IGUI_MQ_Horde_ResultGone`，其他照錯誤碼文字。匿名的列顯示 `IGUI_MQ_UI_Anonymous`，管理員看到 `IGUI_MQ_UI_AnonReal`（名字（匿名））。通知：預告與開始（附波數）、開始前 2 分鐘提醒、每波出現（第 W／N 波、隻數、時限）、休息（下一波與倒數）、屍潮中死亡（2 秒內合成一則，1 人與多人不同標題，匿名的人一人寫一個「匿名倖存者」（`IGUI_MQ_UI_Anonymous`），管理員也一樣）、成功（清光幾波、隻數、人數、發出的總分）、MVP（接在成功後、金色框，同分寫「各擊殺」）、失敗（哪一波、原因、清光的波次照發多少）、取消、個人的 `hordePaid`（得分、清光的波次裡的擊殺；超過上限時加那一句）；通知內文最多 6 行（`Draw.toast`；4 行時 EN 預告最後的種類、ES 到上限那一句被截）。
 - 開服後的屍潮（計畫 `quest-horde-restart-corpses-1101`，設計稿的追蹤面板 mock）：`waiting` 而且還沒到 `holdUntil` 時，追蹤面板的倒數是「4:12 後繼續」（`IGUI_MQ_Horde_ResumesIn`），打到一半、還有剩的那一波（`resume` 而且 `left > 0`）第二行寫「x, y · 重啟過，剩 N 隻」（`IGUI_MQ_Horde_HudResume`，N＝`left`），其餘照等人的「x, y · 有人走進 30 格內就開始」；過了 `holdUntil` 回到「等人 N」。橫幅同一段時間標題照等人，內文 `IGUI_MQ_Horde_HoldBody`（伺服器重新啟動過、倒數結束前不會開打、之後有人走進 30 格內就從外圍出現），右邊「N 後繼續」。那一波開打時（`left > 0`）的全服通知是 `resume`：標題「屍潮繼續：<名稱>」（`IGUI_MQ_Horde_Title_resume`，多波時帶「第 W／N 波」），內文「伺服器重啟前的擊殺照算。剩 N 隻，M 分鐘內清光。」（`IGUI_MQ_Horde_ResumeBody`）。
 - 清單框（設計稿 r11，使用者 2026-10-26 選「原版管理員清單」樣式，之後補要「有點顏色交錯」與排行榜、兌換紀錄的表頭）：管理頁與玩家頁的清單都畫成原版管理員清單（`ISSafehousesList.lua:23-31`、`:67-82`）的樣子：直角的 `surface` 底、`border` 外框、表頭帶（`border` 透明度 × 0.3，下緣一條線）、條目之間一條線（× 0.9），每隔一筆整筆上 `hover` 底色（第 2、4、6…筆；一筆可以是好幾列，換行的說明、按鈕列都在同一條色帶裡）。管理頁用 `Flow:list`／`listHead`／`item`／`listEnd`（`AdminPanel.lua`）：框內 `F.ox`／`F.width` 換成框的，各頁的欄位算式不變，自己放位置的按鈕要加 `F.ox`；`F:item()` 記下每筆的上緣，框由頁面 ScrollPanel 的 prerender 在所有子元件底下畫（`A.paintLists`，內容座標，不配置），不是元件，不擋按鈕，ui-mp 的版面檢查也看不到；沒關的框不畫。玩家頁用 Builder 的 `b:list`／`listHead`／`listSep`／`listEnd`（`Draw.lua`）：底色與每筆的色帶先記成指令，下一個 `listSep` 或 `listEnd` 才補高度。

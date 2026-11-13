@@ -308,10 +308,10 @@ local function seasonBanner(b, x, y, w, s)
     local settling = tostring(st.reviewNo or ((tonumber(st.no) or 1) - 1))
     if st.state == "review" then
         return b:banner(x, y, w, D.EXTRA.info, getText("IGUI_MQ_UI_SeasonReview", settling),
-            getText("IGUI_MQ_UI_SeasonReviewBody"))
+            getText("IGUI_MQ_UI_SeasonReviewBody"), nil, nil, nil)
     elseif st.state == "paying" then
         return b:banner(x, y, w, D.EXTRA.success, getText("IGUI_MQ_UI_SeasonPaying", settling),
-            getText("IGUI_MQ_UI_SeasonPayingBody"))
+            getText("IGUI_MQ_UI_SeasonPayingBody"), nil, nil, nil)
     end
     return y
 end

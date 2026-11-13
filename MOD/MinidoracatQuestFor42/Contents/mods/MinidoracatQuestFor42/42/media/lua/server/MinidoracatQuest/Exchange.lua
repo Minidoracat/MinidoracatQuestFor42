@@ -76,7 +76,7 @@ local function finish(acc, user, row, state, now)
     MQ.EventLog.write("exchange", user, { seq = row.seq, amount = row.amount, coins = row.coins, state = state })
     if state == "paid" then bookCoins(row.coins, now) end
     local log = acc.ex.log or {}
-    table.insert(log, 1, { at = now, amount = row.amount, coins = row.coins, state = state })
+    table.insert(log, 1, { at = now, amount = row.amount, coins = row.coins, state = state, sseq = row.sseq, rid = row.rid })
     while #log > X.LOG do table.remove(log) end
     acc.ex.log = log
 end
@@ -102,8 +102,9 @@ function X.send(acc, user, row, now)
     return "refunded"
 end
 
--- -> ok, code, { state, coins }
-function X.request(acc, user, amount)
+-- -> ok, code, { state, coins }. sseq: the spendSeq this request used up (Server.onClientCommand), rid: its
+-- requestId. Only one request of the account ever uses up that spendSeq, so the two name the exchange for X.made
+function X.request(acc, user, amount, sseq, rid)
     if not X.available() then return false, code("ECONOMY_MISSING") end
     local cfg = MQ.Config.get().exchange
     if not cfg.enabled then return false, code("EXCHANGE_OFF") end
@@ -119,7 +120,8 @@ function X.request(acc, user, amount)
     if not MQ.Points.spend(acc, amount) then return false, code("NOT_ENOUGH_POINTS") end
     ex.used = ex.used + amount
     ex.seq = (ex.seq or 0) + 1
-    local row = { seq = ex.seq, amount = amount, coins = coins, state = "held", at = now, tries = 0, day = day }
+    local row = { seq = ex.seq, amount = amount, coins = coins, state = "held", at = now, tries = 0, day = day, sseq = sseq,
+        rid = rid }
     local state = X.send(acc, user, row, now)
     if state == "queued" then
         ex.queue = ex.queue or {}
@@ -249,10 +251,27 @@ function X.stateFor(acc, user, now)
         min = cfg.min, queued = queued, hist = hist }
 end
 
-MQ.Server.define("exchange", { kind = "mutation", fields = { amount = "int" }, cooldownMs = 3000,
+-- What became of the exchange this very request made: { state, coins } as its first answer said (or what it is by
+-- now), nil when it made none (refused, or never run). The dialog's "ask again" sends the same packet; once the
+-- result cache has let go of it this is the answer (Server: spec.done), not a guess from the log the client shows.
+-- The requestId has to be the same too: another request made on the same screen names the same spendSeq, and it
+-- must not be told the first one's result as its own. The last X.LOG finished ones and every queued one are known.
+function X.made(acc, sseq, rid)
+    if acc == nil or sseq == nil or rid == nil then return nil end
+    for _, row in ipairs(acc.ex.queue or {}) do
+        if row.sseq == sseq and row.rid == rid then return { state = "queued", coins = row.coins } end
+    end
+    for _, row in ipairs(acc.ex.log or {}) do
+        if row.sseq == sseq and row.rid == rid then return { state = row.state, coins = row.coins } end
+    end
+    return nil
+end
+
+MQ.Server.define("exchange", { kind = "mutation", spend = true, fields = { amount = "int" }, cooldownMs = 3000,
+    done = X.made,
     run = function(ctx)
         local acc = MQ.Store.account(ctx.user, true)
-        local ok, c, data = X.request(acc, ctx.user, ctx.args.amount)
+        local ok, c, data = X.request(acc, ctx.user, ctx.args.amount, ctx.args.seq, ctx.requestId)
         if not ok then return false, c end
         return true, data
     end })

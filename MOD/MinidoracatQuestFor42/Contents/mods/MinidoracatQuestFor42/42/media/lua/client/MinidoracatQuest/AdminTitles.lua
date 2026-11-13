@@ -8,12 +8,21 @@ require "MinidoracatQuest/Draw"
 local MQ = MinidoracatQuest
 local A, AM, D = MQ.Admin, MQ.AdminModel, MQ.Draw
 
+-- a title price is drafted on its own path (shop.titles.list.spend_1): AM.get of the whole list would not see it
+local function titlePrices(S)
+    local list = {}
+    for k in pairs(AM.get(S, "shop.titles.list") or {}) do list[k] = AM.get(S, "shop.titles.list." .. k) end
+    return list
+end
+
 -- the config parts D.titleSources reads, through the draft
 local function cfgView(S)
     return {
         streak = { need = AM.get(S, "streak.need"), milestones = AM.get(S, "streak.milestones") },
         newbie = { enabled = AM.get(S, "newbie.enabled"), title = AM.get(S, "newbie.title"), days = AM.get(S, "newbie.days") },
         rewards = { firstTitles = AM.get(S, "rewards.firstTitles") },
+        shop = { titles = { enabled = AM.get(S, "shop.titles.enabled"), season = AM.get(S, "shop.titles.season"),
+            list = titlePrices(S) } },
     }
 end
 
@@ -36,6 +45,7 @@ end
 local function groupLabel(g, no)
     if g == "custom" then return getText("IGUI_MQ_Admin_CatCustom") end
     if g == "other" then return getText("IGUI_MQ_Admin_TitleGroupOther") end
+    if g == "shop" then return getText("IGUI_MQ_Admin_TitleGroupShop") end
     if g == "season" then return getText("IGUI_MQ_Admin_TitleGroupSeason", tostring(no)) end
     return D.textOrNull("IGUI_MQ_AchCat_" .. tostring(g)) or tostring(g)
 end
@@ -48,7 +58,8 @@ local function layout(P, pg, F)
     local rows = D.titleSources(achievements(P.S), cfgView(P.S), no)
     F:head("head", getText("IGUI_MQ_Admin_TitleListHead"))
     F:text("note", getText("IGUI_MQ_Admin_TitlesNote"), "textMuted")
-    -- grouped by first appearance: achievement categories in catalog order, then streak and newbie, then seasons
+    -- grouped by first appearance: achievement categories in catalog order, then streak and newbie, point titles, then
+    -- seasons; a group this tab has no label for still shows (groupLabel falls back to its id)
     local groups, seen = {}, {}
     for _, r in ipairs(rows) do
         if not seen[r.group] then

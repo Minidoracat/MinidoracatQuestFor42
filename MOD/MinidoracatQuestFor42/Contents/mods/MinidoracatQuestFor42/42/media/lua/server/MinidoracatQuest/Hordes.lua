@@ -32,6 +32,9 @@
 -- Players dying near a spawned horde are listed and announced (H.onDeath); at a success or failure the ones still
 -- there (online, alive, within CLEAR_RANGE) get the full result (H.result, command hordeResult), anyone can ask for it.
 -- Such a death also marks that player's corpse, for them only (marks.json, H.markTick; plan quest-corpse-highlight-1102).
+-- Sponsored hordes (hordes.paid, plan points-sinks-1112): players pledge balance points into root.hordes.fund; full,
+-- it is planned once no horde is on (actor "fund", cap at most rewardPct of the fund, not counted in perDay but in
+-- paidDay); a fund not full by its expiry, or that cannot be planned, is paid back to everyone (H.fundTick).
 
 if isClient() then return end
 
@@ -264,14 +267,14 @@ local function rollFor(roll, key, ws)
     return { day = key, ws = ws, slot = 0 }
 end
 
--- one more horde on local day key; perDay keeps the last 3 days
-local function countDay(h, key)
-    h.perDay[key] = (h.perDay[key] or 0) + 1
+-- one more on local day key of map (perDay, paidDay); keeps the last 3 days
+local function countDay(map, key)
+    map[key] = (map[key] or 0) + 1
     local keys = {}
-    for k in pairs(h.perDay) do keys[#keys + 1] = k end
+    for k in pairs(map) do keys[#keys + 1] = k end
     if #keys <= 3 then return end
     U.sort(keys, function(a, b) return a > b end)
-    for i = 4, #keys do h.perDay[keys[i]] = nil end
+    for i = 4, #keys do map[keys[i]] = nil end
 end
 
 -- Takes every slot of every window whose roll time has passed. A slot that already ended (server down) is skipped,
@@ -297,7 +300,7 @@ function H.roll(now, cfg, tz)
                     local lo = math.ceil(math.max(s, now + win.leadMin * MIN) / MIN)
                     local hi = math.ceil(e / MIN) - 1
                     if hi >= lo and H.plan(cfg, (lo + ZombRand(hi - lo + 1)) * MIN, nil, win) ~= nil then
-                        countDay(h, dk)
+                        countDay(h.perDay, dk)
                     end
                 end
             end
@@ -440,6 +443,15 @@ local function flushDeaths(cur)
     if q == nil or q.horde ~= cur.id then return end
     local list, anon = names(q.users)
     toast(cur, "death", { names = list, anon = anon, wave = cur.wave, waves = #cur.waves })
+end
+
+-- a sponsored horde's sponsors as its notices name them: { names, anon } (anonymous ones only counted, as death)
+local function sponsorsOf(cur)
+    local users = {}
+    for u in pairs(cur.sponsors) do users[#users + 1] = u end
+    U.sort(users, function(a, b) return a < b end)
+    local list, anon = names(users)
+    return { names = list, anon = anon }
 end
 
 -- verified, living online players within range (default RANGE) tiles (2D)
@@ -792,6 +804,16 @@ function H.finish(result, why, now)
     local cur = h.cur
     if cur == nil then return end
     h.cur = nil   -- first: an error further down must not finish (and pay) it again on the next tick
+    -- A sponsored horde that ended before its first zombie came (cancelled, stopped, nobody came, nothing could
+    -- spawn) gave its sponsors nothing: they get their points back, before anything below can fail. The day's count
+    -- stays, so it cannot be done over and over for the notices. One that did play counts for them.
+    if cur.sponsors ~= nil then
+        if cur.firstSpawnAt == nil then
+            H.refund(cur.sponsors, "ended")
+        else
+            for user in pairs(cur.sponsors) do MQ.Stats.add(user, "horde.sponsored", 1) end
+        end
+    end
     local users = participants(cur)
     local paid, pool, capped = pay(cur)
     local tops, top = {}, 0
@@ -889,7 +911,9 @@ function H.step(now)
         cur.state = open and "waiting" or "announced"
         -- a warning this short is its own reminder
         cur.reminded = cur.startMs - now <= H.REMIND_MS
-        toast(cur, open and "open" or "soon", { startMs = cur.startMs, kinds = kindsOf(cur), waves = #cur.waves })
+        local t = { startMs = cur.startMs, kinds = kindsOf(cur), waves = #cur.waves }
+        if cur.sponsors ~= nil then t.sponsors, t.capPts = sponsorsOf(cur), cur.cap end
+        toast(cur, open and "open" or "soon", t)
         dirty()
     end
     if cur.state == "announced" then
@@ -953,11 +977,98 @@ function H.boot(now)
     H.hold(cur, now)
 end
 
+-- ---------- sponsored hordes (hordes.paid; root.hordes.fund / paidDay) ----------
+-- The fund lives in Global ModData with the accounts, so a crash takes both back together; its expiry is wall clock,
+-- so one that expired while the server was down is paid back on the first tick after the boot.
+
+local function paidToday(h, now, tz)
+    return (h.paidDay or {})[dayKey(localDay(now, tz))] or 0
+end
+
+-- every sponsor in by gets their points back (online or not); why: expired | spots | file | ended (H.finish)
+function H.refund(by, why)
+    for user, pts in pairs(by) do
+        local acc = MQ.Store.account(user, false)
+        if acc == nil or not MQ.Points.unpay(acc, user, pts, "hordeRefund", nil) then
+            U.log("horde fund: " .. pts .. " points not paid back to " .. U.logSafe(user))
+        else
+            MQ.Sync.toast(user, { kind = "fundRefund", pts = pts, why = why })
+        end
+    end
+end
+
+local function refundAll(h, why)
+    local f = h.fund
+    h.fund = nil   -- first: an error further down must not pay it back twice
+    H.refund(f.by, why)
+    dirty()
+end
+
+-- Command pledge: n points into the fund whose goal the client saw (total). The first pledge opens it at today's
+-- hordes.paid.pts; the last one takes only what is missing. Returns true, { n = taken } | false, code.
+function H.pledge(acc, user, n, total, now)
+    local h, cfg = hordes(), settings()
+    -- past its expiry but before this second's tick: paid back first, so a late pledge cannot fill it; the pledge
+    -- then opens a new fund like any first one
+    if h.fund ~= nil and h.fund.state == "open" and now >= h.fund.expireAt then refundAll(h, "expired") end
+    local p, f = cfg.paid, h.fund
+    if not p.enabled or #cfg.spots == 0 then return false, CODE.FUND_OFF end
+    if f == nil and paidToday(h, now, MQ.Sandbox.get("TimezoneOffset")) >= p.maxPerDay then
+        return false, CODE.FUND_DAY
+    end
+    if f ~= nil and f.state ~= "open" then return false, CODE.FUND_FULL end
+    local goal = f and f.pts or p.pts
+    if total ~= goal then return false, CODE.PRICE_CHANGED end
+    local rest = goal - (f and f.total or 0)
+    local take = math.min(n, rest)
+    if take < math.min(p.minPledge, rest) then return false, CODE.BAD_ARGS end
+    if not MQ.Points.pay(acc, user, take, "horde", nil) then return false, CODE.NOT_ENOUGH_POINTS end
+    local new = f == nil
+    if new then
+        f = { by = {}, total = 0, pts = goal, startMs = now, expireAt = now + p.fundMin * MIN, state = "open" }
+        h.fund = f
+    end
+    f.by[user] = (f.by[user] or 0) + take
+    f.total = f.total + take
+    if f.total >= f.pts then f.state = "ready" end
+    if new then
+        MQ.Net.broadcast("toast", { kind = "horde", ev = "fund", total = f.total, pts = f.pts, expireAt = f.expireAt })
+    end
+    dirty()
+    return true, { n = take }
+end
+
+-- Each tick after the rolls: an open fund past its expiry is paid back; a full one waits for no horde on, then is
+-- planned like horde.now with hordes.paid's preset, lead and wait (even if paid was switched off since: its points
+-- are in), its cap cut to rewardPct of the fund. No spot or no id file: paid back.
+function H.fundTick(now, cfg, tz)
+    local h = hordes()
+    local f = h.fund
+    if f == nil then return end
+    if f.state == "open" then
+        if now >= f.expireAt then refundAll(h, "expired") end
+        return
+    end
+    if h.cur ~= nil then return end
+    if #cfg.spots == 0 then return refundAll(h, "spots") end
+    local p = cfg.paid
+    local cur = H.plan(cfg, now + p.leadMin * MIN, "fund", { preset = p.preset, leadMin = p.leadMin, waitMin = p.waitMin })
+    if cur == nil then return refundAll(h, "file") end
+    cur.cap = math.min(cur.cap, math.floor(f.total * p.rewardPct / 100))
+    cur.sponsors = f.by
+    h.fund = nil
+    h.paidDay = h.paidDay or {}
+    countDay(h.paidDay, dayKey(localDay(now, tz)))
+    dirty()
+end
+
 function H.tick(now)
     if now - H.lastTick < 1000 or not MQ.Store.ready() or MQ.Store.readOnly then return end
     H.lastTick = now
     if not H.booted then H.boot(now) end
-    H.roll(now, settings(), MQ.Sandbox.get("TimezoneOffset"))
+    local cfg, tz = settings(), MQ.Sandbox.get("TimezoneOffset")
+    H.roll(now, cfg, tz)
+    H.fundTick(now, cfg, tz)
     H.step(now)
     H.corpseTick(now)
     H.markTick(now)
@@ -1297,10 +1408,12 @@ local function joinedOf(e)
     return n
 end
 
--- Sync provider "hordes": { on, cur, last }; a planned horde is secret, the last result shows for LAST_MS. on: the
--- player Hordes page is in the nav (automatic hordes on, or there are results to list)
+-- Sync provider "hordes": { on, cur, last, paid, fund }; a planned horde is secret, the last result shows for LAST_MS.
+-- on: the player Hordes page is in the nav (automatic or sponsored hordes on, a fund, or results to list). fund shows
+-- the total, the sponsor count and this player's share, never the others' shares.
 function H.stateHordes(acc, user, now)
-    local h = hordes()
+    local h, cfg = hordes(), settings()
+    local p, f = cfg.paid, h.fund
     local out, cur = {}, h.cur
     if cur ~= nil and cur.state ~= "planned" and cur.waves ~= nil then
         out.cur = { id = cur.id, name = cur.name, town = cur.town, x = cur.x, y = cur.y, z = cur.z, state = cur.state,
@@ -1308,6 +1421,11 @@ function H.stateHordes(acc, user, now)
             endsAt = cur.endsAt, nextAt = cur.nextAt, wave = cur.wave, waves = #cur.waves, size = cur.size,
             left = cur.left, killed = cur.killed, limitMin = cur.limitMin, mine = cur.kills[user] or 0,
             got = cur.got[user] or 0, joined = joinedOf(cur), holdUntil = cur.holdUntil, resume = cur.resume }
+        if cur.sponsors ~= nil then
+            local n = 0
+            for _ in pairs(cur.sponsors) do n = n + 1 end
+            out.cur.paid, out.cur.sponsorN, out.cur.capPts = true, n, cur.cap
+        end
     end
     local e = h.log[#h.log]
     if e ~= nil and e.announced ~= false and now - e.endedAt < H.LAST_MS then
@@ -1315,7 +1433,17 @@ function H.stateHordes(acc, user, now)
             waves = e.waves, cleared = e.cleared, spawned = e.spawned, killed = e.killed, pool = e.pool,
             capped = e.capped, mine = e.kills and e.kills[user] or 0, got = e.paid and e.paid[user] }
     end
-    out.on = settings().enabled == true or #h.log > 0 or out.cur ~= nil
+    local paidOn = p.enabled == true and #cfg.spots > 0
+    -- cap: the most a sponsored horde pays out at these settings (what the page promises before the first pledge)
+    out.paid = { on = paidOn, pts = p.pts, minPledge = p.minPledge, rewardPct = p.rewardPct, leadMin = p.leadMin,
+        cap = math.min(H.presetOf(cfg, p.preset).cap, math.floor(p.pts * p.rewardPct / 100)),
+        left = math.max(0, p.maxPerDay - paidToday(h, now, MQ.Sandbox.get("TimezoneOffset"))) }
+    if f ~= nil then
+        local n = 0
+        for _ in pairs(f.by) do n = n + 1 end
+        out.fund = { total = f.total, pts = f.pts, n = n, mine = f.by[user] or 0, expireAt = f.expireAt, state = f.state }
+    end
+    out.on = cfg.enabled == true or paidOn or f ~= nil or #h.log > 0 or out.cur ~= nil
     return out
 end
 
@@ -1394,7 +1522,8 @@ function H.status(now)
     local tz = MQ.Sandbox.get("TimezoneOffset")
     local log = {}
     for i = #h.log, math.max(1, #h.log - 9), -1 do log[#log + 1] = h.log[i] end
-    return { cur = h.cur, log = log, kinds = H.kindList(), cull = H.cull(),
+    return { cur = h.cur, log = log, kinds = H.kindList(), cull = H.cull(), fund = h.fund,
+        paid = { n = paidToday(h, now, tz), max = cfg.paid.maxPerDay },
         roll = { n = h.perDay[dayKey(localDay(now, tz))] or 0, max = cfg.maxPerDay, enabled = cfg.enabled,
             nextAt = H.nextRoll(cfg, now, tz, h.roll, h.perDay) } }
 end
@@ -1444,6 +1573,12 @@ end })
 
 MQ.Server.defineAdmin("horde.stop", { kind = "mutation", fields = { id = "int" },
     run = function(ctx) return H.stop(ctx.args.id, ctx.user, ctx.now) end })
+
+-- a player's pledge to the sponsored horde fund (H.pledge); total = the goal the client showed
+MQ.Server.define("pledge", { kind = "mutation", spend = true, fields = { n = "int", total = "int" },
+    run = function(ctx)
+        return H.pledge(MQ.Store.account(ctx.user, true), ctx.user, ctx.args.n, ctx.args.total, ctx.now)
+    end })
 
 MQ.Sync.provider("hordes", H.stateHordes)
 

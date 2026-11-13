@@ -241,7 +241,8 @@ return function(T)
     end
     for _, m in ipairs(Cat.DEFAULTS.streak.milestones) do if m.title then key("IGUI_MQ_Title_" .. m.title) end end
     key("IGUI_MQ_Title_" .. Cat.DEFAULTS.newbie.title)
-    for _, k in ipairs({ "top1", "top3", "top10" }) do key("IGUI_MQ_Title_season_" .. k) end
+    for _, k in ipairs({ "top1", "top3", "top10", "patron" }) do key("IGUI_MQ_Title_season_" .. k) end
+    for id in pairs(Cat.DEFAULTS.shop.titles.list) do key("IGUI_MQ_Title_" .. id) end
     for _, list in ipairs({ Cat.daily, Cat.weekly }) do for _, t in ipairs(list) do key("IGUI_MQ_Q_" .. t.tid) end end
     for _, b in ipairs(Cat.boards) do
         key("IGUI_MQ_Board_" .. b.id)

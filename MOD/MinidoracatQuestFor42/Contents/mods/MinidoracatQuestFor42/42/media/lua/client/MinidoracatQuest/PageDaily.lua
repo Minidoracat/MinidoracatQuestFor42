@@ -1,6 +1,7 @@
 -- MinidoracatQuest/PageDaily.lua: daily page (spec 1.3, 2, 3, 5, 6): event banners, the horde banner, header with
---   streak and reset chips, newbie card, three personal quest cards (theme tag, points, bar, swap), the server-wide
---   card, and the streak block (seven weekday dots, milestones). questCard is shared with the weekly page.
+--   streak and reset chips, newbie card, three personal quest cards (theme tag, points, bar, swap; a paid swap once the
+--   free ones are used, plan points-sinks 1), the server-wide card, and the streak block (seven weekday dots, the
+--   Streak shield card, milestones). questCard is shared with the weekly page.
 
 if isServer() then return end
 
@@ -17,8 +18,8 @@ local PAD, GAP = D.PAD, D.GAP
 local CARD_PAD = 10
 
 -- ===== quest card =====
--- o = { key, frame, tag, tagToken, foot = { text, token }, swap = { enabled, page } | nil, noSwapText,
---       pin = tracker id ("d1".."d4", "w1".."w3") }
+-- o = { key, frame, tag, tagToken, foot = { text, token }, swap = { slot, enabled, pay? } | nil, noSwapText,
+--       noSwapToken, pin = tracker id ("d1".."d4", "w1".."w3") }; swap.pay: a paid swap at that price (plan points-sinks 1)
 -- returns the y below the card
 function P.questCard(b, page, x, y, w, q, o)
     local lh = D.fontH()
@@ -38,16 +39,23 @@ function P.questCard(b, page, x, y, w, q, o)
     local btn = nil
     if o.swap ~= nil and not done then
         -- normal style (framed like the Track chip next to it): swapping drops the progress, so it must read as a control
-        btn = page.pool:button(o.key .. "swap", page.UI, page.theme, getText("IGUI_MQ_UI_Swap"), page, P.onSwap)
+        local title = o.swap.pay and getText("IGUI_MQ_UI_SwapPay", D.num(o.swap.pay)) or getText("IGUI_MQ_UI_Swap")
+        btn = page.pool:button(o.key .. "swap", page.UI, page.theme, title, page, P.onSwap)
         btn.internal = o.swap.slot
-        btn.quest, btn.progText = q, progText
+        btn.quest, btn.progText, btn.pay = q, progText, o.swap.pay
         btn:setEnabled(o.swap.enabled)
     end
+    local note = (btn == nil and o.foot == nil and not done) and o.noSwapText or nil
+    -- a swap button or note wider than 35 % of the card (a long translation) goes on its own line under the progress,
+    -- clear of the progress and Track (PageExchange card rule, review 1112 layout)
+    local below = (btn and btn.width or (note and D.textW(note) or 0)) > w * 0.35
+    local noteLines = (below and note) and D.wrap(page.UI, note, inner, UIFont.Small) or {}
+    local belowH = below and ((btn and btn.height or #noteLines * (lh + 2)) + 6) or 0
     -- pin chip: active quests, and a pinned one after it is done (so it can be taken off the panel)
     local pinBtn = nil
     if o.pin ~= nil and (not done or C.isPinned(o.pin)) then pinBtn = D.pinChip(page, o.key .. "pin", o.pin) end
-    local footH = math.max(lh, btn and btn.height or 0, pinBtn and pinBtn.height or 0)
-    local h = CARD_PAD + D.chipH() + 6 + #nameLines * (lh + 2) + 4 + 6 + 6 + footH + CARD_PAD
+    local footH = math.max(lh, (btn and not below) and btn.height or 0, pinBtn and pinBtn.height or 0)
+    local h = CARD_PAD + D.chipH() + 6 + #nameLines * (lh + 2) + 4 + 6 + 6 + footH + belowH + CARD_PAD
     b:card(x, y, w, h, o.frame or (done and D.EXTRA.success) or "border")
     local cy = y + CARD_PAD
     b:chip(x + CARD_PAD, cy, tag, o.tagToken or "textMuted")
@@ -77,44 +85,63 @@ function P.questCard(b, page, x, y, w, q, o)
     local rightEdge = right
     if o.foot ~= nil then
         rightEdge = right - b:textRight(right, textY, o.foot[1], o.foot[2]) - 8
-    elseif btn ~= nil then
+    elseif btn ~= nil and not below then
         btn:setX(right - btn.width)
         btn:setY(cy)
         rightEdge = right - btn.width - 6
-    elseif o.noSwapText ~= nil and not done then
-        rightEdge = right - b:textRight(right, textY, o.noSwapText, "textFaint") - 8
+    elseif note ~= nil and not below then
+        rightEdge = right - b:textRight(right, textY, note, o.noSwapToken or "textFaint") - 8
     end
     if pinBtn ~= nil then
         pinBtn:setX(rightEdge - pinBtn.width)
         pinBtn:setY(cy + math.floor((footH - pinBtn.height) / 2))
     end
+    local by = cy + footH + 6
+    if below and btn ~= nil then
+        btn:setX(x + CARD_PAD)
+        btn:setY(by)
+    end
+    for _, l in ipairs(noteLines) do
+        b:text(x + CARD_PAD, by, l, o.noSwapToken or "textFaint")
+        by = by + lh + 2
+    end
     return y + h + GAP
 end
 
--- a quest with progress asks first (the swap cannot be undone); progress 0 swaps at once
+-- a free swap: a quest with progress asks first (the swap cannot be undone); progress 0 swaps at once.
+-- A paid one always asks (plan points-sinks 1): the price in the title, which quest, the progress lost, the balance
+-- before and after and the paid swaps left today; danger style while there is progress
 function P.onSwap(page, btn)
     if C.isPending(page.swapRid) then return end
-    local slot, q = btn.internal, btn.quest
-    if (tonumber(q and q.prog) or 0) > 0 and D.has(page.UI, "dialog") then
+    local slot, q, pay = btn.internal, btn.quest, btn.pay
+    local prog = (tonumber(q and q.prog) or 0) > 0
+    if pay ~= nil then
+        local s = C.state or {}
+        local sw = C.uses(s).swap or {}
+        local day = type(s.day) == "table" and s.day or {}
+        local more = math.max(0, (tonumber(sw.perDay) or 0) - (tonumber(day.paid) or 0) - 1)
+        local text = prog and getText("IGUI_MQ_UI_SwapPayAsk", D.questName(q), btn.progText or "")
+            or getText("IGUI_MQ_UI_SwapPayAskNew", D.questName(q))
+        local bal = C.balance(s)
+        D.askSpend(page, "swapRid", { title = getText("IGUI_MQ_UI_SwapPayTitle", D.num(pay)), danger = prog,
+            text = text .. "\n" .. getText("IGUI_MQ_UI_SwapPayLeft", D.num(bal), D.num(bal - pay), tostring(more)),
+            confirm = getText("IGUI_MQ_UI_SwapPayGo", D.num(pay)) }, "swap", { slot = slot, pay = pay, at = q.startMs })
+        return
+    end
+    -- the quest (at) and the spendSeq of the screen the player pressed on, also when a question comes first
+    local args = { slot = slot, at = q and q.startMs, seq = C.spendSeq() }
+    if prog and D.has(page.UI, "dialog") then
         page.UI.Dialog.show({ title = getText("IGUI_MQ_UI_Swap"),
             text = getText("IGUI_MQ_UI_SwapAsk", D.questName(q), btn.progText or ""),
             confirmText = getText("IGUI_MQ_UI_Swap"), cancelText = getText("UI_Cancel"), danger = true,
             theme = page.theme, opaque = true,
-            onResult = function(ok) if ok then MinidoracatQuest.PageDaily.swap(page, slot) end end })
+            onResult = function(ok) if ok then MinidoracatQuest.PageDaily.swap(page, args) end end })
         return
     end
-    P.swap(page, slot)
+    P.swap(page, args)
 end
 
-function P.swap(page, slot)
-    if C.isPending(page.swapRid) then return end
-    page.swapRid = C.send("swap", { slot = slot }, function(r)
-        page.swapRid = nil
-        if not r.ok then D.toast(D.codeText(r.code), "", nil) end
-        page.dirty = true
-    end)
-    page.dirty = true
-end
+function P.swap(page, args) D.sendAction(page, "swapRid", "swap", args) end
 
 -- ===== blocks =====
 local function events(b, x, y, w, s)
@@ -123,7 +150,7 @@ local function events(b, x, y, w, s)
         if (tonumber(ev.endsAt) or 0) > now then
             y = b:banner(x, y, w, D.EXTRA.event, tostring(ev.name or ""),
                 getText("IGUI_MQ_UI_EventLine", D.themeName(ev.theme), D.mult(ev.mult)),
-                getText("IGUI_MQ_UI_Left", D.duration(ev.endsAt - now)))
+                getText("IGUI_MQ_UI_Left", D.duration(ev.endsAt - now)), nil, nil)
         end
     end
     return y
@@ -198,7 +225,8 @@ function P.onHordeHud(page, btn) C.setHordeHidden(btn.internal) end
 
 -- the banner, with its buttons at the bottom right (design 5.3): Map while the vanilla map is allowed, and while a
 -- horde is live the toggle that takes it off the tracker panel or puts it back (plan-horde-result 1; a framework
--- Button, so keyboard and gamepad reach it). Returns the y below, or nil without a horde to show. The Hordes page
+-- Button, so keyboard and gamepad reach it). A sponsored horde (cur.paid, plan points-sinks 4) gets the Sponsored chip
+-- and how many sponsored it and the most it pays. Returns the y below, or nil without a horde to show. The Hordes page
 -- draws it too.
 function P.hordeBlock(page, b, x, y, w, s)
     local token, title, body, right, spot = P.hordeBanner(s, C.serverNow())
@@ -211,6 +239,12 @@ function P.hordeBlock(page, b, x, y, w, s)
         btns[#btns + 1] = btn
     end
     local live = D.hordeLive(s.hordes.cur)
+    local chip = nil
+    if live ~= nil and live.paid then
+        chip = { getText("IGUI_MQ_Horde_PaidChip"), D.EXTRA.gold }
+        body = getText("IGUI_MQ_Horde_Join", body,
+            getText("IGUI_MQ_Horde_PaidLine", D.num(tonumber(live.sponsorN) or 0), D.num(tonumber(live.capPts) or 0)))
+    end
     if live ~= nil then
         local hidden = C.hordeHidden ~= nil and live.id == C.hordeHidden
         local btn = page.pool:button("hordeHud", page.UI, page.theme,
@@ -218,10 +252,10 @@ function P.hordeBlock(page, b, x, y, w, s)
         btn.internal = not hidden and live.id or nil
         btns[#btns + 1] = btn
     end
-    if #btns == 0 then return b:banner(x, y, w, token, title, body, right) end
+    if #btns == 0 then return b:banner(x, y, w, token, title, body, right, nil, chip) end
     local bh = 0
     for _, btn in ipairs(btns) do bh = math.max(bh, btn.height) end
-    local ny = b:banner(x, y, w, token, title, body, right, bh + 4)
+    local ny = b:banner(x, y, w, token, title, body, right, bh + 4, chip)
     local bx = x + w - 10
     for i = #btns, 1, -1 do
         bx = bx - btns[i].width
@@ -280,12 +314,87 @@ local function newbie(b, x, y, w, s)
     return y + h + GAP
 end
 
--- streak block: chip days, grace chip, seven weekday dots, milestones, rule caption
-function P.streak(b, x, y, w, s)
+-- the streak shield (plan points-sinks 2) while this server sells it (state carries shieldLeft from servers that do)
+local function shieldOn(s, st) return C.uses(s).shield ~= nil and st.shieldLeft ~= nil end
+
+function P.onBuyShield(page, btn)
+    local pay = btn.pay
+    D.askSpend(page, "shieldRid", { title = getText("IGUI_MQ_UI_ShieldAskTitle", D.num(pay)),
+        text = getText("IGUI_MQ_UI_ShieldAsk") .. "\n" .. D.balanceAfter(pay), confirm = getText("IGUI_MQ_UI_ShieldBuyGo") },
+        "buyShield", { pay = pay })
+end
+
+-- the Streak shield card: held -> "1 day held" and "buy again once it is used"; this week's bought -> next week;
+-- short -> how many points; else the buy button (wider than 35 % of the card: under the title). Not drawn while the
+-- shield is not sold and none is held
+function P.shieldCard(b, page, x, y, w, s)
+    local st = type(s.streak) == "table" and s.streak or {}
+    local held = (tonumber(st.shield) or 0) >= 1
+    if not held and not shieldOn(s, st) then return y end
+    local cfg = C.uses(s).shield or {}
+    local lh, inner = D.fontH(), w - 2 * CARD_PAD
+    local pts = math.floor(tonumber(cfg.pts) or 0)
+    local right, rightTok, btn, note = nil, "textMuted", nil, nil
+    if held then
+        right, rightTok, note = getText("IGUI_MQ_UI_ShieldHeld"), D.EXTRA.gold, getText("IGUI_MQ_UI_ShieldHeldNote")
+    else
+        note = getText("IGUI_MQ_UI_ShieldNote", tostring(cfg.perWeek or 1))
+        local short = pts - C.balance(s)
+        if (tonumber(st.shieldLeft) or 0) <= 0 then
+            right = getText("IGUI_MQ_UI_ShieldWeekUsed")
+        elseif short > 0 then
+            right = getText("IGUI_MQ_UI_PointsShort", D.num(short))
+        else
+            btn = page.pool:button("shieldBuy", page.UI, page.theme, getText("IGUI_MQ_UI_ShieldBuy", D.num(pts)), page,
+                P.onBuyShield)
+            btn.pay = pts
+            btn:setEnabled(not C.isPending(page.shieldRid))
+        end
+    end
+    local below = (btn and btn.width or D.textW(right)) > w * 0.35
+    local topH = math.max(lh, (btn and not below) and btn.height or 0)
+    local rightLines = (below and btn == nil) and D.wrap(page.UI, right, inner, UIFont.Small) or {}
+    local belowH = below and ((btn and btn.height or #rightLines * (lh + 2)) + 6) or 0
+    local noteLines = D.wrap(page.UI, note, inner, UIFont.Small)
+    local h = CARD_PAD + topH + belowH + 4 + #noteLines * (lh + 2) + CARD_PAD
+    b:card(x, y, w, h)
+    local cy = y + CARD_PAD
+    local ty = cy + math.floor((topH - lh) / 2)
+    b:text(x + CARD_PAD, ty, getText("IGUI_MQ_UI_Shield"), "text")
+    if btn ~= nil and not below then
+        btn:setX(x + w - CARD_PAD - btn.width)
+        btn:setY(cy)
+    elseif not below then
+        b:textRight(x + w - CARD_PAD, ty, right, rightTok)
+    end
+    cy = cy + topH
+    if below then
+        cy = cy + 6
+        if btn ~= nil then
+            btn:setX(x + CARD_PAD)
+            btn:setY(cy)
+            cy = cy + btn.height
+        end
+        for _, l in ipairs(rightLines) do
+            b:text(x + CARD_PAD, cy, l, rightTok)
+            cy = cy + lh + 2
+        end
+    end
+    cy = cy + 4
+    for _, l in ipairs(noteLines) do
+        b:text(x + CARD_PAD, cy, l, "textMuted")
+        cy = cy + lh + 2
+    end
+    return y + h + GAP
+end
+
+-- streak block: chip days, grace and shield chips, seven weekday dots, the shield card, milestones, rule caption
+function P.streak(b, page, x, y, w, s)
     local st = type(s.streak) == "table" and s.streak or {}
     local days = math.floor(tonumber(st.days) or 0)
     local chips = { { D.days(days), "textMuted" } }
-    if st.graceUsed then chips[2] = { getText("IGUI_MQ_UI_GraceUsed"), "warning" } end
+    if st.graceUsed then chips[#chips + 1] = { getText("IGUI_MQ_UI_GraceUsed"), "warning" } end
+    if (tonumber(st.shield) or 0) >= 1 then chips[#chips + 1] = { getText("IGUI_MQ_UI_ShieldChip"), D.EXTRA.gold } end
     y = b:header(x, y, x + w, getText("IGUI_MQ_UI_Streak"), chips) + 3   -- room for today's ring
     local lh = D.fontH()
     local slot = math.min(56, math.floor(w / 7))
@@ -310,6 +419,10 @@ function P.streak(b, x, y, w, s)
             b:dot(cx, y, size, "errorText")
             b:dot(cx + 3, y + 3, size - 6, "surface")
             b:icon(cx + 5, y + 5, size - 10, "close", "errorText", "x")
+        elseif v == "shield" then   -- a day the shield kept: the lock icon (review 1112 HIGH: not only a color)
+            b:dot(cx, y, size, D.EXTRA.gold)
+            b:dot(cx + 3, y + 3, size - 6, "surface")
+            b:icon(cx + 5, y + 5, size - 10, "lock", D.EXTRA.gold, "#")
         else
             b:dot(cx, y, size, "border")
             b:dot(cx + 2, y + 2, size - 4, "surface")
@@ -318,6 +431,7 @@ function P.streak(b, x, y, w, s)
             isToday and D.EXTRA.gold or "textMuted")
     end
     y = y + size + lh + 13
+    y = P.shieldCard(b, page, x, y, w, s)
     local cfg = C.defs().cfg.streak or {}
     local L = nil
     for _, m in ipairs(type(cfg.milestones) == "table" and cfg.milestones or {}) do
@@ -334,8 +448,8 @@ function P.streak(b, x, y, w, s)
         y = y + lh + 8
     end
     if L ~= nil then y = b:listEnd(L, y) + 2 end
-    y = b:para(x, y + 4, getText("IGUI_MQ_UI_StreakRule", tostring(cfg.need or 3), tostring(cfg.gracePerWeek or 1)),
-        w, "textMuted")
+    y = b:para(x, y + 4, getText(shieldOn(s, st) and "IGUI_MQ_UI_StreakRuleShield" or "IGUI_MQ_UI_StreakRule",
+        tostring(cfg.need or 3), tostring(cfg.gracePerWeek or 1)), w, "textMuted")
     return y + GAP
 end
 
@@ -366,15 +480,26 @@ function P.layout(page)
     local quests = type(day.quests) == "table" and day.quests or {}
     local swaps = math.floor(tonumber(day.swaps) or 0)
     local pending = C.isPending(page.swapRid)
+    -- paid swaps once the free ones are used (plan points-sinks 1); day.paid comes from servers that sell them
+    local sw, paidN = C.uses(s).swap, tonumber(day.paid)
+    local swapPts = sw and math.floor(tonumber(sw.pts) or 0) or 0
+    local canPay = swaps <= 0 and sw ~= nil and paidN ~= nil and paidN < (tonumber(sw.perDay) or 0) and swapPts > 0
+    local short = canPay and swapPts - C.balance(s) or 0
     local shared, sharedSlot = nil, nil
     for i, q in ipairs(quests) do
         if type(q) == "table" and q.state ~= "swapped" and q.state ~= "expired" then
             if q.shared then
                 shared, sharedSlot = q, i
             else
-                y = P.questCard(b, page, x, y, w, q, { key = "q" .. i, pin = "d" .. i,
-                    swap = swaps > 0 and q.state == "active" and { slot = i, enabled = not pending } or nil,
-                    noSwapText = getText("IGUI_MQ_UI_NoSwaps") })
+                local o = { key = "q" .. i, pin = "d" .. i, noSwapText = getText("IGUI_MQ_UI_NoSwaps") }
+                if q.state == "active" and swaps > 0 then
+                    o.swap = { slot = i, enabled = not pending }
+                elseif q.state == "active" and canPay and short <= 0 then
+                    o.swap = { slot = i, enabled = not pending, pay = swapPts }
+                elseif canPay then   -- not enough points: no button, how many are missing
+                    o.noSwapText, o.noSwapToken = getText("IGUI_MQ_UI_SwapShort", D.num(swapPts), D.num(short)), "textMuted"
+                end
+                y = P.questCard(b, page, x, y, w, q, o)
             end
         end
     end
@@ -385,7 +510,7 @@ function P.layout(page)
         y = b:para(x, y - 2, getText("IGUI_MQ_UI_SharedNote"), w, "textMuted") + GAP
     end
     if #quests == 0 then y = b:para(x, y, getText("IGUI_MQ_UI_NoQuests"), w, "textMuted") + GAP end
-    y = P.streak(b, x, y + 4, w, s)
+    y = P.streak(b, page, x, y + 4, w, s)
     D.finish(page, y)
 end
 

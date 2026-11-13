@@ -1,6 +1,6 @@
 -- MinidoracatQuest/Report.lua: the admin "report" tab (docs/ARCHITECTURE.md section 6.5).
 -- root.daily[dayKey] holds one row of totals per day, kept 30 days; the hooks (Stats.add, Points.award, Quests,
--- Exchange payout, Achievements unlock, Store account creation, hello) only add numbers. Only report.get and
+-- Exchange payout, Achievements unlock, Store account creation, hello, Points.pay / unpay) only add numbers. Only report.get and
 -- report.export walk accounts: one shard per tick, the result kept 5 minutes. Totals only, never names or ids.
 
 if isClient() then return end
@@ -57,7 +57,8 @@ function R.row(now)
     return d
 end
 
--- field += n (default 1); with key: field[key] += n (swaps by template id, pts by Points kind)
+-- field += n (default 1); with key: field[key] += n (swaps by template id, pts by Points kind, spent by what; a
+-- map missing from an older row starts empty)
 function R.add(field, key, n)
     if not ready() then return end
     local d = R.row(getTimestampMs())
@@ -65,6 +66,10 @@ function R.add(field, key, n)
         d[field] = (d[field] or 0) + (n or 1)
     else
         local m = d[field]
+        if m == nil then
+            m = {}
+            d[field] = m
+        end
         m[key] = (m[key] or 0) + (n or 1)
     end
 end
@@ -85,10 +90,10 @@ local function sumMap(m)
     return s
 end
 
--- rows oldest first (a day without a row reads as zeros) and their sums; full keeps the swaps/pts maps (export)
+-- rows oldest first (a day without a row reads as zeros) and their sums; full keeps the swaps/pts/spent maps (export)
 local function rowsFor(days, now, full)
     local daily = Q.Store.root().daily or {}   -- absent on a read-only (newer schema) store
-    local rows, sum = {}, { swapsBy = {}, ptsBy = {} }
+    local rows, sum = {}, { swapsBy = {}, ptsBy = {}, spentBy = {} }
     for _, f in ipairs(FIELDS) do sum[f] = 0 end
     for k = days - 1, 0, -1 do
         local key = Q.Clock.dayKey(now - k * DAY)
@@ -100,15 +105,16 @@ local function rowsFor(days, now, full)
         end
         for tid, n in pairs(d.swaps or {}) do sum.swapsBy[tid] = (sum.swapsBy[tid] or 0) + n end
         for kind, n in pairs(d.pts or {}) do sum.ptsBy[kind] = (sum.ptsBy[kind] or 0) + n end
+        for what, n in pairs(d.spent or {}) do sum.spentBy[what] = (sum.spentBy[what] or 0) + n end
         if full then
-            r.swaps, r.pts = U.copy(d.swaps or {}), U.copy(d.pts or {})
+            r.swaps, r.pts, r.spent = U.copy(d.swaps or {}), U.copy(d.pts or {}), U.copy(d.spent or {})
         else
-            r.swaps, r.pts = sumMap(d.swaps), sumMap(d.pts)
+            r.swaps, r.pts, r.spent = sumMap(d.swaps), sumMap(d.pts), sumMap(d.spent)
         end
         rows[#rows + 1] = r
     end
     sum.active = nil   -- player-days; the window's players are the snapshot's count
-    sum.swaps, sum.pts = sumMap(sum.swapsBy), sumMap(sum.ptsBy)
+    sum.swaps, sum.pts, sum.spent = sumMap(sum.swapsBy), sumMap(sum.ptsBy), sumMap(sum.spentBy)
     local n = sum.dGiven - sum.swaps
     sum.dRate = n > 0 and math.min(1, sum.dDone / n) or nil
     -- weekly: only weeks that ended (R.WINDOWS[days] of them before this week's Monday reset)

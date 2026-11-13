@@ -343,11 +343,15 @@ return function(T)
     C.state.exchange = { available = false, hist = ex0.hist }
     W.onData()
     check(navHas("exchange"), "Exchange stays in the nav while exchange is off but there is history")
+    -- the Points page (plan points-sinks 2026-11-12) also stays while any use of points is on: switch them all off
+    push("catalog", { rev = 8, packs = {}, overrides = { shop = { swap = { enabled = false }, shield = { enabled = false },
+        titles = { enabled = false } } } })
     C.state.exchange = { available = false }
     W.select("exchange")
     W.onData()
     check(not navHas("exchange") and W.current == "daily",
-        "with exchange off and no history the Exchange entry leaves the nav and the window leaves its page")
+        "with exchange off, no history and every use of points off the Points entry leaves the nav and the window leaves its page")
+    push("catalog", { rev = 9, overrides = {}, packs = {} })
     C.state.exchange = ex0
     W.onData()
     check(navHas("exchange"), "Exchange comes back when exchange is available again")
@@ -371,7 +375,7 @@ return function(T)
     asked[1].onResult(true)
     local last = T.clientSent[#T.clientSent]
     check(#T.clientSent == sent0 + 1 and last.command == "swap" and last.args.slot == 1, "confirming sends the swap")
-    C.pending[dp.swapRid] = nil   -- no reply in this test: drop it so no NO_REPLY toast later
+    C.pending[dp.swapRid] = nil   -- no reply in this test: drop the request so no NO_REPLY toast later
     dp.swapRid = nil
     swap3.onClick(swap3.target, swap3)
     last = T.clientSent[#T.clientSent]
@@ -693,6 +697,7 @@ return function(T)
     check(ex.command == "exchange" and ex.args.amount == 30 and X.phase == "held", "submit sends exchange and shows held")
     push("result", { ok = true, code = "OK", command = "exchange", requestId = ex.args.requestId, state = "queued", coins = 30 })
     check(X.phase == "queued", "queued result shown")
+    C.state.spendSeq = 7
     X.open()
     X.onText("20")
     X.onSubmit()
@@ -700,8 +705,35 @@ return function(T)
     T.advance(10000)
     T.tick(6)
     check(X.phase == "noreply", "no reply -> ask again state")
+    check(ex2.args.seq == 7, "the exchange names the state's spendSeq")
+    C.state.spendSeq = 8   -- the first packet did run: its state comes while the dialog says no reply
     X.onSubmit()
     check(T.clientSent[#T.clientSent].args.requestId == ex2.args.requestId, "ask again reuses the requestId")
+    check(T.clientSent[#T.clientSent].args.seq == 7, "ask again is the same packet: the spendSeq of the first send, not the state's now")
+    -- the server says what that exchange became (Exchange.made), long after its result cache forgot the packet
+    push("result", { ok = true, code = "OK", command = "exchange", requestId = ex2.args.requestId, replay = true, state = "paid", coins = 20 })
+    check(X.phase == "paid" and X.result.coins == 20, "asked again: the server's answer for that exchange is shown")
+    -- STALE: the request made no exchange (first send or asked again); nothing in the log the client shows changes that
+    X.open()
+    X.onText("20")
+    X.onSubmit()
+    local ex3 = T.clientSent[#T.clientSent]
+    push("result", { ok = false, code = "STALE", command = "exchange", requestId = ex3.args.requestId })
+    C.state.exchange.hist = { { at = C.serverNow() + 500, amount = 20, coins = 20, state = "paid" } }
+    X.layout()
+    check(X.phase == "error" and X.code == "STALE", "STALE stays not done, whatever other exchange of that amount the log has")
+    -- a reply is for the dialog that sent it: closed and opened again, the old request's answer does not touch it
+    X.open()
+    X.onText("20")
+    X.onSubmit()
+    local ex4 = T.clientSent[#T.clientSent]
+    X.close()
+    X.open()
+    push("result", { ok = false, code = "STALE", command = "exchange", requestId = ex4.args.requestId })
+    X.layout()
+    check(X.phase == "input" and X.code == nil and #errors == 0, "an old request's reply leaves the reopened dialog alone " .. tostring(errors[1]))
+    X.close()
+    C.state.spendSeq = nil   -- the states pushed below carry none
     D.Canvas.render(X.canvas)
     check(#errors == 0, "exchange layouts ran clean " .. tostring(errors[1]))
 

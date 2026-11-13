@@ -497,6 +497,15 @@ function A.pathLabel(P, path)
     -- one window of the whole-set list (the server names hordes.windows.<i>.preset): "Windows 2"
     local wi = string.match(path, "^hordes%.windows%.(%d+)")
     if wi then return A.fLabel("hordes.windows") .. " " .. wi end
+    -- uses for points: a price or a limit reads with what it is for ("Swap quest: Each (points)"); the switches say it
+    -- themselves. A title price is labelled with the title's name, like on the exchange tab
+    local use, key = string.match(path, "^shop%.(%a+)%.(.+)$")
+    if use == nil and string.sub(path, 1, 12) == "hordes.paid." then use, key = "horde", string.sub(path, 13) end
+    if use and key ~= "enabled" then
+        local tid = string.match(key, "^list%.(.+)$")
+        local what = tid and getText("IGUI_MQ_Admin_ShopTitlePts", A.titleText(tid)) or A.fLabel(path)
+        return getText("IGUI_MQ_Admin_UseRow", getText("IGUI_MQ_Admin_Use_" .. use), what)
+    end
     return getTextOrNull("IGUI_MQ_Admin_F_" .. string.gsub(path, "%.", "_")) or path
 end
 

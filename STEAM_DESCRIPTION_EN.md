@@ -19,7 +19,7 @@ Daily and weekly quests, achievements, season leaderboards and titles; pair it w
 [*] Click the trophy icon on the family toolbar to open Quests & Achievements
 [*] Check today's quests on the Daily quests page; they advance as you play
 [*] Complete quests and unlock achievements to earn points, then see your rank on the Leaderboards page
-[*] On servers with the Economy mod, exchange points for Survivor Coins on the Exchange page
+[*] Spend points on the Points page: extra quest swaps, a streak shield, point titles; on servers with the Economy mod, Survivor Coins too
 [/olist]
 
 [h2]✨ Features[/h2]
@@ -30,8 +30,8 @@ Daily and weekly quests, achievements, season leaderboards and titles; pair it w
 [*] [b]Timed events and hordes[/b]: the host schedules periods that multiply quest points, or sends hordes for everyone to clear for points
 [*] [b]Achievements and titles[/b]: five tiers per achievement, a title at Platinum, and server-wide announcements for high tiers
 [*] [b]Leaderboards and seasons[/b]: 8 leaderboard categories, with rewards and titles by rank when a season ends
-[*] [b]Point exchange[/b]: with the Economy mod, turn points into Survivor Coins
-[*] [b]Admin panel[/b]: thresholds, quests, seasons and exchange are all tuned in game, and every change can be undone
+[*] [b]Uses for points[/b]: extra quest swaps, a streak shield, point titles and hordes sponsored together; with the Economy mod, Survivor Coins too
+[*] [b]Admin panel[/b]: thresholds, quests, seasons and points are all tuned in game, and every change can be undone
 [/list]
 📖 [b]How to play, admin panel, sandbox options and FAQ:[/b] [url=https://steamcommunity.com/sharedfiles/filedetails/?id=3827763966]Quests & Achievements Mod Guide: Quests, Achievements, Leaderboards & Admin Panel[/url]
 

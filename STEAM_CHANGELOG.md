@@ -1,20 +1,28 @@
-[h1]Minidoracat Quests & Achievements for B42 42.22.2-0.6.3[/h1]
-[i]2026-11-10[/i]
+[h1]Minidoracat Quests & Achievements for B42 42.22.2-0.7.0[/h1]
+[i]2026-11-13[/i]
 
-[b]English summary[/b]
+這一版讓積分有更多地方可以花：多換幾次任務、連續保護、積分稱號，還能和其他人一起贊助一場屍潮。
+
+[h3]✨ 新增[/h3]
 [list]
-[*] Zombies killed with a Pipe Bomb or Aerosol Bomb no longer count as melee or unarmed kills. They used to be sorted by whatever you were holding, so bombs advanced melee quests, achievements and leaderboards. They now count only toward total kills (night, indoor and rain kills still count).
-[*] Characters who start at the two spawn points east of Riverside now start inside Riverside: the town visit is recorded at once, and the newcomer step "Leave your starting town carrying a weapon" works as it does elsewhere.
-[*] Supports Project Zomboid 42.22.2. 42.21 still works.
+[*] [b]積分多了四個用途[/b]：除了換倖存幣，現在可以用積分做這些事。花掉的積分只從「積分餘額」扣，本季與累計賺到的積分不變，排行榜名次不受影響；每次花之前都會先問一次。
+[list]
+[*] [b]多換幾次任務[/b]：每天免費換 1 個任務之後，可以花 50 積分再換，每天最多再換 3 次。積分不夠時，按鈕的位置會寫還差多少。
+[*] [b]連續保護[/b]：花 200 積分先買 1 天保護。哪天沒完成任務、這週的寬限也用掉了，保護會自動用掉，連續天數不中斷。手上最多 1 天，每週最多買 1 次；已經漏掉的那天不能事後補。
+[*] [b]積分稱號[/b]：四個只能用積分換的稱號（1,000／2,000／3,500／5,000 積分），每一季另有一個當季才換得到的稱號（1,500 積分）。換到之後和其他稱號一樣在「我的紀錄」或「積分」頁選用。
+[*] [b]贊助屍潮[/b]（伺服器管理員打開後才有）：幾個人一起湊滿 600 積分，就加開一場屍潮，湊滿後 15 分鐘開始，誰都可以來打。30 分鐘內沒湊滿，或湊滿後這一場開不成（被管理員取消、沒有人到場），每個人出的積分全額退回；殭屍出現之後就不退。這一場發出的積分最多是湊到的一半，照擊殺分；每天最多 1 場。
 [/list]
-
-[h3]🔧 修正[/h3]
-[list]
-[*] [b]用炸彈炸死的殭屍不再算成近戰或徒手擊殺[/b]：用土製炸彈或噴霧罐炸彈（丟的、放在地上的、遙控的都一樣）炸死殭屍時，以前會照你當時手上拿的東西分類：空手算「近戰擊殺」加「徒手擊殺」，拿著斧頭算「近戰擊殺」加「斧頭擊殺」，所以丟炸彈也會推進近戰類的任務、成就與排行榜（從第一版起）。現在炸死的只算進殺殭屍的總數，夜間、室內、雨中擊殺照算。已經記下的數字不會扣回去。
-[*] [b]從 Riverside 鎮外東邊兩個出生點開始的角色，起始城鎮算 Riverside[/b]：這兩個出生點以前不在 Riverside 的範圍內，出生後不會記到「造訪 Riverside」，新手任務的「拿著武器走出起始城鎮」也要先走進任何一個城鎮、再走出去才算（從第一版起）。現在和其他出生點一樣，一出生就算在 Riverside。
+[*] [b]「兌換」頁改名「積分」[/b]：這一頁現在列出積分的所有用途、可以換的稱號，以及最近 10 筆積分紀錄（花掉、退回與兌換倖存幣）。沒有裝經濟系統的伺服器也有這一頁。
+[*] [b]管理員[/b]：管理面板的「兌換」分頁改名「積分」，多了「積分用途」一段，每一項都能關掉、改價格與次數；「屍潮」分頁多了「贊助屍潮」；「報表」分頁多了「花掉的積分」，依用途分列。
 [/list]
 
 [h3]🔄 變更[/h3]
 [list]
-[*] [b]支援 Project Zomboid 42.22.2[/b]：整個 MOD 在 42.22.2 測過，功能照舊；42.21 也還能用。
+[*] [b]積分不夠時的提示寫得更清楚[/b]：以前只寫「積分不足。」，現在會說完成任務或成就可以賺積分。
+[/list]
+
+[h3]🔧 修正[/h3]
+[list]
+[*] [b]兌換倖存幣：伺服器沒回應時按「再問一次」，不會再換第二次[/b]：以前只有一分鐘內再問才不會；超過一分鐘才按，會再扣一次積分、再發一次倖存幣。現在同一筆請求伺服器只會處理一次。
+[*] [b]只有一句話的通知不再印兩次[/b]：以前這種通知會把同一句話當成標題又當成內文，長一點的句子標題還會被截掉。現在只顯示一次。
 [/list]

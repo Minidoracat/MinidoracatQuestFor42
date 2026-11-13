@@ -1,7 +1,7 @@
 <!-- 指南網址：https://steamcommunity.com/sharedfiles/filedetails/?id=3827763966 -->
 <!-- Steam guide source (English): the full reference for this mod; the Workshop description only summarizes. Format and sync: pz-family-docs/release.md「完整說明：Steam 指南」 -->
 <!-- 標題：📖 Quests & Achievements Mod Guide: Quests, Achievements, Leaderboards & Admin Panel -->
-<!-- 摘要：Illustrated guide to Minidoracat Quests & Achievements: daily and weekly quests, the server-wide quest and weekly server goal, streaks, newcomer quests, timed events, hordes, achievements and titles, leaderboards and seasons, My records, exchanging points for Survivor Coins and player settings, plus installation, sandbox options, the admin panel, season payouts, Economy integration, data and backups for hosts, and the API for other mod authors. -->
+<!-- 摘要：Illustrated guide to Minidoracat Quests & Achievements: daily and weekly quests, the server-wide quest and weekly server goal, streaks, newcomer quests, timed events, hordes, achievements and titles, leaderboards and seasons, My records, uses for points (quest swaps, streak shields, point titles, sponsored hordes, Survivor Coins) and player settings, plus installation, sandbox options, the admin panel, season payouts, Economy integration, data and backups for hosts, and the API for other mod authors. -->
 === 🚀 Quick start
 [b]繁體中文版：[/b][url=https://steamcommunity.com/sharedfiles/filedetails/?id=3827763929]Minidoracat Quests & Achievements 完整說明[/url]
 
@@ -13,7 +13,7 @@ Daily and weekly quests, achievements, season leaderboards and titles; pair it w
 [*] [b]Check today's quests[/b]: the Daily quests page lists today's 4 quests; they advance as you play.
 [*] [b]Earn points[/b]: completing quests, unlocking achievements and keeping a streak all give points.
 [*] [b]See your rank[/b]: the Leaderboards page shows Season and All-time ranks.
-[*] [b]Exchange[/b]: on servers with the Economy mod, turn points into Survivor Coins on the Exchange page.
+[*] [b]Spend points[/b]: the Points page shows what points can do: extra quest swaps, a streak shield, point titles, sponsored hordes; on servers with the Economy mod, Survivor Coins too.
 [/olist]
 [h3]Requirements[/h3]
 [list]
@@ -55,7 +55,8 @@ Daily and weekly quests, achievements, season leaderboards and titles; pair it w
 [/list]
 [h3]Swaps and preferences[/h3]
 [list]
-[*] [b]Swap quest[/b]: swap 1 personal quest per day; a quest with progress asks first (the progress cannot be restored); the server-wide quest cannot be swapped.
+[*] [b]Swap quest[/b]: swap 1 personal quest per day for free; a quest with progress asks first (the progress cannot be restored); the server-wide quest cannot be swapped.
+[*] [b]Swap again for points[/b]: once the free swap is used, you can swap again for points (50 points each by default, up to 3 more a day). The button shows the price and asks before it spends; when you are short, the button's place says how many points you still need.
 [*] [b]XP quests[/b]: "Earn N XP" quests only go to a skill with a profession or trait XP bonus that is below level 10 (the game gives no XP at 10, and a quarter without a bonus); otherwise another quest of the same theme comes, also when you swap.
 [*] [b]Preferred themes[/b]: pick up to 3 themes under Settings; each day 2 quests come from your themes and 1 from all themes. When a preferred theme has no quest left for the day, that slot draws from your other preferred themes.
 [*] [b]No preferences[/b]: the three slots draw one each from Combat, Production (Building, Crafting, Cooking, Tailoring, Mechanics & Electrical) and Outdoors (Farming, Animal Care, Fishing & Trapping, Foraging, Exploration).
@@ -65,8 +66,10 @@ Daily and weekly quests, achievements, season leaderboards and titles; pair it w
 [list]
 [*] [b]A day counts[/b]: when you finish 3 of the 4 quests (the server-wide quest counts).
 [*] [b]Grace day[/b]: you may miss 1 day per week and it still counts toward the streak; grace resets on Monday.
-[*] [b]Break[/b]: a missed day after the grace is used resets the streak at the next reset.
+[*] [b]Break[/b]: a missed day after the grace is used, with no streak shield held, resets the streak at the next reset.
 [*] [b]Milestones[/b]: each paid once per streak; after a reset you can earn them again.
+[*] [b]Streak shield[/b]: in the streak area, buy 1 shield day for points (200 by default) in advance. When you miss a day and this week's grace day is already used, the shield is used up at the reset and the day still counts toward your streak (a lock on that day's dot).
+[*] [b]Shield limits[/b]: you can hold 1 day at most and buy another once it is used; at most 1 a week. At most 2 days are covered in a row (1 grace day plus 1 shield day), so missing 3 days still resets the streak, and an unused shield is kept. A day already missed cannot be covered afterwards.
 [/list]
 [table]
 [tr][th]Streak[/th][th]Reward[/th][/tr]
@@ -130,7 +133,7 @@ Once an admin sets up spots, the server can start a horde during its time window
 [/list]
 [h3]Hordes page[/h3]
 {{img:15-hordes-en.jpg}}
-Once the server has automatic hordes on or has had a horde, a "Hordes" page appears on the left of the window.
+Once the server has automatic or sponsored hordes on or has had a horde, a "Hordes" page appears on the left of the window; sponsoring a horde happens here too (see "Points").
 [list]
 [*] [b]Now[/b]: the same banner as on the daily quests page; with no horde it says so.
 [*] [b]My hordes[/b]: your totals for hordes joined, hordes cleared, horde kills and hordes where you were the top killer.
@@ -220,8 +223,8 @@ When a horde ends, the players at the spot get its results; deaths during a hord
 [/list]
 [h3]Titles[/h3]
 [list]
-[*] [b]Earned from[/b]: top achievement tiers, hidden achievements, a 30-day streak, newcomer quests and season rewards.
-[*] [b]Use one[/b]: pick one on the My records page (one at a time, or none). A server-wide notice names the title that unlock earned.
+[*] [b]Earned from[/b]: top achievement tiers, hidden achievements, a 30-day streak, newcomer quests and season rewards, or bought with points (see "Points").
+[*] [b]Use one[/b]: pick one on the My records page (titles bought with points can also be worn with "Wear" on the Points page); one at a time, or none. A server-wide notice names the title that unlock earned.
 [*] [b]My titles[/b]: My records lists every title you have, how you got it and when, newest first; the one you use says "In use". Times are recorded from the version that added this list; titles you got before show "Early".
 [*] [b]All titles for admins[/b]: the admin panel's read-only Titles tab lists every title and what earns it; titles of switched-off achievements show "(off)", changed text "(custom)", and hidden achievements add the hint players see. To change a title's text, press Edit on the Achievements tab.
 [*] [b]Revoked or cleared[/b]: when an admin revokes achievement tiers, the titles those tiers gave go too (also after the text was changed, or the achievement switched off); a tier whose title is left empty in the achievement editor gives no title.
@@ -291,14 +294,16 @@ When a horde ends, the players at the spot get its results; deaths during a hord
 [tr][th]Number[/th][th]Used for[/th][/tr]
 [tr][td]Earned this season[/td][td]Overall Season rank and the participation reward[/td][/tr]
 [tr][td]Earned all-time[/td][td]All-time ranks[/td][/tr]
-[tr][td]Balance[/td][td]Exchanging for Survivor Coins[/td][/tr]
+[tr][td]Balance[/td][td]Spending on uses for points: quest swaps, streak shields, point titles, sponsored hordes, Survivor Coins (see "Points")[/td][/tr]
 [/table]
 [table]
-[tr][th]Source[/th][th]Season[/th][th]All-time[/th][th]Balance[/th][/tr]
+[tr][th]Source or use[/th][th]Season[/th][th]All-time[/th][th]Balance[/th][/tr]
 [tr][td]Quests, achievements, streaks, server goal, newcomer quests, hordes[/td][td]+[/td][td]+[/td][td]+[/td][/tr]
 [tr][td]Achievements imported when the mod was added mid-save[/td][td]-[/td][td]+[/td][td]-[/td][/tr]
 [tr][td]Season rewards[/td][td]-[/td][td]-[/td][td]+[/td][/tr]
 [tr][td]Exchanging for Survivor Coins[/td][td]-[/td][td]-[/td][td]minus[/td][/tr]
+[tr][td]Paid quest swaps, streak shields, point titles, sponsored hordes[/td][td]-[/td][td]-[/td][td]minus[/td][/tr]
+[tr][td]Refunds of a horde fund not filled or a sponsored horde that could not start[/td][td]-[/td][td]-[/td][td]+[/td][/tr]
 [/table]
 [h3]Stats table[/h3]
 [list]
@@ -311,18 +316,60 @@ When a horde ends, the players at the spot get its results; deaths during a hord
 [*] [b]Pick a title[/b]: the title menu at the top of the page; choose "No title" to remove it.
 [*] [b]My titles[/b]: the list under the title menu: every title you have, how you got it and when.
 [/list]
-=== 🧰 Exchanging for Survivor Coins
+=== 🧰 Points
 {{img:06-exchange-en.jpg}}
-The server needs Minidoracat Economy (multiplayer only). The Exchange page on the left of the window (listed while the server can exchange or you have exchange history) shows your balance, how much you can still exchange today and the rate; press "Exchange for survivor coins...".
+The Points page on the left of the window shows what your points can do. Servers without the Economy mod and single player have it too: it is listed while any use for points is on, the server can exchange, or you have points history.
+[list]
+[*] [b]Points balance[/b]: the points you can spend, with your points earned this season and all-time below.
+[*] [b]Uses for points[/b]: the uses this server has on and their prices; the buttons take you to the Daily quests page or the Hordes page, or open the exchange window.
+[*] [b]Point titles[/b]: titles you can only get with points; see below.
+[*] [b]Points history[/b]: your last 10 spends, refunds and exchanges for Survivor Coins.
+[/list]
+[h3]Uses for points[/h3]
+[table]
+[tr][th]Use[/th][th]Default price[/th][th]How often[/th][th]Where[/th][/tr]
+[tr][td]Swap quest[/td][td]50 points[/td][td]Up to 3 more a day after the free one[/td][td]The quest cards on Daily quests[/td][/tr]
+[tr][td]Streak shield[/td][td]200 points[/td][td]Hold 1 day at most, buy 1 a week at most[/td][td]The streak area on Daily quests[/td][/tr]
+[tr][td]Point titles[/td][td]1,000 / 2,000 / 3,500 / 5,000 points; this season's title 1,500 points[/td][td]Once per title[/td][td]The Points page[/td][/tr]
+[tr][td]Sponsor a horde[/td][td]600 points pooled by several players[/td][td]1 a day at most[/td][td]The Hordes page (once an admin turns it on)[/td][/tr]
+[tr][td]Survivor Coins[/td][td]1 point = 1 Survivor Coin[/td][td]Up to 100 points per player per day[/td][td]The Points page (Economy mod, multiplayer only)[/td][/tr]
+[/table]
+[list]
+[*] [b]Ranks stay[/b]: spent points only come off your points balance; points earned this season and all-time stay the same, so your leaderboard ranks do not change.
+[*] [b]Asks first[/b]: before every spend the game shows your balance before and after, and spends only once you confirm.
+[*] [b]The host decides[/b]: these are the defaults; the host can turn any use off and change prices and counts, and the page shows this server's settings.
+[*] [b]Swaps and shields[/b]: see "Swaps and preferences" and "Streaks" under "Daily quests".
+[/list]
+[h3]Point titles[/h3]
+[list]
+[*] [b]Which ones[/b]: four fixed titles (1,000 / 2,000 / 3,500 / 5,000 points by default), plus one title each season (1,500 points by default) that can only be bought during that season.
+[*] [b]No refunds[/b]: buying asks first; the points are not refunded once you have the title.
+[*] [b]Wearing it[/b]: a bought title is not put on for you; press "Wear" on the same page or pick it on My records. In My titles its condition reads "A title bought with points".
+[/list]
+[h3]Sponsor a horde[/h3]
+When an admin turns on "Players can sponsor a horde" under "Admin > Hordes" and the server has a horde spot, the Hordes page gets a "Sponsor a horde" block.
+[olist]
+[*] [b]Start[/b]: anyone presses "Start a fund..." and puts in some points (at least 50 by default; when less than that is left, you can give just what is left).
+[*] [b]Chip in[/b]: others press "Sponsor..." to add theirs.
+[*] [b]Full means a horde[/b]: once the goal is pooled (600 points by default), an extra horde starts at a random spot 15 minutes later, and anyone can fight it; the warning names the sponsors (anonymous ones are only counted). If another horde is on, it waits for that one to end.
+[/olist]
+[list]
+[*] [b]Not filled: full refund[/b]: a fund has a time limit (30 minutes by default); if it is not full by then, everyone gets all their points back, offline players too.
+[*] [b]Could not start: refund too[/b]: if the horde cannot happen after the fund is full (no spot, cancelled by an admin, nobody came), all points come back as well; once the zombies appear there is no refund.
+[*] [b]Points always go down[/b]: this horde pays at most half of the pooled points, shared by kills. Kills, joining and clearing still count for horde stats and achievements, plus a "Hordes sponsored" stat.
+[*] [b]How many[/b]: 1 a day at most, not counted with automatic hordes.
+[*] [b]Server restart[/b]: an open fund is kept; one that ran out while the server was down is refunded at start.
+[/list]
+[h3]Exchanging for Survivor Coins[/h3]
+The server needs Minidoracat Economy (multiplayer only). Uses for points shows how much you can still exchange today; press "Exchange for survivor coins...".
 [list]
 [*] [b]Rate[/b]: 1 point = 1 Survivor Coin by default, set by the host.
 [*] [b]Limits[/b]: by default up to 100 points per player per day, at least 10 per exchange; "All available" fills in the smaller of your balance and today's remaining limit.
-[*] [b]Balance only[/b]: ranks use points earned, so exchanging never lowers your rank.
 [*] [b]Queued[/b]: when the Economy mod's daily allowance for this mod is used up, your points are held and paid automatically later (retried every hour and right after the Economy mod's daily reset).
 [*] [b]Refunded[/b]: if your economy account cannot receive coins, the points come back and you are asked to contact an admin.
 [*] [b]No reply[/b]: press "Ask again" to check the result; asking again never exchanges twice.
 [*] [b]Imported achievements[/b]: points from achievements imported mid-save never reach your balance and cannot be exchanged.
-[*] [b]Exchange history[/b]: once you have exchanged, the Exchange page lists the last 10 below the balance card (time, points to coins, Queued / Credited / Points returned). In the Economy admin ledger the reason reads "Quest points exchange"; from Economy 42.21.0-0.23.0 on, your wallet statement and the receipts on the Economy admin's Player page read it too.
+[*] [b]Exchange history[/b]: Points history shows each exchange's state (Queued / Credited / Points returned). In the Economy admin ledger the reason reads "Quest points exchange"; from Economy 42.21.0-0.23.0 on, your wallet statement and the receipts on the Economy admin's Player page read it too.
 [/list]
 === 🧰 Settings
 {{img:07-settings-en.jpg}}
@@ -363,7 +410,8 @@ The sandbox page "Minidoracat Quests & Achievements" has three options; everythi
 [table]
 [tr][th]Setting[/th][th]Default[/th][/tr]
 [tr][td]Daily quest points / rare / server-wide[/td][td]15 / 20 / 20[/td][/tr]
-[tr][td]Swaps per day[/td][td]1[/td][/tr]
+[tr][td]Free swaps per day[/td][td]1[/td][/tr]
+[tr][td]Uses for points[/td][td]Paid swaps: on, 50 points, up to 3 a day; streak shield: on, 200 points, 1 a week at most; point titles: on, 1,000 / 2,000 / 3,500 / 5,000 points, this season's title 1,500 points[/td][/tr]
 [tr][td]Weekly quests[/td][td]3, 60 points each[/td][/tr]
 [tr][td]Server goal[/td][td]On, 50 points when reached, target ×1.1 of last week[/td][/tr]
 [tr][td]Streaks[/td][td]3 quests count as a day, 1 grace day per week[/td][/tr]
@@ -373,6 +421,7 @@ The sandbox page "Minidoracat Quests & Achievements" has three options; everythi
 [tr][td]Difficulty[/td][td]Normal (Easy ×0.6, Hard ×1.6; only thresholds and quest targets; skill levels and towns visited have a ceiling and stay as they are)[/td][/tr]
 [tr][td]Season length[/td][td]28 days (7-180)[/td][/tr]
 [tr][td]Exchange[/td][td]On, 1 point = 1 Survivor Coin, 100 points per player per day, at least 10[/td][/tr]
+[tr][td]Sponsored hordes[/td][td]Off; when on, 600 points per horde, at least 50 per pledge, filled within 30 min, 1 a day at most, pays back at most 50% of the pool, "Default" preset, starts 15 min after the fund is full[/td][/tr]
 [tr][td]Server-wide notices[/td][td]On, from tier 3, 1 per player per minute[/td][/tr]
 [tr][td]Hordes[/td][td]Automatic hordes off (settings in "Horde settings")[/td][/tr]
 [tr][td]Not ranked[/td][td]Offline for 180 days[/td][/tr]
@@ -382,7 +431,7 @@ The sandbox page "Minidoracat Quests & Achievements" has three options; everythi
 Open "Admin" on the left of the window (its own group at the bottom of the list); only roles listed in the "Admin roles" sandbox option see it, and the server checks every action again.
 [h3]How changes work[/h3]
 [list]
-[*] [b]Tabs[/b]: settings come first (General, Achievements, Titles, Quests, Season, Exchange, Towns, Hordes); after the divider come operations (Players, Report, Balance, History). For Hordes see "Horde settings".
+[*] [b]Tabs[/b]: settings come first (General, Achievements, Titles, Quests, Season, Points, Towns, Hordes); after the divider come operations (Players, Report, Balance, History; see "Admin panel: operations tabs"). For Hordes see "Horde settings".
 [*] [b]Draft first[/b]: edits go into pending changes; press "Apply" at the bottom to see old and new values, then confirm. "Discard changes" asks before it discards.
 [*] [b]Instant buttons[/b]: timed events, horde start/cancel/stop, the payout review and account actions skip that confirmation; those sections say so.
 [*] [b]Unlocks are kept[/b]: higher thresholds only affect what comes next.
@@ -417,13 +466,15 @@ Steps 1-5 cover the common settings; the other tabs hold the rest.
 [*] [b]Newcomer quests[/b]: on/off and reward.
 [*] [b]Timed events[/b]: name, quest theme (or all quests), multiplier (1-5), start and end date (inclusive); up to 3 at a time, removable. Adding and removing take effect at once and cannot be undone from History.
 [/list]
-[h3]Exchange[/h3]
+[h3]Points[/h3]
 {{img:11-admin-exchange-en.jpg}}
 [list]
 [*] [b]Exchange settings[/b]: on/off, rate, per-player daily limit, minimum per exchange.
 [*] [b]Today[/b]: exchanged today, estimated daily exchange, and the Economy mod's daily limit for this mod with today's usage, all server-wide totals.
 [*] [b]Warnings[/b]: shown at the top when the Economy limit is 0, cannot be read, this mod is disabled in the Economy mod, or the estimate exceeds the limit; see "Economy integration".
 [*] [b]Change the limit[/b]: the button opens the Economy mod's "Integration sources" page.
+[*] [b]Uses for points[/b]: on the same tab, no Economy mod needed. An on/off for paid swaps, streak shields and point titles each, with prices, times per day or week, and the prices of the four titles and the season title (0 for the season title = not sold). Spending only takes points from the balance; season points and leaderboards stay the same.
+[*] [b]Turning one off[/b]: titles and shield days players already bought are kept. Sponsored hordes are set on the Hordes tab; see "Horde settings".
 [/list]
 [h3]Towns[/h3]
 [list]
@@ -431,6 +482,8 @@ Steps 1-5 cover the common settings; the other tabs hold the rest.
 [*] [b]Custom towns[/b]: a name and two corners; "Use my position" fills in coordinates.
 [*] [b]Used for[/b]: town achievements, the Towns visited board and the newcomer step "leave your starting town".
 [/list]
+=== ⚙️ Admin panel: operations tabs
+The four tabs after the divider: Players, Report, Balance, History.
 [h3]Players[/h3]
 [list]
 [*] [b]Anomalies[/b]: today or the last 7 days, records of a stat going over its per-minute limit. Every stat has one (120 zombie kills by default, for example); each row shows that minute's total and the limit. The excess is not counted, so it does not advance quests or achievements.
@@ -444,6 +497,7 @@ Steps 1-5 cover the common settings; the other tabs hold the rest.
 [*] [b]Scope[/b]: totals for the last 7 or 30 days, counts only, no individual players; recounted when the page opens and kept for 5 minutes.
 [*] [b]Usage[/b]: players with activity today and in the period, new accounts, daily and weekly completion, swaps, 7+ day streaks, and a pair of bars per day: players with activity and players who finished a daily quest.
 [*] [b]Points[/b]: paid out in the period and the share from each source, coins exchanged, unspent points and the share the top 10% hold.
+[*] [b]Points spent[/b]: the points section also lists the points players spent in the period, in total and for quest swaps, streak shields, titles and sponsored hordes (refunds of unfilled funds already taken off; Survivor Coin exchanges listed apart).
 [*] [b]Achievements[/b]: players per tier of each achievement; those nobody unlocked come last (hidden ones counted, not named).
 [*] [b]Export JSON[/b]: report-YYYY-MM-DD.json beside config.json, one per day, with no player names or accounts.
 [/list]
@@ -468,6 +522,7 @@ The "Admin > Hordes" tab runs from top to bottom in this order:
 [*] [b]Spots[/b]: stand where a horde should appear, fill in "Spot name" and press "Add my current position"; up to 32 spots, one picked at random for each horde. Each row has a "Map" button that opens the world map on the spot; "Remove" asks first, since you have to go back to the place to add it again. Automatic hordes and "Start a horde" need at least one spot. The zombies walk in from 30-40 tiles around the spot, so keep spots more than 60 tiles from player bases.
 [*] [b]Horde corpses[/b]: "Most corpses kept (0 = keep all)" and "Remove the rest after the end (min)", 500 and 10 by default. Only the corpses of zombies this mod spawned for a horde are removed, with everything on them; player and other zombie corpses stay. Over the limit the oldest go first; after a horde ends (cleared, failed or stopped) and the minutes pass, once a player is near the spot, the corpses of that horde and older ones within 60 tiles are removed, at most 100 a second. When parts of that area are not loaded yet, it is gone over again every minute, up to 30 times. Corpses dragged more than 60 tiles away stay.
 [*] [b]Time windows[/b]: "Automatic hordes" (off by default), then one entry per window: the start and end time (HH:MM in the sandbox time zone; an end earlier than the start runs past midnight and belongs to the day it starts, equal means all day) and "chance per hour"; the window's "Preset", "Warning" and "Wait for players" minutes (how long each wave waits for someone within 30 tiles before the horde fails); the seven weekday buttons (pick at least one) and "Remove". "Add a window" up to 8. Each window rolls once an hour during its time and, on a hit, schedules a horde within that hour; identical windows each roll on their own, and only one horde runs at a time. Below: "Hordes per day at most (all windows)" and "Wait after a server start (min)": after a restart or a crash a horde carries on from the last world save, and a horde planned or running before the restart starts no wave during this wait (0 to 60, 0 = no wait); start and waiting times that passed while the server was down count from the end of the wait. Hordes planned after the start keep their own warning.
+[*] [b]Sponsored hordes[/b]: "Players can sponsor a horde" (off by default), points for one horde, smallest pledge, most per day, most paid back (%, 0-90), fund time limit, preset, warning and wait-for-players minutes. Its points cap is the pooled points times the paid-back percentage (the preset's cap if lower), and it does not count toward the hordes per day above. "Now" shows an open fund (points pooled, sponsors, when it ends) and today's sponsored hordes; a sponsored horde's state reads "(sponsored)". Deleting a preset moves the sponsored setting back to "Default" like the windows. Turned off after a fund is full, that horde still starts.
 [*] [b]Horde presets[/b]: each preset is a set of waves, kinds and reward. A window's hordes play the preset that window picks. "Edit preset" picks the one the three sections below change, and their titles name it; "Copy as new preset" copies every setting of the current one (named like "Default 2"), up to 8 presets; "Preset name" takes up to 32 characters, every preset but "Default" needs one, and no two may share a name (the server checks too). "Delete preset" lists the windows that will use "Default" instead and asks first; "Default" cannot be deleted. Below: "Used by" and the windows that use this preset.
 [*] [b]Waves · preset name[/b]: one row per wave with "Base" and "Per extra player" (%), and the wave's size for 1 and 4 players; "Add a wave" up to 10 (it copies the last row), at least one stays. Below: "Rest between waves (s)", "Time limit per wave (min)" and "Most alive at once (zombies)", with the server's sandbox delete threshold next to it: keep "Most alive at once" below it, or the game may delete far zombies, which do not count as kills.
 [*] [b]Kinds · preset name[/b]: one row per kind above 0 with "Weight", "Share", "Points each", "Toughness (×)" and "Remove". Weights are relative and need not add up to 100; only kinds above 0 appear, and the warning lists only those. Toughness runs from 0.1 to 10 (a comma works as the decimal point, as in 0,5): 1× uses the zombie Toughness from the server sandbox, 2× takes twice the damage to bring down. Health tops out at 30 after the multiplier (about 8× for zombies with sandbox Toughness "Tough"), and kinds from other mods are multiplied on their own health. Players do not see toughness. Add others from the "Add a kind..." dropdown: they start at weight 10 and, without points of their own, at the regular zombies' points. A kind whose mod was removed shows "Not installed" and can be removed. Sprinters are made sprinters as they spawn, whatever the sandbox "Speed": they appear even when the sandbox has no sprinters, so remove their row if you want none. With the sandbox "Day/Night Zombie Speed Effect" set to Night or Day, they go back to the sandbox speed when day and night switch.
@@ -499,6 +554,8 @@ The admin panel settings (except timed events and the season length) are also ke
 [*] [b]When the file applies while the panel is open[/b]: an open admin panel switches to the new settings. Changes not applied yet that touch a setting the file changed are refused at Apply and dropped (the bar says how many), so make them again on the reloaded settings; changes to other settings apply as usual. An Undo on the History tab after that is refused and reloads the same way. The same happens when another admin changes settings in the panel.
 [*] [b]Not in the panel[/b]: leaderboards (boards), community goal rotation (goal.rotation), newcomer title and days (newbie.title, newbie.days) change only in this file.
 [*] [b]Hordes (hordes)[/b]: every setting of the Hordes tab: enabled, windows (up to 8 {days, from, to, chance, preset, leadMin, waitMin}: days such as "12345", 1 = Monday; from and to "HH:MM"; chance per hour; preset = the id of the window's preset; always written whole), maxPerDay, resumeMin (minutes after a server start before a horde from before the restart starts a wave, 0 to 60), corpses ({max, afterMin}: horde corpses kept at most, 0 to 5000, 0 = none removed; minutes after the end before the rest go, 0 to 240), presets (preset id to preset, up to 8, default is always there; an id starts with a letter and has only letters, digits, _ and -; each has name, waves (up to 10 {base, perPlayer}, perPlayer = % of base per extra player; always written whole), kinds (kind id to weight; built in: vanilla, runner), points (kind id to points per kill; a kind left out pays like vanilla), hp (kind id to toughness, 0.1 to 10), limitMin, restSec, maxAlive, cap), spots (up to 32 {name, x, y, z}, always written whole). A window whose preset does not exist, or a preset name that is blank (default may be) or shared, stops the whole file. Keys left out of a preset other than default (except name and hp) are filled from the defaults on read and written back; no hp means 1× for all. Ranges and an example are in the GitHub README.
+[*] [b]Uses for points (shop)[/b]: swap ({enabled, pts, perDay}: price per paid swap 1-10000, at most 1-10 a day), shield ({enabled, pts, perWeek}: price of a shield day 1-10000, bought at most 1-7 times a week), titles ({enabled, season, list}: list = the prices of the four titles spend_1 to spend_4, 1-100000 each; season = the season title's price 0-100000, 0 = not sold). Turning one off ("enabled": false) keeps the titles and shield days players already bought.
+[*] [b]Sponsored hordes (hordes.paid)[/b]: {enabled, pts, minPledge, fundMin, maxPerDay, rewardPct, preset, leadMin, waitMin}, off by default. pts 100-100000, minPledge 1-10000, fundMin 5-240, maxPerDay 1-24 (apart from hordes.maxPerDay), rewardPct 0-90 (0 = no points), leadMin 0-120, waitMin 1-240; preset must be a preset in presets.
 [*] [b]Older horde settings[/b]: 0.2.0's from, to, chance, count, perZombie and split are gone, and waves, kinds, points, time limits and the like moved from hordes into presets. A file still written the old way is converted at start or on the next read and written back: from/to/chance become one window on every day, count becomes one wave of its middle value that does not grow with players, perZombie becomes every kind's points, and split is dropped; these settings become the "Default" preset (presets.default), and leadMin and waitMin go into every window. An old key is kept, not moved or dropped, when its new key is already in the file (say a window has its own leadMin and hordes has one too) or its value was not valid before either (say "leadMin": false); then the file is not applied and status.json names that key, so fix it by hand.
 [*] [b]Restoring a world save[/b]: the server applies config.json at start, so the settings follow the file, not the older save.
 [*] [b]Settings from the 4-tier days still work[/b]: an achievement whose tiers list has 4 numbers keeps 4 tiers; a pts list of 4 numbers (points changed, tiers not) pays the default 80 for tier 5.
@@ -539,7 +596,7 @@ Example: the daily quest "Kill N zombies" (d_kill) gets a target of 30 to 60 and
 [list]
 [*] [b]Registers itself[/b]: once the server is up, this mod registers with the Economy mod as the integration source "Quests & Achievements" and pays in Survivor Coins.
 [*] [b]The limit you must set[/b]: the Economy mod gives every integration source a daily mint limit of 0 by default, shared by all players on the server. Open the Economy admin's "Integration sources" page and set the "Daily issue cap" for Quests & Achievements; until you do, every exchange is queued and nothing is paid.
-[*] [b]Choosing the limit[/b]: roughly players who exchange per day × per-player daily limit × rate; the estimate on this mod's "Exchange" admin tab helps.
+[*] [b]Choosing the limit[/b]: roughly players who exchange per day × per-player daily limit × rate; the estimate on this mod's "Points" admin tab helps.
 [*] [b]Queue and retries[/b]: when the allowance is used up, rate-limited, the Economy mod is not ready or does not answer, the exchange is queued and retried every hour, plus right after the Economy mod's daily reset.
 [*] [b]Refunds[/b]: any other refusal (for example a player's economy account cannot receive coins) refunds the points. One exchange is never paid twice.
 [*] [b]Day change[/b]: when the Economy mod provides its day-change API (versions after 42.21.0-0.20.1), the daily and weekly reset happen at the same moment as the Economy mod's daily reward; reading the limit and today's usage needs the same versions. Older Economy versions still exchange, but the admin page cannot show the limit.
@@ -548,7 +605,7 @@ Example: the daily quest "Kill N zombies" (d_kill) gets a target of 30 to 60 and
 [table]
 [tr][th]Contents[/th][th]Location[/th][/tr]
 [tr][td]Setting overrides, seasons, server-wide quest and server goal, timed events, hordes (the current one and the last 20 results, each with everyone's kills, players joined, MVPs and deaths), audit (last 500)[/td][td]Global ModData shared table MinidoracatQuest in the world save[/td][/tr]
-[tr][td]Each account's stats, quests, points, achievements, titles, preferences, tracked items, exchange queue and last 10 exchanges[/td][td]Global ModData account tables MinidoracatQuest_A00-A15 (16 tables)[/td][/tr]
+[tr][td]Each account's stats, quests, points, achievements, titles, preferences, tracked items, exchange queue and recent points history[/td][td]Global ModData account tables MinidoracatQuest_A00-A15 (16 tables)[/td][/tr]
 [tr][td]Account to Steam account bindings[/td][td]Zomboid/Lua/MinidoracatQuest/<server name>/identity.txt[/td][/tr]
 [tr][td]Daily event log (one line per event)[/td][td]Same folder, events-YYYYMMDD.json, one per day[/td][/tr]
 [tr][td]The admin panel settings file, every default value, the result of the last read[/td][td]Same folder, config.json, defaults.json, status.json[/td][/tr]
@@ -619,9 +676,18 @@ https://github.com/Minidoracat/MinidoracatQuestFor42#給其他-mod-的-api
 [*] The Economy mod's daily limit for this mod is 0 by default; the host must set it on the Economy admin's "Integration sources" page.
 [*] When the limit is used up, the coins are paid automatically later; you do not need to exchange again.
 [/list]
-[h3]Why did my rank not drop after exchanging?[/h3]
+[h3]Does spending points lower my rank?[/h3]
 [list]
-[*] Ranks use points earned; exchanging only spends your balance.
+[*] No. Ranks use points earned; exchanging for Survivor Coins, quest swaps, streak shields, point titles and sponsored hordes only spend your balance.
+[/list]
+[h3]What if a horde fund is not filled?[/h3]
+[list]
+[*] When the fund's time limit (30 minutes by default) runs out before it is full, everyone gets all their points back, offline players too; Points history says "Fund not filled, refunded".
+[*] If the horde cannot happen after the fund is full (no spot, cancelled by an admin, nobody came), all points come back too; once the zombies appear there is no refund.
+[/list]
+[h3]I cannot see sponsored hordes or a use for points?[/h3]
+[list]
+[*] Sponsored hordes are off by default: an admin turns them on under "Admin > Hordes", and the server needs a horde spot. The host can also turn the other uses off one by one; the Points page lists only the ones this server has on.
 [/list]
 [h3]When is the daily reset?[/h3]
 [list]

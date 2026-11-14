@@ -371,12 +371,13 @@ local function seqFile()
     return best
 end
 
--- win = { preset, leadMin, waitMin }: the window that rolled it, or horde.now's; actor nil = an automatic roll. The
--- preset's knobs are copied so later setting changes leave it alone; cur.preset is its name ("" = the default one).
--- Returns the new cur, or nil, CODE.FILE_ERROR when its id did not reach its file: an id handed out without it could
--- come again after a crash before the next world save (review 2026-11-02).
+-- win = { preset, leadMin, waitMin, terms? }: the window that rolled it, or horde.now's; actor nil = an automatic
+-- roll. terms: a preset table copied earlier (a sponsored fund's, review r2 A2-1), played instead of win.preset's
+-- today. The preset's knobs are copied so later setting changes leave it alone; cur.preset is its name ("" = the
+-- default one). Returns the new cur, or nil, CODE.FILE_ERROR when its id did not reach its file: an id handed out
+-- without it could come again after a crash before the next world save (review 2026-11-02).
 function H.plan(cfg, startMs, actor, win)
-    local h, p = hordes(), H.presetOf(cfg, win.preset)
+    local h, p = hordes(), win.terms or H.presetOf(cfg, win.preset)
     local spot = cfg.spots[ZombRand(#cfg.spots) + 1]
     local id = math.max(h.seq or 0, seqFile()) + 1
     -- getFileWriter swallows write errors (Store.writeLines): read it back
@@ -1048,10 +1049,11 @@ function H.payBack(cur)
     end
 end
 
--- What one tier plays at these settings, as the players see it (state.hordes.paid.tiers[i]): name, pts, hp, waves,
--- kinds { id, nameKey }, limitMin per wave, cap (the preset's x hp, at most rewardPct of its price) and sig, a hash of
--- all of them. A pledge that opens a fund sends the sig its dialog showed: the tier must still play what it showed.
-function H.tierView(cfg, p, t)
+-- What tier i plays at these settings, as the players see it (state.hordes.paid.tiers[i]): name, pts, hp, waves,
+-- kinds { id, nameKey }, limitMin per wave, cap (the preset's x hp, at most rewardPct of its price), elite (the last of
+-- 2+ tiers: its own achievement, review r2 A2-2) and sig, a hash of all of them. A pledge that opens a fund sends the
+-- sig its dialog showed: the tier must still play what it showed.
+function H.tierView(cfg, p, t, i)
     local pre = H.presetOf(cfg, t.preset)
     local kinds, ids = {}, {}
     for _, m in ipairs(H.mix(pre.kinds, 0)) do
@@ -1060,17 +1062,19 @@ function H.tierView(cfg, p, t)
     end
     local v = { name = t.name, pts = t.pts, hp = t.hp, waves = #pre.waves, kinds = kinds,
         limitMin = t.limitMin or pre.limitMin,
-        cap = math.min(MQ.Catalog.hordeScale(pre.cap, t.hp), math.floor(t.pts * p.rewardPct / 100)) }
+        cap = math.min(MQ.Catalog.hordeScale(pre.cap, t.hp), math.floor(t.pts * p.rewardPct / 100)),
+        elite = i == #p.tiers and i >= 2 }
     v.sig = tostring(U.hash(table.concat({ tostring(v.name), tostring(v.pts), tostring(v.hp), tostring(v.waves),
-        table.concat(ids, ","), tostring(v.limitMin), tostring(v.cap) }, "|")))
+        table.concat(ids, ","), tostring(v.limitMin), tostring(v.cap), tostring(v.elite) }, "|")))
     return v
 end
 
 -- Command pledge: n points into the fund whose goal the client saw (total). With no fund the pledge opens one for tier
--- (nil = 1) of hordes.paid.tiers at that tier's pts and sig (H.tierView), and the fund keeps a copy of the tier (tier,
--- name, preset, pts, hp, limitMin; elite = the last of 2+ tiers); an open fund takes total = its pts and, when given,
--- tier = its tier (its sig is not compared: the fund plays its copy). A tier out of range, another price or another
--- sig: PRICE_CHANGED. The last pledge takes only what is missing. Returns true, { n = taken } | false, code.
+-- (nil = 1) of hordes.paid.tiers at that tier's pts and sig (H.tierView), and the fund keeps a copy of what the
+-- players confirmed (review r2 A2-1): the tier (tier, name, preset, pts, hp, limitMin, elite as in its view), the whole
+-- preset it plays (terms) and rewardPct / backPct. An open fund takes total = its pts and, when given, tier = its tier
+-- (its sig is not compared: the fund plays its copy). A tier out of range, another price or another sig:
+-- PRICE_CHANGED. The last pledge takes only what is missing. Returns true, { n = taken } | false, code.
 function H.pledge(acc, user, n, total, now, tier, sig)
     local h, cfg = hordes(), settings()
     -- past its expiry but before this second's tick: paid back first, so a late pledge cannot fill it; the pledge
@@ -1082,10 +1086,11 @@ function H.pledge(acc, user, n, total, now, tier, sig)
         return false, CODE.FUND_DAY
     end
     if f ~= nil and f.state ~= "open" then return false, CODE.FUND_FULL end
-    local t
+    local t, view
     if f == nil then
         t = p.tiers[tier or 1]
-        if t == nil or total ~= t.pts or sig ~= H.tierView(cfg, p, t).sig then return false, CODE.PRICE_CHANGED end
+        view = t and H.tierView(cfg, p, t, tier or 1)
+        if t == nil or total ~= t.pts or sig ~= view.sig then return false, CODE.PRICE_CHANGED end
     elseif total ~= f.pts or (tier ~= nil and tier ~= (f.tier or 1)) then
         return false, CODE.PRICE_CHANGED
     end
@@ -1098,7 +1103,8 @@ function H.pledge(acc, user, n, total, now, tier, sig)
     if new then
         local i = tier or 1
         f = { by = {}, total = 0, pts = goal, startMs = now, expireAt = now + p.fundMin * MIN, state = "open", tier = i,
-            name = t.name, preset = t.preset, hp = t.hp, limitMin = t.limitMin, elite = i == #p.tiers and i >= 2 }
+            name = t.name, preset = t.preset, hp = t.hp, limitMin = t.limitMin, elite = view.elite,
+            terms = U.copy(H.presetOf(cfg, t.preset)), rewardPct = p.rewardPct, backPct = p.backPct }
         h.fund = f
     end
     f.by[user] = (f.by[user] or 0) + take
@@ -1114,10 +1120,11 @@ function H.pledge(acc, user, n, total, now, tier, sig)
 end
 
 -- Each tick after the rolls: an open fund past its expiry is paid back; a full one waits for no horde on, then is
--- planned like horde.now with its tier's preset (a fund from before the tiers: the first tier's) and hordes.paid's
--- lead and wait (even if paid was switched off since: its points are in), made tougher by the tier's hp
--- (H.toughen), the tier's limitMin per wave when it has one, its cap cut to rewardPct of the fund. No spot or no id
--- file: paid back.
+-- planned like horde.now on the preset copied when it opened (f.terms; a fund from before the copies: its tier's
+-- preset today, before the tiers the first tier's) and hordes.paid's lead and wait (even if paid was switched off
+-- since: its points are in), made tougher by the tier's hp (H.toughen), the tier's limitMin per wave when it has one,
+-- its cap cut to the copied rewardPct of the fund, the copied backPct for the share back. No spot or no id file: paid
+-- back.
 function H.fundTick(now, cfg, tz)
     local h = hordes()
     local f = h.fund
@@ -1129,13 +1136,13 @@ function H.fundTick(now, cfg, tz)
     if h.cur ~= nil then return end
     if #cfg.spots == 0 then return refundAll(h, "spots") end
     local p = cfg.paid
-    local cur = H.plan(cfg, now + p.leadMin * MIN, "fund", { preset = f.preset or p.tiers[1].preset, leadMin = p.leadMin,
-        waitMin = p.waitMin })
+    local cur = H.plan(cfg, now + p.leadMin * MIN, "fund", { preset = f.preset or p.tiers[1].preset, terms = f.terms,
+        leadMin = p.leadMin, waitMin = p.waitMin })
     if cur == nil then return refundAll(h, "file") end
     H.toughen(cur, f.hp)
     if f.limitMin ~= nil then cur.limitMin = f.limitMin end
-    cur.cap = math.min(cur.cap, math.floor(f.total * p.rewardPct / 100))
-    cur.sponsors, cur.backPct, cur.elite = f.by, p.backPct, f.elite
+    cur.cap = math.min(cur.cap, math.floor(f.total * (f.rewardPct or p.rewardPct) / 100))
+    cur.sponsors, cur.backPct, cur.elite = f.by, f.backPct or p.backPct, f.elite
     cur.tier, cur.tierName = f.tier or 1, f.name
     h.fund = nil
     h.paidDay = h.paidDay or {}
@@ -1521,7 +1528,7 @@ function H.stateHordes(acc, user, now)
     end
     local paidOn = p.enabled == true and #cfg.spots > 0
     local tiers = {}
-    for i, t in ipairs(p.tiers) do tiers[i] = H.tierView(cfg, p, t) end
+    for i, t in ipairs(p.tiers) do tiers[i] = H.tierView(cfg, p, t, i) end
     out.paid = { on = paidOn, tiers = tiers, minPledge = p.minPledge, rewardPct = p.rewardPct, backPct = p.backPct,
         leadMin = p.leadMin, left = math.max(0, p.maxPerDay - paidToday(h, now, MQ.Sandbox.get("TimezoneOffset"))) }
     if f ~= nil then

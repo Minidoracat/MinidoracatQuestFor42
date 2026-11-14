@@ -481,4 +481,65 @@ return function(T, F)
         mf = fileTree()
         T.check(mf and mf.hordes.paid.backPct == 0 and mf.hordes.paid.pts == nil, "config.json rewritten with backPct 0")
     end)
+    section("review r2 A2-1: a fund plays the preset, rewardPct and backPct it opened with", function()
+        local Q = boot()
+        local h = Q.Store.root().hordes
+        local alice, bob, carol = players(Q, { "alice", "bob", "carol" })
+        apply(Q, { spots = { SPOT }, waves = { wave(4) }, kinds = { vanilla = 100 }, points = { vanilla = 5 }, cap = 500,
+            limitMin = 15 })
+        paid(Q, { enabled = true, leadMin = 0, maxPerDay = 5 })
+        pledge(alice, 1000, 1200, 2)
+        local f = h.fund
+        T.check(f and f.terms and f.terms.cap == 500 and #f.terms.waves == 1 and f.terms.points.vanilla == 5
+            and f.rewardPct == 50 and f.backPct == 10, "opened: the whole preset, rewardPct 50 and backPct 10 copied")
+        -- while it collects: the preset pays less, has two waves, more points, other minutes; the shares change
+        apply(Q, { cap = 100, waves = { wave(4), wave(4) }, points = { vanilla = 50 }, limitMin = 40 })
+        paid(Q, { rewardPct = 20, backPct = 5 })
+        pledge(bob, 200, 1200)
+        T.check(f.state == "ready" and f.terms.cap == 500, "full; its copy untouched")
+        step(Q)
+        local cur = h.cur
+        T.check(cur and cur.actor == "fund" and #cur.waves == 1 and cur.points.vanilla == 10 and cur.limitMin == 15
+            and cur.cap == 600 and cur.backPct == 10,
+            "planned on the copy: 1 wave, 5 x 2 = 10 a kill, 15 minutes, cap min(500 x 2, 1,200 x 50%) = 600, backPct 10")
+        near(carol)
+        step(Q)
+        killAlive(Q, cur.id, carol)
+        step(Q)
+        T.check(lastLog(Q).state == "success" and bal(Q, "alice") == 5000 - 1000 + 100 and bal(Q, "bob") == 5000 - 200 + 20,
+            "cleared: 10% back as copied (100 and 20), not today's 5%")
+        -- the preset deleted while the fund waits: it still plays the copy
+        set(Q, { { op = "set", path = "hordes.presets.p2", value = { name = "Hard", waves = { wave(3) }, kinds = { vanilla = 1 },
+            points = { vanilla = 7 }, cap = 90, limitMin = 5, restSec = 0, maxAlive = 10 } } })
+        paid(Q, { tiers = { tier("x", "p2", 600, 1) } })
+        pledge(alice, 600, 600, 1)
+        T.check(h.fund and h.fund.state == "ready" and h.fund.terms.name == "Hard", "a fund on p2, full")
+        paid(Q, { tiers = { tier("normal", nil, 600, 1) } })
+        set(Q, { { op = "del", path = "hordes.presets.p2" } })
+        step(Q)
+        cur = h.cur
+        T.check(cur and cur.preset == "Hard" and cur.points.vanilla == 7 and cur.limitMin == 5 and cur.cap == 90,
+            "p2 deleted meanwhile: planned on its copy all the same")
+    end)
+
+    section("review r2 A2-2: the elite tier is in its view and its sig", function()
+        local Q = boot()
+        local H, h = Q.Hordes, Q.Store.root().hordes
+        local alice = players(Q, { "alice" })
+        apply(Q, { spots = { SPOT } })
+        paid(Q, { enabled = true })
+        local v = H.stateHordes(nil, "alice", T.now).paid.tiers
+        T.check(v[1].elite == false and v[2].elite == false and v[3].elite == true, "the last of 3 tiers is elite in the state")
+        local old = sig(3)
+        paid(Q, { tiers = { tier("normal", nil, 600, 1), tier("hard", nil, 1200, 2), tier("nightmare", nil, 2500, 3),
+            tier("hell", nil, 5000, 4) } })
+        T.check(sig(3) ~= old, "a 4th tier: nightmare is not elite any more, its sig changes")
+        local r = cmd(alice, "pledge", { n = 2500, total = 2500, tier = 3, sig = old })
+        T.check(r and r.code == "PRICE_CHANGED" and h.fund == nil, "the dialog showed nightmare as elite: PRICE_CHANGED")
+        r = cmd(alice, "pledge", { n = 2500, total = 2500, tier = 3, sig = sig(3) })
+        T.check(r and r.ok and h.fund.elite == false, "on the current sig: opens, not elite")
+        h.fund = nil
+        r = cmd(alice, "pledge", { n = 600, total = 5000, tier = 4, sig = sig(4) })
+        T.check(r and r.ok and h.fund.elite == true, "hell, the last now: elite")
+    end)
 end

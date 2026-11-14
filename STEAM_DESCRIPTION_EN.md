@@ -19,18 +19,18 @@ Daily and weekly quests, achievements, season leaderboards and titles; pair it w
 [*] Click the trophy icon on the family toolbar to open Quests & Achievements
 [*] Check today's quests on the Daily quests page; they advance as you play
 [*] Complete quests and unlock achievements to earn points, then see your rank on the Leaderboards page
-[*] Spend points on the Points page: extra quest swaps, a streak shield, point titles; on servers with the Economy mod, Survivor Coins too
+[*] Spend points on the Points page: extra quest swaps, a streak shield, point titles and title colours; on servers with the Economy mod, Survivor Coins too
 [/olist]
 
 [h2]✨ Features[/h2]
 [list]
 [*] [b]Daily and weekly quests[/b]: drawn from the themes you prefer, with one swap a day
-[*] [b]Server-wide quest and server goal[/b]: one daily quest everyone shares, and a weekly goal the whole server works on together
-[*] [b]Streaks and newcomer quests[/b]: milestone rewards for playing day after day, and a guided start for new players
-[*] [b]Timed events and hordes[/b]: the host schedules periods that multiply quest points, or sends hordes for everyone to clear for points
+[*] [b]Server goal and streaks[/b]: a weekly goal the whole server works on together, and milestone rewards for playing day after day
+[*] [b]Squad contracts[/b]: on multiplayer servers, a few players each stake points and reach a kill goal together in time
+[*] [b]Hordes[/b]: the host sends hordes for everyone to clear, and players can pool points to add one and pick its difficulty
 [*] [b]Achievements and titles[/b]: five tiers per achievement, a title at Platinum, and server-wide announcements for high tiers
 [*] [b]Leaderboards and seasons[/b]: 8 leaderboard categories, with rewards and titles by rank when a season ends
-[*] [b]Uses for points[/b]: extra quest swaps, a streak shield, point titles and hordes sponsored together; with the Economy mod, Survivor Coins too
+[*] [b]Uses for points[/b]: extra quest swaps, a streak shield, point titles and title colours, plus Survivor Coins with the Economy mod
 [*] [b]Admin panel[/b]: thresholds, quests, seasons and points are all tuned in game, and every change can be undone
 [/list]
 📖 [b]How to play, admin panel, sandbox options and FAQ:[/b] [url=https://steamcommunity.com/sharedfiles/filedetails/?id=3827763966]Quests & Achievements Mod Guide: Quests, Achievements, Leaderboards & Admin Panel[/url]

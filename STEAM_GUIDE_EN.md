@@ -1,7 +1,7 @@
 <!-- 指南網址：https://steamcommunity.com/sharedfiles/filedetails/?id=3827763966 -->
 <!-- Steam guide source (English): the full reference for this mod; the Workshop description only summarizes. Format and sync: pz-family-docs/release.md「完整說明：Steam 指南」 -->
 <!-- 標題：📖 Quests & Achievements Mod Guide: Quests, Achievements, Leaderboards & Admin Panel -->
-<!-- 摘要：Illustrated guide to Minidoracat Quests & Achievements: daily and weekly quests, the server-wide quest and weekly server goal, streaks, newcomer quests, timed events, hordes, achievements and titles, leaderboards and seasons, My records, uses for points (quest swaps, streak shields, point titles, sponsored hordes, Survivor Coins) and player settings, plus installation, sandbox options, the admin panel, season payouts, Economy integration, data and backups for hosts, and the API for other mod authors. -->
+<!-- 摘要：Illustrated guide to Minidoracat Quests & Achievements: daily and weekly quests, the server-wide quest and weekly server goal, streaks, newcomer quests, timed events, hordes, sponsored hordes and the server-wide donation, squad contracts, achievements and titles, leaderboards and seasons, My records, uses for points (quest swaps, streak shields, point titles, title colours, sponsored hordes, the server-wide donation, squad contracts, Survivor Coins) and player settings, plus installation, sandbox options, the admin panel, season payouts, Economy integration, data and backups for hosts, and the API for other mod authors. -->
 === 🚀 Quick start
 [b]繁體中文版：[/b][url=https://steamcommunity.com/sharedfiles/filedetails/?id=3827763929]Minidoracat Quests & Achievements 完整說明[/url]
 
@@ -13,7 +13,7 @@ Daily and weekly quests, achievements, season leaderboards and titles; pair it w
 [*] [b]Check today's quests[/b]: the Daily quests page lists today's 4 quests; they advance as you play.
 [*] [b]Earn points[/b]: completing quests, unlocking achievements and keeping a streak all give points.
 [*] [b]See your rank[/b]: the Leaderboards page shows Season and All-time ranks.
-[*] [b]Spend points[/b]: the Points page shows what points can do: extra quest swaps, a streak shield, point titles, sponsored hordes; on servers with the Economy mod, Survivor Coins too.
+[*] [b]Spend points[/b]: the Points page shows what points can do: extra quest swaps, a streak shield, point titles, title colours, sponsored hordes, the server-wide donation, squad contracts; on servers with the Economy mod, Survivor Coins too.
 [/olist]
 [h3]Requirements[/h3]
 [list]
@@ -108,6 +108,10 @@ Daily and weekly quests, achievements, season leaderboards and titles; pair it w
 [*] [b]Late is fine[/b]: if you reach the minimum contribution after the goal is reached, you are paid when you do.
 [*] [b]Your contribution[/b]: the page shows what you contributed this week and the minimum.
 [/list]
+[h3]Server-wide donation[/h3]
+[list]
+[*] [b]Donate here[/b]: when the server has the donation on, a "Server-wide donation" block sits under the server goal, where everyone pools points for an extra server-wide horde; see "Sponsored hordes and server-wide donation".
+[/list]
 === 🧰 Hordes
 {{img:13-horde-en.jpg}}
 Once an admin sets up spots, the server can start a horde during its time windows: zombies come at a spot in waves, and every wave cleared in time pays points for its kills.
@@ -133,7 +137,7 @@ Once an admin sets up spots, the server can start a horde during its time window
 [/list]
 [h3]Hordes page[/h3]
 {{img:15-hordes-en.jpg}}
-Once the server has automatic or sponsored hordes on or has had a horde, a "Hordes" page appears on the left of the window; sponsoring a horde happens here too (see "Points").
+Once the server has automatic or sponsored hordes on or has had a horde, a "Hordes" page appears on the left of the window; sponsoring a horde happens here too.
 [list]
 [*] [b]Now[/b]: the same banner as on the daily quests page; with no horde it says so.
 [*] [b]My hordes[/b]: your totals for hordes joined, hordes cleared, horde kills and hordes where you were the top killer.
@@ -180,6 +184,101 @@ When a horde ends, the players at the spot get its results; deaths during a hord
 [*] [b]Anonymous players[/b]: show as "Anonymous survivor" in death and MVP notices, for admins too.
 [*] [b]A hidden horde[/b]: if you hid the horde from the tracker, its death and MVP notices stay quiet too; the results still come.
 [/list]
+=== 🧰 Sponsored hordes and server-wide donation
+Players can spend points on extra hordes: a few of them pool points for a "sponsored horde", or the whole server donates toward a "server-wide donation" horde. Both need an admin to turn them on and a horde spot on the server; they play, notify and report results like any horde (see "Hordes").
+[h3]Sponsor a horde[/h3]
+{{img:19-pledge-tiers-en.jpg}}
+When an admin turns on "Players can sponsor a horde" under "Admin > Hordes", the Hordes page gets a "Sponsor a horde" block.
+[olist]
+[*] [b]Pick a difficulty and start[/b]: anyone presses "Start a fund...", picks a difficulty and puts in some points (at least 50 by default; when less than that is left, you can give just what is left).
+[*] [b]Chip in[/b]: others press "Sponsor..." to add theirs; the fund keeps the difficulty it was started with.
+[*] [b]Full means a horde[/b]: once that difficulty's price is pooled, an extra horde starts at a random spot 15 minutes later, and anyone can fight it; the warning names the sponsors (anonymous ones are only counted). If another horde is on, it waits for that one to end.
+[/olist]
+[table]
+[tr][th]Difficulty[/th][th]Price[/th][th]Zombies as tough[/th][th]Points each (Regular / Sprinter)[/th][th]Per wave[/th][th]Pays at most[/th][/tr]
+[tr][td]Normal[/td][td]600 points[/td][td]1×[/td][td]5 / 8[/td][td]15 min[/td][td]300 points[/td][/tr]
+[tr][td]Hard[/td][td]1,200 points[/td][td]2×[/td][td]10 / 16[/td][td]20 min[/td][td]600 points[/td][/tr]
+[tr][td]Nightmare[/td][td]2,500 points[/td][td]3×[/td][td]15 / 24[/td][td]25 min[/td][td]1,250 points[/td][/tr]
+[/table]
+[list]
+[*] [b]These are the defaults[/b]: all difficulties have the same waves and zombie counts; a harder one has tougher zombies, more points per kill and a higher total it can pay. The host can set 1 to 4 tiers and the page shows this server's; with one tier there is no difficulty to pick.
+[*] [b]The terms are fixed when the fund opens[/b]: the horde plays the terms the screen showed when the fund opened; an admin changing the settings later does not affect it.
+[*] [b]10% back on a clear[/b]: when every wave is cleared, each sponsor gets 10% of their share back, even without being there; Points history says "Sponsored horde cleared: part of your share back". Nothing comes back if it is not cleared.
+[*] [b]Nightmare's own achievement[/b]: the top difficulty is marked "Own achievement"; clearing it with a kill of your own counts for the "Nightmare Conqueror" achievement.
+[*] [b]Not filled: full refund[/b]: a fund has a time limit (30 minutes by default); if it is not full by then, everyone gets all their points back, offline players too.
+[*] [b]Could not start: refund too[/b]: if the horde cannot happen after the fund is full (no spot, cancelled by an admin, nobody came), all points come back as well; once the zombies appear there is no refund.
+[*] [b]Points always go down[/b]: the horde pays at most half of the pooled points, shared by kills; with the 10% back on a clear, still less comes back than went in. Kills, joining and clearing still count for horde stats and achievements, plus a "Hordes sponsored" stat.
+[*] [b]How many[/b]: 1 a day at most, not counted with automatic hordes.
+[*] [b]Server restart[/b]: an open fund is kept; one that ran out while the server was down is refunded at start.
+[/list]
+[h3]Server-wide donation[/h3]
+{{img:20-donate-en.jpg}}
+Once an admin turns the donation on (off by default), the Weekly quests page gets a "Server-wide donation" block: everyone donates points, and a full round brings an extra server-wide horde.
+[list]
+[*] [b]Donate[/b]: press "Donate...", at least 10 points each time; the block shows the round's total and what you gave.
+[*] [b]Full means a horde[/b]: at 10,000 points an extra horde is set for Saturday 21:00 (sandbox time zone), at least 24 hours after the round fills, otherwise the Saturday after; everyone is told when it fills.
+[*] [b]That horde[/b]: a random spot, a warning 30 minutes before, anyone can fight it. Zombies are 3× as tough and pay 3× the points (Regular 15, Sprinter 24); it pays 1,500 points at most, always less than the target.
+[*] [b]No refunds[/b]: a round not full stays and keeps filling; anything over the target counts toward the next round.
+[*] [b]Moved if it does not happen[/b]: if that horde ends before any zombie comes (cancelled, nobody came), it moves to the next Saturday and everyone is told. Once zombies came, it is not moved.
+[*] [b]Achievement[/b]: the points you donate count for the "Open Handed" achievement.
+[*] [b]These are the defaults[/b]: the host can change the target, weekday, time and toughness; the page shows this server's settings.
+[/list]
+=== 🧰 Squad contracts
+{{img:16-contracts-en.jpg}}
+A few players each stake points as a squad and meet a kill target together within a time limit. The "Squad contracts" page on the left of the window lists the contracts you can start, the squads gathering and your recent contracts. Multiplayer only: single player has no such page.
+[h3]Three contracts[/h3]
+[table]
+[tr][th]Contract[/th][th]Target[/th][th]Time limit[/th][th]Stake[/th][/tr]
+[tr][td]Hunt[/td][td]Kill 150 × players[/td][td]60 min[/td][td]100 points[/td][/tr]
+[tr][td]Melee hunt[/td][td]Melee-kill 100 × players[/td][td]60 min[/td][td]150 points[/td][/tr]
+[tr][td]Long haul[/td][td]Kill 400 × players[/td][td]120 min[/td][td]250 points[/td][/tr]
+[/table]
+[list]
+[*] [b]These are the defaults[/b]: the host can change targets, time limits and stakes or turn a contract off; the page shows this server's settings.
+[*] [b]The target grows with the squad[/b]: it is one player's share times the players at the start, so more players do not make it easier.
+[/list]
+[h3]Starting and joining[/h3]
+[olist]
+[*] [b]Start[/b]: press "Start..." on a contract; the confirmation shows the stake, what comes back and the rules, and "Start and stake N points" takes the stake and makes you the leader.
+[*] [b]Gather[/b]: the squad shows under "Squads gathering" for others for 10 minutes, 2 to 6 players a squad. Others press "Join..." and stake the same points.
+[*] [b]Go[/b]: the clock starts when 6 players are in, or when the leader presses "Start now" (2 players at least). When the 10 minutes run out with 2 or more players it starts too; with fewer the squad breaks up and everyone gets the stake back in full.
+[*] [b]Play together[/b]: the target is met when the squad's kills add up to it in time.
+[/olist]
+[list]
+[*] [b]No leaving once it starts[/b]: you can only leave while the squad is gathering.
+[*] [b]Leave while gathering[/b]: a member presses "Leave and get N points back" for the whole stake.
+[*] [b]Disband[/b]: the leader presses "Disband squad" (a leader leaving also disbands it); every member gets their stake back in full.
+[*] [b]Uses one for the day[/b]: leaving, or disbanding as the leader, uses one of your contracts for the day, and the game asks first; members of a disbanded squad and squads that break up for lack of players do not.
+[*] [b]How many[/b]: 3 contracts per player per day, counted when one starts, with the same day change as daily quests; one contract at a time. At most 10 contracts gather or run on the server at once.
+[/list]
+[h3]Results[/h3]
+[table]
+[tr][th]Result[/th][th]What comes back[/th][/tr]
+[tr][td]Met, you pulled your weight[/td][td]Half the stake back, plus 30% of the stake as a points bonus[/td][/tr]
+[tr][td]Met, you did not[/td][td]Half the stake back only[/td][/tr]
+[tr][td]Not met[/td][td]The stake is lost[/td][/tr]
+[/table]
+[list]
+[*] [b]Pulling your weight[/b]: kills of your own of at least 30% of one player's share: 45 for Hunt, 30 for Melee hunt, 120 for Long haul.
+[*] [b]Example[/b]: a met Hunt with a 100 stake gives 50 back plus a 30 bonus, 80 in all, to those who pulled their weight, and 50 to the rest.
+[*] [b]The bonus counts as earned points[/b]: season, all-time and balance, so it counts for ranks; the stake that comes back only returns to your balance. A met contract where you pulled your weight also counts for the "Contractor" achievement.
+[*] [b]Notices and history[/b]: when it ends every member gets a notice with the result and what came back; "Recent contracts" lists your last 10.
+[/list]
+[h3]Which kills count[/h3]
+[list]
+[*] [b]The same as daily quests[/b]: kills in a horde count too; Melee hunt counts melee kills only.
+[*] [b]Running zombies over[/b]: they count for the driver, not for passengers.
+[*] [b]Fire does not count[/b]: a zombie that burns to death has no attacker, so it counts for nobody.
+[*] [b]Time up means stop[/b]: kills after the time limit do not count.
+[/list]
+[h3]Where to see it[/h3]
+{{img:17-contract-active-en.jpg}}
+[list]
+[*] [b]Squad contracts page[/b]: while running it shows the time left, the squad's kills against the target and each member's kills.
+[*] [b]Tracker panel[/b]: a running contract adds a row under the horde row with the contract, the time left and the squad's progress; it does not use one of the 5 slots.
+[*] [b]Server restart[/b]: time while the server is down does not count, so no time is lost; the clock goes on as soon as the server is up.
+[/list]
+{{img:18-contract-tracker-en.jpg}}
 === 🧰 Achievements and titles
 {{img:03-achievements-en.jpg}}
 [h3]Categories[/h3]
@@ -191,8 +290,8 @@ When a horde ends, the players at the spot get its results; deaths during a hord
 [tr][td]Production & Building[/td][td]Crafting, building, cooking, tailoring, smithing, knapping, carving, vehicle repair, installing parts, connecting power, scrapping[/td][/tr]
 [tr][td]Farming & Wilds[/td][td]Planting, harvesting, fishing, foraging, trapping, butchering, milking, shearing, collecting eggs from henhouses, chopping trees[/td][/tr]
 [tr][td]Exploration[/td][td]Towns visited, walking, driving, reading, placing furniture[/td][/tr]
-[tr][td]Quests[/td][td]Daily, weekly, longest streak, server goals, seasons joined, achievement tiers[/td][/tr]
-[tr][td]Hordes[/td][td]Hordes cleared, horde kills, top killer (listed only on servers that run hordes)[/td][/tr]
+[tr][td]Quests[/td][td]Daily, weekly, longest streak, server goals, seasons joined, achievement tiers, squad contracts (multiplayer only)[/td][/tr]
+[tr][td]Hordes[/td][td]Hordes cleared, horde kills, top killer, top-tier sponsored hordes cleared, points donated (listed only on servers that run hordes)[/td][/tr]
 [tr][td]Hidden[/td][td]17 achievements, only a hint until unlocked[/td][/tr]
 [tr][td]Professions[/td][td]None built in; other mods add them through the API[/td][/tr]
 [/table]
@@ -207,12 +306,19 @@ When a horde ends, the players at the spot get its results; deaths during a hord
 [tr][td]Hidden achievement (1 tier)[/td][td]30, some give a title[/td][/tr]
 [/table]
 [list]
-[*] [b]About 110 in total[/b]: 111 built in; a server may add custom achievements or achievements from other mods. Each category button shows unlocked/total.
+[*] [b]About 115 in total[/b]: 114 built in; a server may add custom achievements or achievements from other mods. Each category button shows unlocked/total.
 [*] [b]Next tier[/b]: every achievement shows the next tier's threshold and points.
 [*] [b]How the five tiers work[/b]: for counts, Legend V is 2.5 times Platinum IV; skill achievements are skill levels 2 / 4 / 6 / 8 / 10 (Fitness and Strength 6 to 10), so a skill title comes at level 8. Admins can add up to 10 tiers.
 [*] [b]One-life achievements[/b]: those marked "One life" use this life's stats and start over after death; the rest use your all-time totals across characters.
 [*] [b]Raised thresholds[/b]: unlocked achievements are never taken back. When thresholds are lowered or an update adds tiers, the tiers you already reached are added at your next login (points paid as usual, only you get the notice).
 [/list]
+[h3]Group play achievements[/h3]
+[table]
+[tr][th]Achievement[/th][th]For[/th][th]Five tiers[/th][th]Tier IV title[/th][/tr]
+[tr][td]Contractor[/td][td]Squad contracts met with your share of the kills (multiplayer only)[/td][td]1 / 5 / 15 / 40 / 100[/td][td]Contract Veteran[/td][/tr]
+[tr][td]Nightmare Conqueror[/td][td]Top-tier sponsored hordes cleared with a kill of your own[/td][td]1 / 3 / 10 / 25 / 50[/td][td]Nightmare Slayer[/td][/tr]
+[tr][td]Open Handed[/td][td]Points given to the server-wide donation[/td][td]500 / 2,000 / 5,000 / 15,000 / 40,000[/td][td]Server Benefactor[/td][/tr]
+[/table]
 [h3]Notifications[/h3]
 {{img:10-toast-en.jpg}}
 [list]
@@ -228,7 +334,7 @@ When a horde ends, the players at the spot get its results; deaths during a hord
 [*] [b]My titles[/b]: My records lists every title you have, how you got it and when, newest first; the one you use says "In use". Times are recorded from the version that added this list; titles you got before show "Early".
 [*] [b]All titles for admins[/b]: the admin panel's read-only Titles tab lists every title and what earns it; titles of switched-off achievements show "(off)", changed text "(custom)", and hidden achievements add the hint players see. To change a title's text, press Edit on the Achievements tab.
 [*] [b]Revoked or cleared[/b]: when an admin revokes achievement tiers, the titles those tiers gave go too (also after the text was changed, or the achievement switched off); a tier whose title is left empty in the achievement editor gives no title.
-[*] [b]Where it shows[/b]: next to your name on leaderboards, one line above your name over your head, and after your name in chat (gold, multiplayer only).
+[*] [b]Where it shows[/b]: next to your name on leaderboards, one line above your name over your head, and after your name in chat (multiplayer only). Head and chat titles are gold, and you can spend points on another colour (see "Points").
 [*] [b]When the head title is hidden[/b]: it follows the vanilla name rules: hidden when the server does not show names, when the player is invisible or disguised, or out of sight; when the server shows names only on mouse-over, the title also shows only when you point at that player. It steps aside while the player speaks or sits in a vehicle. Your own title follows the vanilla option Options > Multiplayer > Show your username.
 [*] [b]Turn them off[/b]: Options > MODS > Quests & Achievements has separate ticks for head and chat titles; the host can also turn each off for everyone in the admin panel.
 [/list]
@@ -238,6 +344,7 @@ When a horde ends, the players at the spot get its results; deaths during a hord
 [*] [b]Add[/b]: press "Track" on a daily or weekly quest card or an achievement card (press again to stop), up to 5; with 5 tracked, pressing "Track" on another card tells you to untrack one first.
 [*] [b]What it shows[/b]: at the top left, next to the vanilla sidebar: quests show progress/target, achievements the next tier's target, a done quest gets a check mark and the points it paid.
 [*] [b]Hordes[/b]: during a horde an extra row sits on top; it does not use one of the 5 slots, and the ✕ on its right hides this horde. After a horde ends, a "Results" row waits there until the results open (see "Hordes" and "Horde results and notices").
+[*] [b]Squad contracts[/b]: a running contract adds a row under the horde row; it does not use one of the 5 slots (see "Squad contracts").
 [*] [b]Move and fold[/b]: drag the panel to move it and the game remembers where; the arrow in its title row folds it to one line, and so can a hotkey (see "Opening and sizing the window").
 [*] [b]Width[/b]: the panel is only as wide as its rows, and every progress bar ends at the same place; with a horde or results row it gets wider so place names are not cut. Point at its right edge for a handle: drag it left to set the widest the panel gets (the game remembers it), and the panel still shrinks when its rows are narrower; double-click the edge for the automatic width again. A panel in the right half of the screen keeps its right edge when its width changes.
 [*] [b]Background[/b]: "Tracker panel background opacity (%)" in Options > MODS > Quests & Achievements goes from 50 to 100, 80 by default; under 80 the text gets a black shadow.
@@ -294,16 +401,16 @@ When a horde ends, the players at the spot get its results; deaths during a hord
 [tr][th]Number[/th][th]Used for[/th][/tr]
 [tr][td]Earned this season[/td][td]Overall Season rank and the participation reward[/td][/tr]
 [tr][td]Earned all-time[/td][td]All-time ranks[/td][/tr]
-[tr][td]Balance[/td][td]Spending on uses for points: quest swaps, streak shields, point titles, sponsored hordes, Survivor Coins (see "Points")[/td][/tr]
+[tr][td]Balance[/td][td]Spending on uses for points: quest swaps, streak shields, point titles, title colours, sponsored hordes, the server-wide donation, squad contracts, Survivor Coins (see "Points")[/td][/tr]
 [/table]
 [table]
 [tr][th]Source or use[/th][th]Season[/th][th]All-time[/th][th]Balance[/th][/tr]
-[tr][td]Quests, achievements, streaks, server goal, newcomer quests, hordes[/td][td]+[/td][td]+[/td][td]+[/td][/tr]
+[tr][td]Quests, achievements, streaks, server goal, newcomer quests, hordes, squad contract bonuses[/td][td]+[/td][td]+[/td][td]+[/td][/tr]
 [tr][td]Achievements imported when the mod was added mid-save[/td][td]-[/td][td]+[/td][td]-[/td][/tr]
 [tr][td]Season rewards[/td][td]-[/td][td]-[/td][td]+[/td][/tr]
 [tr][td]Exchanging for Survivor Coins[/td][td]-[/td][td]-[/td][td]minus[/td][/tr]
-[tr][td]Paid quest swaps, streak shields, point titles, sponsored hordes[/td][td]-[/td][td]-[/td][td]minus[/td][/tr]
-[tr][td]Refunds of a horde fund not filled or a sponsored horde that could not start[/td][td]-[/td][td]-[/td][td]+[/td][/tr]
+[tr][td]Paid quest swaps, streak shields, point titles, title colours, sponsored hordes, the server-wide donation, squad contract stakes[/td][td]-[/td][td]-[/td][td]minus[/td][/tr]
+[tr][td]Refunds of a horde fund not filled or a sponsored horde that could not start, the 10% back on a cleared sponsored horde, squad contract stakes coming back[/td][td]-[/td][td]-[/td][td]+[/td][/tr]
 [/table]
 [h3]Stats table[/h3]
 [list]
@@ -321,8 +428,9 @@ When a horde ends, the players at the spot get its results; deaths during a hord
 The Points page on the left of the window shows what your points can do. Servers without the Economy mod and single player have it too: it is listed while any use for points is on, the server can exchange, or you have points history.
 [list]
 [*] [b]Points balance[/b]: the points you can spend, with your points earned this season and all-time below.
-[*] [b]Uses for points[/b]: the uses this server has on and their prices; the buttons take you to the Daily quests page or the Hordes page, or open the exchange window.
+[*] [b]Uses for points[/b]: the uses this server has on and their prices; the buttons take you to the Daily quests, Weekly quests, Hordes or Squad contracts page, or open the exchange window.
 [*] [b]Point titles[/b]: titles you can only get with points; see below.
+[*] [b]Title colour[/b]: spend points on another colour for your title; see below.
 [*] [b]Points history[/b]: your last 10 spends, refunds and exchanges for Survivor Coins.
 [/list]
 [h3]Uses for points[/h3]
@@ -331,7 +439,10 @@ The Points page on the left of the window shows what your points can do. Servers
 [tr][td]Swap quest[/td][td]50 points[/td][td]Up to 3 more a day after the free one[/td][td]The quest cards on Daily quests[/td][/tr]
 [tr][td]Streak shield[/td][td]200 points[/td][td]Hold 1 day at most, buy 1 a week at most[/td][td]The streak area on Daily quests[/td][/tr]
 [tr][td]Point titles[/td][td]1,000 / 2,000 / 3,500 / 5,000 points; this season's title 1,500 points[/td][td]Once per title[/td][td]The Points page[/td][/tr]
-[tr][td]Sponsor a horde[/td][td]600 points pooled by several players[/td][td]1 a day at most[/td][td]The Hordes page (once an admin turns it on)[/td][/tr]
+[tr][td]Title colour[/td][td]300 points[/td][td]Lasts 7 days[/td][td]The Points page[/td][/tr]
+[tr][td]Sponsor a horde[/td][td]600 / 1,200 / 2,500 points (three difficulties) pooled by several players[/td][td]1 a day at most[/td][td]The Hordes page (once an admin turns it on)[/td][/tr]
+[tr][td]Server-wide donation[/td][td]At least 10 points each; 10,000 from the server brings a horde[/td][td]No limit[/td][td]The Weekly quests page (once an admin turns it on)[/td][/tr]
+[tr][td]Squad contracts[/td][td]A 100 / 150 / 250 point stake[/td][td]3 per player per day[/td][td]The Squad contracts page (multiplayer only)[/td][/tr]
 [tr][td]Survivor Coins[/td][td]1 point = 1 Survivor Coin[/td][td]Up to 100 points per player per day[/td][td]The Points page (Economy mod, multiplayer only)[/td][/tr]
 [/table]
 [list]
@@ -339,6 +450,7 @@ The Points page on the left of the window shows what your points can do. Servers
 [*] [b]Asks first[/b]: before every spend the game shows your balance before and after, and spends only once you confirm.
 [*] [b]The host decides[/b]: these are the defaults; the host can turn any use off and change prices and counts, and the page shows this server's settings.
 [*] [b]Swaps and shields[/b]: see "Swaps and preferences" and "Streaks" under "Daily quests".
+[*] [b]Sponsored hordes, the donation and squad contracts[/b]: see "Sponsored hordes and server-wide donation" and "Squad contracts".
 [/list]
 [h3]Point titles[/h3]
 [list]
@@ -346,19 +458,14 @@ The Points page on the left of the window shows what your points can do. Servers
 [*] [b]No refunds[/b]: buying asks first; the points are not refunded once you have the title.
 [*] [b]Wearing it[/b]: a bought title is not put on for you; press "Wear" on the same page or pick it on My records. In My titles its condition reads "A title bought with points".
 [/list]
-[h3]Sponsor a horde[/h3]
-When an admin turns on "Players can sponsor a horde" under "Admin > Hordes" and the server has a horde spot, the Hordes page gets a "Sponsor a horde" block.
-[olist]
-[*] [b]Start[/b]: anyone presses "Start a fund..." and puts in some points (at least 50 by default; when less than that is left, you can give just what is left).
-[*] [b]Chip in[/b]: others press "Sponsor..." to add theirs.
-[*] [b]Full means a horde[/b]: once the goal is pooled (600 points by default), an extra horde starts at a random spot 15 minutes later, and anyone can fight it; the warning names the sponsors (anonymous ones are only counted). If another horde is on, it waits for that one to end.
-[/olist]
+[h3]Title colour[/h3]
+{{img:21-title-color-en.jpg}}
 [list]
-[*] [b]Not filled: full refund[/b]: a fund has a time limit (30 minutes by default); if it is not full by then, everyone gets all their points back, offline players too.
-[*] [b]Could not start: refund too[/b]: if the horde cannot happen after the fund is full (no spot, cancelled by an admin, nobody came), all points come back as well; once the zombies appear there is no refund.
-[*] [b]Points always go down[/b]: this horde pays at most half of the pooled points, shared by kills. Kills, joining and clearing still count for horde stats and achievements, plus a "Hordes sponsored" stat.
-[*] [b]How many[/b]: 1 a day at most, not counted with automatic hordes.
-[*] [b]Server restart[/b]: an open fund is kept; one that ran out while the server was down is refunded at start.
+[*] [b]Change the colour[/b]: for 300 points your title over your head and in chat turns from gold to Blue, Green, Purple, Coral or White for 7 days.
+[*] [b]Preview[/b]: the top of the block previews the colour on the title you wear; with no title it says "Choose a title first".
+[*] [b]Ending[/b]: after 7 days it goes back to gold by itself. With less than a day left, you get one reminder when you log in.
+[*] [b]Changing again[/b]: picking another colour before then starts a new 7 days from that moment; the time left is not paid back.
+[*] [b]Back to gold[/b]: any time, free; the time left is not paid back.
 [/list]
 [h3]Exchanging for Survivor Coins[/h3]
 The server needs Minidoracat Economy (multiplayer only). Uses for points shows how much you can still exchange today; press "Exchange for survivor coins...".
@@ -411,7 +518,7 @@ The sandbox page "Minidoracat Quests & Achievements" has three options; everythi
 [tr][th]Setting[/th][th]Default[/th][/tr]
 [tr][td]Daily quest points / rare / server-wide[/td][td]15 / 20 / 20[/td][/tr]
 [tr][td]Free swaps per day[/td][td]1[/td][/tr]
-[tr][td]Uses for points[/td][td]Paid swaps: on, 50 points, up to 3 a day; streak shield: on, 200 points, 1 a week at most; point titles: on, 1,000 / 2,000 / 3,500 / 5,000 points, this season's title 1,500 points[/td][/tr]
+[tr][td]Uses for points[/td][td]Paid swaps: on, 50 points, up to 3 a day; streak shield: on, 200 points, 1 a week at most; point titles: on, 1,000 / 2,000 / 3,500 / 5,000 points, this season's title 1,500 points; title colour: on, 300 points for 7 days[/td][/tr]
 [tr][td]Weekly quests[/td][td]3, 60 points each[/td][/tr]
 [tr][td]Server goal[/td][td]On, 50 points when reached, target ×1.1 of last week[/td][/tr]
 [tr][td]Streaks[/td][td]3 quests count as a day, 1 grace day per week[/td][/tr]
@@ -421,7 +528,9 @@ The sandbox page "Minidoracat Quests & Achievements" has three options; everythi
 [tr][td]Difficulty[/td][td]Normal (Easy ×0.6, Hard ×1.6; only thresholds and quest targets; skill levels and towns visited have a ceiling and stay as they are)[/td][/tr]
 [tr][td]Season length[/td][td]28 days (7-180)[/td][/tr]
 [tr][td]Exchange[/td][td]On, 1 point = 1 Survivor Coin, 100 points per player per day, at least 10[/td][/tr]
-[tr][td]Sponsored hordes[/td][td]Off; when on, 600 points per horde, at least 50 per pledge, filled within 30 min, 1 a day at most, pays back at most 50% of the pool, "Default" preset, starts 15 min after the fund is full[/td][/tr]
+[tr][td]Sponsored hordes[/td][td]Off; when on, three difficulties: Normal 600, Hard 1,200, Nightmare 2,500 points (toughness 1 / 2 / 3, 15 / 20 / 25 min per wave, all on the "Default" preset); at least 50 per pledge, filled within 30 min, 1 a day at most, pays back at most 50% of the pool, 10% back to sponsors on a clear, starts 15 min after the fund is full[/td][/tr]
+[tr][td]Server-wide donation[/td][td]Off; when on, a 10,000-point target, at least 10 per donation, Saturday 21:00, "Default" preset, toughness 3, 30 min warning, 60 min wait for players[/td][/tr]
+[tr][td]Squad contracts[/td][td]On (multiplayer only); Hunt 150 × players / 60 min / stake 100, Melee hunt 100 / 60 / 150, Long haul 400 / 120 / 250; met: 50% of the stake back, plus 30% for those with 30% of a share in kills; 3 per player per day, 10 min to gather, 2 to 6 players, 10 at once at most[/td][/tr]
 [tr][td]Server-wide notices[/td][td]On, from tier 3, 1 per player per minute[/td][/tr]
 [tr][td]Hordes[/td][td]Automatic hordes off (settings in "Horde settings")[/td][/tr]
 [tr][td]Not ranked[/td][td]Offline for 180 days[/td][/tr]
@@ -474,7 +583,15 @@ Steps 1-5 cover the common settings; the other tabs hold the rest.
 [*] [b]Warnings[/b]: shown at the top when the Economy limit is 0, cannot be read, this mod is disabled in the Economy mod, or the estimate exceeds the limit; see "Economy integration".
 [*] [b]Change the limit[/b]: the button opens the Economy mod's "Integration sources" page.
 [*] [b]Uses for points[/b]: on the same tab, no Economy mod needed. An on/off for paid swaps, streak shields and point titles each, with prices, times per day or week, and the prices of the four titles and the season title (0 for the season title = not sold). Spending only takes points from the balance; season points and leaderboards stay the same.
-[*] [b]Turning one off[/b]: titles and shield days players already bought are kept. Sponsored hordes are set on the Hordes tab; see "Horde settings".
+[*] [b]Turning one off[/b]: titles and shield days players already bought are kept. Sponsored hordes and the server-wide donation are set on the Hordes tab; see "Sponsored horde and donation settings".
+[/list]
+[h3]Title colour and squad contracts[/h3]
+{{img:22-admin-contracts-en.jpg}}
+[list]
+[*] [b]Title colour[/b]: "Players can rent a title colour", the price of each rent and the days it lasts (1-90). Players can always go back to gold for free, even with it off.
+[*] [b]Squad contracts[/b]: "Players can start squad contracts"; stake back when met (%), the bonus for those who pulled their weight (% of the stake), the kills that count as pulling your weight (% of a share), most per player per day, time to gather, fewest and most players, most at once; for each of the three contracts "Open to players", target per player, time limit and stake.
+[*] [b]Less comes back than goes in[/b]: stake back plus bonus may be 95% at most, or Apply refuses it; the fewest players cannot be more than the most.
+[*] [b]Contracts already started keep their terms[/b]: stake, target, time limit and percentages are fixed when a contract is started. Contracts only open on multiplayer servers.
 [/list]
 [h3]Towns[/h3]
 [list]
@@ -497,7 +614,8 @@ The four tabs after the divider: Players, Report, Balance, History.
 [*] [b]Scope[/b]: totals for the last 7 or 30 days, counts only, no individual players; recounted when the page opens and kept for 5 minutes.
 [*] [b]Usage[/b]: players with activity today and in the period, new accounts, daily and weekly completion, swaps, 7+ day streaks, and a pair of bars per day: players with activity and players who finished a daily quest.
 [*] [b]Points[/b]: paid out in the period and the share from each source, coins exchanged, unspent points and the share the top 10% hold.
-[*] [b]Points spent[/b]: the points section also lists the points players spent in the period, in total and for quest swaps, streak shields, titles and sponsored hordes (refunds of unfilled funds already taken off; Survivor Coin exchanges listed apart).
+[*] [b]Points spent[/b]: the points section also lists the points players spent in the period, in total and for quest swaps, streak shields, titles, title colours, sponsored hordes, the server-wide donation and squad contracts (horde refunds and the 10% back, and contract stakes that came back, already taken off; Survivor Coin exchanges listed apart).
+[*] [b]Squad contracts[/b]: for each contract, how many were started, met and not met in the period, and the share met.
 [*] [b]Achievements[/b]: players per tier of each achievement; those nobody unlocked come last (hidden ones counted, not named).
 [*] [b]Export JSON[/b]: report-YYYY-MM-DD.json beside config.json, one per day, with no player names or accounts.
 [/list]
@@ -522,7 +640,7 @@ The "Admin > Hordes" tab runs from top to bottom in this order:
 [*] [b]Spots[/b]: stand where a horde should appear, fill in "Spot name" and press "Add my current position"; up to 32 spots, one picked at random for each horde. Each row has a "Map" button that opens the world map on the spot; "Remove" asks first, since you have to go back to the place to add it again. Automatic hordes and "Start a horde" need at least one spot. The zombies walk in from 30-40 tiles around the spot, so keep spots more than 60 tiles from player bases.
 [*] [b]Horde corpses[/b]: "Most corpses kept (0 = keep all)" and "Remove the rest after the end (min)", 500 and 10 by default. Only the corpses of zombies this mod spawned for a horde are removed, with everything on them; player and other zombie corpses stay. Over the limit the oldest go first; after a horde ends (cleared, failed or stopped) and the minutes pass, once a player is near the spot, the corpses of that horde and older ones within 60 tiles are removed, at most 100 a second. When parts of that area are not loaded yet, it is gone over again every minute, up to 30 times. Corpses dragged more than 60 tiles away stay.
 [*] [b]Time windows[/b]: "Automatic hordes" (off by default), then one entry per window: the start and end time (HH:MM in the sandbox time zone; an end earlier than the start runs past midnight and belongs to the day it starts, equal means all day) and "chance per hour"; the window's "Preset", "Warning" and "Wait for players" minutes (how long each wave waits for someone within 30 tiles before the horde fails); the seven weekday buttons (pick at least one) and "Remove". "Add a window" up to 8. Each window rolls once an hour during its time and, on a hit, schedules a horde within that hour; identical windows each roll on their own, and only one horde runs at a time. Below: "Hordes per day at most (all windows)" and "Wait after a server start (min)": after a restart or a crash a horde carries on from the last world save, and a horde planned or running before the restart starts no wave during this wait (0 to 60, 0 = no wait); start and waiting times that passed while the server was down count from the end of the wait. Hordes planned after the start keep their own warning.
-[*] [b]Sponsored hordes[/b]: "Players can sponsor a horde" (off by default), points for one horde, smallest pledge, most per day, most paid back (%, 0-90), fund time limit, preset, warning and wait-for-players minutes. Its points cap is the pooled points times the paid-back percentage (the preset's cap if lower), and it does not count toward the hordes per day above. "Now" shows an open fund (points pooled, sponsors, when it ends) and today's sponsored hordes; a sponsored horde's state reads "(sponsored)". Deleting a preset moves the sponsored setting back to "Default" like the windows. Turned off after a fund is full, that horde still starts.
+[*] [b]Sponsored hordes and the server-wide donation[/b]: below the time windows and above the presets; see "Sponsored horde and donation settings".
 [*] [b]Horde presets[/b]: each preset is a set of waves, kinds and reward. A window's hordes play the preset that window picks. "Edit preset" picks the one the three sections below change, and their titles name it; "Copy as new preset" copies every setting of the current one (named like "Default 2"), up to 8 presets; "Preset name" takes up to 32 characters, every preset but "Default" needs one, and no two may share a name (the server checks too). "Delete preset" lists the windows that will use "Default" instead and asks first; "Default" cannot be deleted. Below: "Used by" and the windows that use this preset.
 [*] [b]Waves · preset name[/b]: one row per wave with "Base" and "Per extra player" (%), and the wave's size for 1 and 4 players; "Add a wave" up to 10 (it copies the last row), at least one stays. Below: "Rest between waves (s)", "Time limit per wave (min)" and "Most alive at once (zombies)", with the server's sandbox delete threshold next to it: keep "Most alive at once" below it, or the game may delete far zombies, which do not count as kills.
 [*] [b]Kinds · preset name[/b]: one row per kind above 0 with "Weight", "Share", "Points each", "Toughness (×)" and "Remove". Weights are relative and need not add up to 100; only kinds above 0 appear, and the warning lists only those. Toughness runs from 0.1 to 10 (a comma works as the decimal point, as in 0,5): 1× uses the zombie Toughness from the server sandbox, 2× takes twice the damage to bring down. Health tops out at 30 after the multiplier (about 8× for zombies with sandbox Toughness "Tough"), and kinds from other mods are multiplied on their own health. Players do not see toughness. Add others from the "Add a kind..." dropdown: they start at weight 10 and, without points of their own, at the regular zombies' points. A kind whose mod was removed shows "Not installed" and can be removed. Sprinters are made sprinters as they spawn, whatever the sandbox "Speed": they appear even when the sandbox has no sprinters, so remove their row if you want none. With the sandbox "Day/Night Zombie Speed Effect" set to Night or Day, they go back to the sandbox speed when day and night switch.
@@ -538,6 +656,38 @@ The "Admin > Hordes" tab runs from top to bottom in this order:
 [tr][td]"Default" preset kinds (weight / points each / toughness)[/td][td]Regular zombies 80 / 5 / 1×, Sprinters 20 / 8 / 1×[/td][/tr]
 [tr][td]"Default" preset reward[/td][td]Points cap of 500 per horde[/td][/tr]
 [/table]
+=== ⚙️ Sponsored horde and donation settings
+{{img:23-admin-donate-en.jpg}}
+Both sections sit on the "Admin > Hordes" tab; for the rules players see, read "Sponsored hordes and server-wide donation". Like other settings, changes take effect with "Apply".
+[h3]Sponsored hordes[/h3]
+[list]
+[*] [b]Fields[/b]: "Players can sponsor a horde" (off by default), smallest pledge, most per day, most paid back (%, 0-90), back to sponsors on a clear (%, 0-50), fund time limit, warning and wait-for-players minutes.
+[*] [b]Difficulty tiers[/b]: up to 4, cheapest first, one row each: name, preset, price (points), toughness and minutes per wave. "Add tier" adds one, each row's "Remove" takes it away.
+[*] [b]Names[/b]: normal, hard and nightmare show as Normal, Hard and Nightmare in each player's language; a blank name shows "Tier N"; no two may share a name.
+[*] [b]Toughness[/b]: multiplies the preset's toughness, and the points per kill and the cap with it. Horde zombies start from 1× health; the sandbox zombie Toughness does not change them.
+[*] [b]Minutes per wave[/b]: the same value as the preset means it follows the preset; another value is used for that tier.
+[*] [b]With one tier[/b]: players see no difficulty, as before. With 2 or more, clearing the last tier counts for the "Nightmare Conqueror" achievement.
+[*] [b]Cap[/b]: a horde pays at most the pooled points × most paid back %, or the preset's cap × toughness if lower. Most paid back plus back to sponsors may not be over 90%, so less comes back than goes in.
+[*] [b]Now[/b]: shows an open fund (points pooled, sponsors, when it ends) and today's sponsored hordes; a sponsored horde's state reads "(sponsored)".
+[*] [b]Open funds keep their terms[/b]: a fund plays the tier, preset and percentages it opened with; later changes or a deleted preset do not affect it. Deleting a preset moves the tiers that use it to "Default". Turned off after a fund is full, that horde still starts.
+[/list]
+[table]
+[tr][th]Tier (default)[/th][th]Preset[/th][th]Price[/th][th]Toughness[/th][th]Minutes per wave[/th][/tr]
+[tr][td]normal (Normal)[/td][td]Default[/td][td]600[/td][td]1[/td][td]The preset's (15)[/td][/tr]
+[tr][td]hard (Hard)[/td][td]Default[/td][td]1,200[/td][td]2[/td][td]20[/td][/tr]
+[tr][td]nightmare (Nightmare)[/td][td]Default[/td][td]2,500[/td][td]3[/td][td]25[/td][/tr]
+[/table]
+[list]
+[*] [b]Other defaults[/b]: smallest pledge 50, 1 a day at most, 50% most paid back, 10% back on a clear, 30 min fund time limit, 15 min warning, 60 min wait for players.
+[/list]
+[h3]Server-wide donation[/h3]
+[list]
+[*] [b]Fields[/b]: "Players can donate points (server-wide)" (off by default), target (points), smallest donation, weekday and time of the horde (sandbox time zone), preset, toughness, warning and wait-for-players minutes. Defaults: 10,000 points, 10, Saturday 21:00, "Default" preset, toughness 3, warning 30, wait 60.
+[*] [b]Cap[/b]: that horde pays at most the preset's cap × toughness, which must be under the target, or Apply refuses it.
+[*] [b]State[/b]: the top of the section shows the round's points and donations; once full, when the extra horde comes and what the next round has so far.
+[*] [b]After a round fills[/b]: its horde keeps the toughness, target, warning and wait from then and still comes if the donation is turned off; only the preset's id is kept, so changes to that preset's content apply. Deleting the preset moves it to "Default".
+[*] [b]Not counted per day[/b]: sponsored and donation hordes do not count toward the automatic hordes per day.
+[/list]
 === ⚙️ Settings file config.json
 The admin panel settings (except timed events and the season length) are also kept in a file on the server, so you can change them without joining the game. Location: Lua/MinidoracatQuest/<server name>/ in the server's user folder (a dedicated server uses ~/Zomboid by default, %USERPROFILE%\Zomboid on Windows); in single player it is Zomboid/Lua/MinidoracatQuest/sp_<save name>/ on your own computer, one per save. The console prints this folder at start (settings files: …).
 [table]
@@ -554,8 +704,11 @@ The admin panel settings (except timed events and the season length) are also ke
 [*] [b]When the file applies while the panel is open[/b]: an open admin panel switches to the new settings. Changes not applied yet that touch a setting the file changed are refused at Apply and dropped (the bar says how many), so make them again on the reloaded settings; changes to other settings apply as usual. An Undo on the History tab after that is refused and reloads the same way. The same happens when another admin changes settings in the panel.
 [*] [b]Not in the panel[/b]: leaderboards (boards), community goal rotation (goal.rotation), newcomer title and days (newbie.title, newbie.days) change only in this file.
 [*] [b]Hordes (hordes)[/b]: every setting of the Hordes tab: enabled, windows (up to 8 {days, from, to, chance, preset, leadMin, waitMin}: days such as "12345", 1 = Monday; from and to "HH:MM"; chance per hour; preset = the id of the window's preset; always written whole), maxPerDay, resumeMin (minutes after a server start before a horde from before the restart starts a wave, 0 to 60), corpses ({max, afterMin}: horde corpses kept at most, 0 to 5000, 0 = none removed; minutes after the end before the rest go, 0 to 240), presets (preset id to preset, up to 8, default is always there; an id starts with a letter and has only letters, digits, _ and -; each has name, waves (up to 10 {base, perPlayer}, perPlayer = % of base per extra player; always written whole), kinds (kind id to weight; built in: vanilla, runner), points (kind id to points per kill; a kind left out pays like vanilla), hp (kind id to toughness, 0.1 to 10), limitMin, restSec, maxAlive, cap), spots (up to 32 {name, x, y, z}, always written whole). A window whose preset does not exist, or a preset name that is blank (default may be) or shared, stops the whole file. Keys left out of a preset other than default (except name and hp) are filled from the defaults on read and written back; no hp means 1× for all. Ranges and an example are in the GitHub README.
-[*] [b]Uses for points (shop)[/b]: swap ({enabled, pts, perDay}: price per paid swap 1-10000, at most 1-10 a day), shield ({enabled, pts, perWeek}: price of a shield day 1-10000, bought at most 1-7 times a week), titles ({enabled, season, list}: list = the prices of the four titles spend_1 to spend_4, 1-100000 each; season = the season title's price 0-100000, 0 = not sold). Turning one off ("enabled": false) keeps the titles and shield days players already bought.
-[*] [b]Sponsored hordes (hordes.paid)[/b]: {enabled, pts, minPledge, fundMin, maxPerDay, rewardPct, preset, leadMin, waitMin}, off by default. pts 100-100000, minPledge 1-10000, fundMin 5-240, maxPerDay 1-24 (apart from hordes.maxPerDay), rewardPct 0-90 (0 = no points), leadMin 0-120, waitMin 1-240; preset must be a preset in presets.
+[*] [b]Uses for points (shop)[/b]: swap ({enabled, pts, perDay}: price per paid swap 1-10000, at most 1-10 a day), shield ({enabled, pts, perWeek}: price of a shield day 1-10000, bought at most 1-7 times a week), titles ({enabled, season, list}: list = the prices of the four titles spend_1 to spend_4, 1-100000 each; season = the season title's price 0-100000, 0 = not sold), color ({enabled, pts, days}: title colour price 1-100000, lasting 1-90 days). Turning one off ("enabled": false) keeps the titles and shield days players already bought.
+[*] [b]Sponsored hordes (hordes.paid)[/b]: {enabled, minPledge, fundMin, maxPerDay, rewardPct, backPct, tiers, leadMin, waitMin}, off by default. minPledge 1-10000, fundMin 5-240, maxPerDay 1-24 (apart from hordes.maxPerDay), rewardPct 0-90 (0 = no points), backPct 0-50 (% back to each sponsor on a clear; rewardPct + backPct at most 90), leadMin 0-120, waitMin 1-240. tiers: 1 to 4 {name, preset, pts, hp, limitMin}, always written whole: name up to 32 characters, may be blank, no two alike; preset must be in presets; pts 100-100000, never below the tier before; hp 0.1-10; limitMin 1-120, left out = the preset's.
+[*] [b]0.7.0 sponsor settings[/b]: hordes.paid's pts and preset became tiers. A file still written that way is converted at start into one tier (name normal, hp 1) and written back; a rewardPct of 81-90 gets backPct = 90 - rewardPct.
+[*] [b]Server-wide donation (donate)[/b]: {enabled, target, min, day, time, preset, hp, leadMin, waitMin}, off by default. target 100-10000000, min 1-10000, day 1-7 (1 = Monday), time "HH:MM" (sandbox time zone), preset must be in presets, hp 0.1-10, leadMin 0-120, waitMin 1-240; while on, the preset's cap × hp must be under target.
+[*] [b]Squad contracts (contracts)[/b]: {enabled, returnPct, bonusPct, sharePct, perDay, joinMin, minSize, maxSize, maxActive, list}. returnPct, bonusPct, sharePct 0-100 (returnPct + bonusPct at most 95), perDay 1-20, joinMin 1-60, minSize 2-6, maxSize 2-12 (not below minSize), maxActive 1-50; list holds hunt, melee and long, each {enabled, perMember, limitMin, stake}: perMember 1-100000, limitMin 5-600, stake 1-100000.
 [*] [b]Older horde settings[/b]: 0.2.0's from, to, chance, count, perZombie and split are gone, and waves, kinds, points, time limits and the like moved from hordes into presets. A file still written the old way is converted at start or on the next read and written back: from/to/chance become one window on every day, count becomes one wave of its middle value that does not grow with players, perZombie becomes every kind's points, and split is dropped; these settings become the "Default" preset (presets.default), and leadMin and waitMin go into every window. An old key is kept, not moved or dropped, when its new key is already in the file (say a window has its own leadMin and hordes has one too) or its value was not valid before either (say "leadMin": false); then the file is not applied and status.json names that key, so fix it by hand.
 [*] [b]Restoring a world save[/b]: the server applies config.json at start, so the settings follow the file, not the older save.
 [*] [b]Settings from the 4-tier days still work[/b]: an achievement whose tiers list has 4 numbers keeps 4 tiers; a pts list of 4 numbers (points changed, tiers not) pays the default 80 for tier 5.
@@ -604,7 +757,7 @@ Example: the daily quest "Kill N zombies" (d_kill) gets a target of 30 to 60 and
 === ⚙️ Data and backups
 [table]
 [tr][th]Contents[/th][th]Location[/th][/tr]
-[tr][td]Setting overrides, seasons, server-wide quest and server goal, timed events, hordes (the current one and the last 20 results, each with everyone's kills, players joined, MVPs and deaths), audit (last 500)[/td][td]Global ModData shared table MinidoracatQuest in the world save[/td][/tr]
+[tr][td]Setting overrides, seasons, server-wide quest and server goal, timed events, hordes (the current one and the last 20 results, each with everyone's kills, players joined, MVPs and deaths), horde funds, the server-wide donation, squad contracts, audit (last 500)[/td][td]Global ModData shared table MinidoracatQuest in the world save[/td][/tr]
 [tr][td]Each account's stats, quests, points, achievements, titles, preferences, tracked items, exchange queue and recent points history[/td][td]Global ModData account tables MinidoracatQuest_A00-A15 (16 tables)[/td][/tr]
 [tr][td]Account to Steam account bindings[/td][td]Zomboid/Lua/MinidoracatQuest/<server name>/identity.txt[/td][/tr]
 [tr][td]Daily event log (one line per event)[/td][td]Same folder, events-YYYYMMDD.json, one per day[/td][/tr]
@@ -650,6 +803,10 @@ https://github.com/Minidoracat/MinidoracatQuestFor42#給其他-mod-的-api
 [*] [b]Mid-save import is partial[/b]: only kills, days survived and skill levels; crafting, distance, fishing and the rest count from when the mod is added.
 [*] [b]Player identity[/b]: on Steam servers a name is bound to its Steam account the first time it comes online; switching Steam accounts makes you a different player, and there is no way to unbind yet. No-Steam servers cannot stop someone respawning under another player's name; a modified client may take a name that has not come online to be bound yet.
 [*] [b]Event logs keep growing[/b]: see "Data and backups".
+[*] [b]Squad contracts are multiplayer only[/b]: single player has no Squad contracts page, and the achievements page leaves out "Contractor".
+[*] [b]A squad that breaks up for lack of players uses no daily contract[/b]: the stakes come back and the day's count stays, so the same player can start one again and again; each player can be in one contract at a time.
+[*] [b]Contracts carry on right after a restart[/b]: only the downtime is given back; unlike hordes, there is no wait for players to reconnect.
+[*] [b]No refunds from the server-wide donation[/b]: donations are kept; a round not full keeps filling, and a full round whose horde does not happen is moved, not refunded.
 [/list]
 === ❓ FAQ
 [h3]My quest is not advancing?[/h3]
@@ -678,7 +835,7 @@ https://github.com/Minidoracat/MinidoracatQuestFor42#給其他-mod-的-api
 [/list]
 [h3]Does spending points lower my rank?[/h3]
 [list]
-[*] No. Ranks use points earned; exchanging for Survivor Coins, quest swaps, streak shields, point titles and sponsored hordes only spend your balance.
+[*] No. Ranks use points earned; exchanging for Survivor Coins, quest swaps, streak shields, point titles, title colours, sponsored hordes, the server-wide donation and squad contract stakes only spend your balance. A squad contract bonus counts as earned points and adds to your ranks.
 [/list]
 [h3]What if a horde fund is not filled?[/h3]
 [list]
@@ -687,7 +844,22 @@ https://github.com/Minidoracat/MinidoracatQuestFor42#給其他-mod-的-api
 [/list]
 [h3]I cannot see sponsored hordes or a use for points?[/h3]
 [list]
-[*] Sponsored hordes are off by default: an admin turns them on under "Admin > Hordes", and the server needs a horde spot. The host can also turn the other uses off one by one; the Points page lists only the ones this server has on.
+[*] Sponsored hordes and the server-wide donation are off by default: an admin turns them on under "Admin > Hordes", and the server needs a horde spot. The host can also turn the other uses off one by one; the Points page lists only the ones this server has on.
+[/list]
+[h3]Why can I not see squad contracts?[/h3]
+[list]
+[*] Squad contracts are only on multiplayer servers; single player has no such page.
+[*] On a multiplayer server the host may have turned them off ("Players can start squad contracts" under "Admin > Points").
+[/list]
+[h3]Where does the stake go when a contract is not met?[/h3]
+[list]
+[*] It is lost: it is not given to anyone or turned into another reward.
+[*] Even a met contract returns only half, plus a 30% bonus for those who pulled their weight, so squad contracts are a way to spend points, not a shortcut to earn them.
+[/list]
+[h3]My title colour ended. What now?[/h3]
+[list]
+[*] It goes back to gold by itself; you get a reminder at login when less than a day is left.
+[*] To keep it, change it again on the Points page (another 300 points for 7 days).
 [/list]
 [h3]When is the daily reset?[/h3]
 [list]

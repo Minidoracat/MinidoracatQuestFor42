@@ -252,9 +252,10 @@ function E.hordeToast(t)
             getText("IGUI_MQ_Horde_SoonBody", tostring(minsTo(t.startMs)), D.hordeKinds(t.kinds), waves)), D.EXTRA.hordeSoon
     elseif ev == "fund" then   -- somebody started a fund: where it stands and how long it has
         local body = getText("IGUI_MQ_Horde_FundBody", D.num(t.total or 0), D.num(t.pts or 0), tostring(minsTo(t.expireAt)))
-        -- its difficulty on a line of its own with 2 or more tiers (t.tiers); one tier says none, as in 0.7.0
+        -- its difficulty in front with 2 or more tiers (t.tiers); one tier says none, as in 0.7.0. One paragraph: the
+        -- framework's toast draws a "\n" as two lines on top of each other (E2E quest-gpt-1114c)
         if (tonumber(t.tiers) or 1) > 1 then
-            body = getText("IGUI_MQ_UI_FundTier", D.paidTier(t.name, tonumber(t.tier) or 1)) .. "\n" .. body
+            body = getText("IGUI_MQ_UI_ToastDescPts", getText("IGUI_MQ_UI_FundTier", D.paidTier(t.name, tonumber(t.tier) or 1)), body)
         end
         return getText("IGUI_MQ_Horde_Title_fund"), body, D.EXTRA.gold
     elseif ev == "remind" then

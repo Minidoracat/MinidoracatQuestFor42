@@ -602,9 +602,9 @@ return function(T)
         name = "", tier = 2, tiers = 2 })
     local _, f1 = E.toastText({ kind = "horde", ev = "fund", total = 150, pts = 600, expireAt = now + 30 * 60000,
         name = "normal", tier = 1, tiers = 1 })
-    check(f3 == "IGUI_MQ_UI_FundTier|IGUI_MQ_Tier_nightmare\nIGUI_MQ_Horde_FundBody|150|2,500|30"
-        and f4 == "IGUI_MQ_UI_FundTier|IGUI_MQ_UI_TierN|2\nIGUI_MQ_Horde_FundBody|150|1,500|30"
-        and f1 == "IGUI_MQ_Horde_FundBody|150|600|30", "a fund's toast names its tier with 2+ tiers, not with one (review r1 A-6)")
+    check(f3 == "IGUI_MQ_UI_ToastDescPts|IGUI_MQ_UI_FundTier|IGUI_MQ_Tier_nightmare|IGUI_MQ_Horde_FundBody|150|2,500|30"
+        and f4 == "IGUI_MQ_UI_ToastDescPts|IGUI_MQ_UI_FundTier|IGUI_MQ_UI_TierN|2|IGUI_MQ_Horde_FundBody|150|1,500|30"
+        and not string.find(f3, "\n", 1, true) and f1 == "IGUI_MQ_Horde_FundBody|150|600|30", "a fund's toast names its tier with 2+ tiers, not with one (review r1 A-6)")
     check(#errors == 0, "points uses ran clean " .. tostring(errors[1]))
 
     for k, v in pairs(saved) do _G[k] = v end

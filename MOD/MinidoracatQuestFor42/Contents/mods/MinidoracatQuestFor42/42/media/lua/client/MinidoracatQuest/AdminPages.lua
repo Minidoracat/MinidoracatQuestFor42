@@ -665,6 +665,12 @@ local function layoutSeason(P, pg, F)
     form(P, pg, F, { { "rewards.top1", "pts" }, { "rewards.top3", "pts" }, { "rewards.top10", "pts" },
         { "rewards.participation", "pts" }, { "rewards.participationMin", "pts" }, { "rewards.firstTitles", "bool" } })
     F:text("wn", getText("IGUI_MQ_Admin_RewardsNote"), "textMuted")
+    F:gap()
+
+    -- death wipe: off by default; the note lists everything it clears and everything it leaves
+    F:head("dh", getText("IGUI_MQ_Admin_DeathHead"))
+    form(P, pg, F, { { "rules.deathWipe", "bool" } })
+    F:text("dn", getText("IGUI_MQ_Admin_DeathWipeNote"), "textMuted")
 end
 
 A.pages.season = { layout = layoutSeason, load = function(P) loadSeason(P) end }

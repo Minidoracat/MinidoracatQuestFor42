@@ -487,6 +487,26 @@ return function(T)
     T.check(pack.add(bob, "heals", 1), "budget resets next tick")
     local nilPack, why = Q.v1.registerPack({ modId = "bad id!", stats = {} })
     T.check(nilPack == nil and why == "invalid_args", "invalid modId refused")
+    -- rev 3: another mod's own build flow (Build Anything's tiles) reports one paid build
+    local b0 = Q.Store.account("bob", false).total["build.count"] or 0
+    T.check(Q.v1.built(bob) == true and Q.Store.account("bob", false).total["build.count"] == b0 + 1,
+        "v1.built adds one build.count")
+    okA, codeA = Q.v1.built(nil)
+    T.check(okA == false and codeA == "invalid_args", "v1.built refuses no player")
+    okA, codeA = Q.v1.built({ __class = "IsoPlayer", isAnimal = function() return true end })
+    T.check(okA == false and codeA == "invalid_args", "v1.built refuses an animal")
+    T.check(Q.v1.built(T.player({ name = "nohello" })) == false and Q.Store.account("nohello", false) == nil,
+        "v1.built makes no account")
+    Q.Store.readOnly = true
+    okA, codeA = Q.v1.built(bob)
+    Q.Store.readOnly = false
+    T.check(okA == false and codeA == "not_ready", "v1.built on a read-only store: not_ready")
+    local an0 = Q.Store.account("bob", false).anomalies or 0
+    for _ = 1, 40 do Q.v1.built(bob) end
+    T.check(Q.Store.account("bob", false).total["build.count"] == 30 and (Q.Store.account("bob", false).anomalies or 0) == an0,
+        "v1.built stays under the per-minute ceiling of build.count, without an anomaly")
+    T.check(Q.Stats.add(bob, "build.count", 1) == true and (Q.Store.account("bob", false).anomalies or 0) == an0,
+        "a vanilla build in the same minute still counts and is no anomaly")
 
     T.section("single player direct path")
     Q = boot({ sp = true })

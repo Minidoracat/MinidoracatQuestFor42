@@ -321,6 +321,10 @@ local function boardView(b, page, x, y, w, bd, period, e)
     local data = e and e.data or nil
     local status = e and e.status or "loading"
     if period == "season" then y = seasonLine(b, x, y, w, (data and data.season) or (s and s.season)) end
+    local rules = C.defs().cfg.rules
+    if period == "season" and rules and rules.deathWipe then
+        y = b:para(x, y, getText("IGUI_MQ_UI_BoardDeathWipe"), w, "warning") + 2
+    end
     if period ~= page.period then y = b:para(x, y, getText("IGUI_MQ_UI_BoardTotalOnly"), w, "textFaint") + 2 end
     if status == "error" then
         y = b:para(x, y + 4, getText("IGUI_MQ_UI_BoardError"), w, "errorText", UIFont.Medium)

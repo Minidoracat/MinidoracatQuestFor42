@@ -563,6 +563,7 @@ Steps 1-5 cover the common settings; the other tabs hold the rest.
 [*] [b]Custom achievements[/b]: add one from an existing stat (name, category, thresholds, points), or delete it.
 [*] [b]Hidden achievements[/b]: pick the Hidden category; each row lists what unlocks it and the hint players see. Edit changes their thresholds, points and titles. A custom achievement cannot be made hidden, and the hint text cannot be changed.
 [*] [b]Announcements and title display[/b]: announcements on/off, starting tier, announcements per player per minute; one server-wide switch each for head and chat titles, off means nobody sees them.
+[*] [b]Count only levels the character gained itself[/b] (at the bottom, off by default): when on, the levels a character starts with do not count toward skill achievements, the total skill level or the highest skill level; a skill counts, at its current level, once that character has raised it by at least one level. Levels already recorded and achievements already unlocked stay; characters already in play start from the levels they have when it is turned on. An account whose character had already survived 24 hours at its first login keeps all the levels it had then.
 [/list]
 [h3]Quests[/h3]
 [list]
@@ -744,6 +745,7 @@ Example: the daily quest "Kill N zombies" (d_kill) gets a target of 30 to 60 and
 [list]
 [*] [b]Reward settings[/b]: 1st, 2nd-3rd, 4th-10th, participation reward and its minimum, and whether first place on other boards gets a title.
 [*] [b]History[/b]: the last 12 seasons with dates, top 10 and first place on each board.
+[*] [b]A death clears this season's results[/b] (off by default): when on, any death of a player's character (hordes included) sets that player's season stats and season points to zero at once: every season board counts them from 0, and the season rank and the participation reward only look at points earned after the death. Not touched: the points balance (still spendable and exchangeable), all-time stats and boards, unlocked achievements and titles, quest progress, the streak. What is cleared cannot be restored; the player gets a notice on death and the season boards say so at the top.
 [/list]
 === ⚙️ Economy integration
 [list]
@@ -780,6 +782,7 @@ https://github.com/Minidoracat/MinidoracatQuestFor42#給其他-mod-的-api
 [*] [b]Translations[/b]: names use translation keys your mod ships, so clients need your mod too.
 [*] [b]Admins[/b]: can tune or disable your achievements and quests in the admin panel like any other.
 [*] [b]Horde kinds[/b]: registerHordeKind (from API_REVISION 2; check with type that it is a function) registers a kind of zombie; your mod only spawns them, this mod handles timing, counting and clearing. 8 kinds per mod, 32 in all; a new kind's weight starts at 0 until an admin adds it from the Hordes tab's dropdown, and until it has points of its own a kill pays what a regular zombie pays. The toughness an admin sets in a preset multiplies the health you set (up to 30; 1× leaves it alone). When the zombies it takes die, their corpses and everything on them are removed by the host's Horde corpses settings, so spawn should return only the zombies it just spawned; if your kind carries special loot, tell hosts in your description.
+[*] [b]Your own build flow[/b]: built(player) (from API_REVISION 3; check with type that it is a function). If your mod puts things into the world through its own flow, call it once on the server after the build is done and the materials are taken: it counts as 1 build (achievement, daily and weekly quests, leaderboard), at most 30 a minute. Do not call it for builds that took no materials. Recipes that go through vanilla building need no call; this mod counts them itself.
 [*] [b]Spawned zombies[/b]: only appearance, health, walk type and speed and some state flags of a server-spawned zombie reach clients, so set them when you spawn it; strength, sight and hearing are worked out on each computer, and modData does not sync. The engine reuses zombie objects without clearing useless from their last life (such a zombie ignores sounds and players), so call setUseless(false) at spawn if your kind should be drawn in.
 [/list]
 === ⚠️ Known limitations

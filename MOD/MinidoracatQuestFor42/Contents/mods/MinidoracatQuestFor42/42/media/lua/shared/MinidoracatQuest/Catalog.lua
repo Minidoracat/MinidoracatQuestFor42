@@ -463,6 +463,9 @@ Cat.DEFAULTS = {
     broadcast = { enabled = true, minTier = 3, perMinute = 1 },
     titles = { head = true, chat = true },   -- the worn title over heads and after the name in chat
     boards = { inactiveDays = 180, rebuildSeasonMs = 300000, rebuildTotalMs = 1800000 },
+    -- both off by default (owner 2026-11-15). deathWipe: a death empties the account's season stats and season points
+    -- (Stats.resetLife); ownLevels: a skill level counts once the character raised it itself (Trackers.ownBase)
+    rules = { deathWipe = false, ownLevels = false },
     towns = { custom = {}, disabled = {} },
     ceilings = {},
     -- server-wide donation (Donate.lua, plan points-play 3): players give at least `min` points toward `target`; full,

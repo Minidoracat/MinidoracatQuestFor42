@@ -158,6 +158,9 @@ function E.toastText(t)
         return getText("IGUI_MQ_UI_ToastStreak", tostring(t.days or 0)), pts(t.pts or 0), D.EXTRA.success
     elseif k == "newbie" then
         return getText("IGUI_MQ_UI_ToastNewbie"), pts(t.pts or 0), D.EXTRA.success
+    elseif k == "deathWipe" then
+        -- rules.deathWipe: this death emptied the season stats and the season points (Stats.resetLife)
+        return getText("IGUI_MQ_UI_ToastDeathWipe"), getText("IGUI_MQ_UI_ToastDeathWipeBody", D.num(t.pts or 0)), D.EXTRA.info
     elseif k == "exchange" then
         local coins = D.num(t.coins or 0)
         if t.state == "paid" then return getText("IGUI_MQ_UI_ExPaid", coins), "", D.EXTRA.success end

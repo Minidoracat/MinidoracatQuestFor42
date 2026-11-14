@@ -1,7 +1,8 @@
 -- MinidoracatQuest/Stats.lua: the only way progress enters the mod (docs/ARCHITECTURE.md sections 3.3, 5.4, C36).
 -- Three scopes per account: total (across characters), life (cleared on death), season (lazy reset in Store).
 -- Per-minute ceiling: wall-clock minute windows per account per stat; the excess is dropped and audited once per
--- account per stat per minute (Audit.over). Listeners run in pcall in registration order.
+-- account per stat per minute (Audit.over), except opts.calm (facade built): its own window, dropped without an audit.
+-- Listeners run in pcall in registration order.
 -- Hot path: no tables or strings per call except the once-a-minute window table and the audit path.
 
 if isClient() then return end
@@ -57,8 +58,9 @@ local function notify(acc, user, stat, delta, opts)
     end
 end
 
--- amount still allowed this minute (and records the use)
-local function allowance(acc, user, stat, n, ceil)
+-- amount still allowed this minute (and records the use). calm: the excess is dropped without an anomaly or an audit
+-- row (facade built: another mod's build flow can be faster than the vanilla pace the ceiling was set for)
+local function allowance(acc, user, stat, n, ceil, calm)
     if not C.isFinite(ceil) or ceil <= 0 then return n end
     local minute = math.floor(getTimestampMs() / 60000)
     local w = S.win[user]
@@ -66,18 +68,21 @@ local function allowance(acc, user, stat, n, ceil)
         w = { minute = minute, used = {} }
         S.win[user] = w
     end
-    local used = w.used[stat] or 0
+    -- calm calls count in a window of their own: a minute of fast Build Anything tiles must not turn the next vanilla
+    -- build of that minute into an anomaly (review 2026-11-15 round 2)
+    local key = calm and (stat .. "|calm") or stat
+    local used = w.used[key] or 0
     local allowed = ceil - used
     if allowed > n then allowed = n end
     if allowed < 0 then allowed = 0 end
-    w.used[stat] = used + allowed
-    if allowed < n and Q.Audit.over(user, stat, n - allowed, ceil) then
+    w.used[key] = used + allowed
+    if allowed < n and not calm and Q.Audit.over(user, stat, n - allowed, ceil) then
         acc.anomalies = (acc.anomalies or 0) + 1
     end
     return allowed
 end
 
--- true, added | false. n: finite and > 0. opts.quiet: no notifications (import).
+-- true, added | false. n: finite and > 0. opts.quiet: no notifications (import). opts.calm: see allowance.
 function S.add(who, stat, n, opts)
     if type(n) ~= "number" or n * 0 ~= 0 or n <= 0 or type(stat) ~= "string" then return false end
     local St = Q.Store
@@ -89,7 +94,7 @@ function S.add(who, stat, n, opts)
     local acc = St.account(user, create)
     if acc == nil then return false end
     local ceilings = Q.Config.get().ceilings
-    local add = allowance(acc, user, stat, n, ceilings and ceilings[stat] or def.ceil)
+    local add = allowance(acc, user, stat, n, ceilings and ceilings[stat] or def.ceil, opts ~= nil and opts.calm)
     if add <= 0 then return false end
     acc.total[stat] = (acc.total[stat] or 0) + add
     if not def.account then acc.life[stat] = (acc.life[stat] or 0) + add end
@@ -137,15 +142,31 @@ function S.seed(acc, user, stat, value, life)
     return true
 end
 
+-- Death: this life's stats go, and the character's starting levels (Trackers.ownBase). rules.deathWipe (owner
+-- 2026-11-15, off by default) also empties the season scope and the season points: the season boards and the season
+-- payout rank start over; balance, totals and achievements stay. Unlike a new season (Store lazySeason) anomalies
+-- stay: a death must not clear the ceiling evidence Seasons.freeze copies into the review.
 function S.resetLife(user)
     local acc = Q.Store.account(user, false)
     if acc == nil or Q.Store.readOnly then return end
     acc.life = {}
+    acc.base = nil
+    local rules = Q.Config.get().rules
+    if not (rules and rules.deathWipe) then return end
+    local lost = acc.points.season
+    acc.season = {}
+    acc.points.season = 0
+    if Q.EventLog then Q.EventLog.write("deathWipe", user, { pts = lost }) end
+    if Q.Boards then Q.Boards.dirtyPeriod("season") end
+    if Q.Sync then
+        Q.Sync.toast(user, { kind = "deathWipe", pts = lost })
+        Q.Sync.dirty(user, "all")
+    end
 end
 
 -- Players dying on the server (OnPlayerDeath never fires on a dedicated server; animals fire this too).
 function S.onCharacterDeath(c)
-    if not instanceof(c, "IsoPlayer") then return end
+    if not instanceof(c, "IsoPlayer") or c:isAnimal() then return end
     local user = Q.Identity.principal(c)
     if user ~= nil then S.resetLife(user) end
 end

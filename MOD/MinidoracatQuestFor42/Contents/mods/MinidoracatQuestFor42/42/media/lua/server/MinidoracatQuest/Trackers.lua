@@ -161,11 +161,26 @@ end
 ------------------------------------------------------------------------------------------------------------------
 -- XP and levels
 
-function T.skillTotals(p, who)
+-- rules.ownLevels (owner 2026-11-15, off by default): a perk counts once this character has raised it above the
+-- level the first poll saw; acc.base holds those levels by level stat id, Stats.resetLife drops it on death.
+-- -> base | nil (rule off), or nil, true: rule on, not polled yet (make = false leaves it to the poll)
+function T.ownBase(p, acc, make)
+    local rules = Q.Config.get().rules
+    if not (rules and rules.ownLevels) then return nil end
+    if acc.base == nil then
+        if not make then return nil, true end
+        local base = {}
+        for i, perk in ipairs(perkObjs) do base[perkLevelStat[i]] = p:getPerkLevel(perk) end
+        acc.base = base
+    end
+    return acc.base
+end
+
+function T.skillTotals(p, who, base)
     local sum, best = 0, 0
     for i, perk in ipairs(perkObjs) do
         local l = p:getPerkLevel(perk)
-        if l > 0 then
+        if l > 0 and (base == nil or l > (base[perkLevelStat[i]] or 0)) then
             sum = sum + l
             if l > best then best = l end
             Q.Stats.max(who, perkLevelStat[i], l)
@@ -186,8 +201,13 @@ function T.onLevelPerk(owner, perk, level, increased)
     if not increased or not isHuman(owner) or perk == nil then return end
     local s = levelStat[perk:getId()]
     if s == nil then return end
-    Q.Stats.max(owner, s, level)
-    T.skillTotals(owner, owner)
+    local user = Q.Identity.principal(owner)
+    local acc = user ~= nil and Q.Store.ready() and Q.Store.account(user, false) or nil
+    local base, wait
+    if acc ~= nil then base, wait = T.ownBase(owner, acc, false) end
+    if wait then return end   -- a new character's starting levels are level-ups too: the first poll makes them its base
+    if base == nil or level > (base[s] or 0) then Q.Stats.max(owner, s, level) end
+    T.skillTotals(owner, owner, base)
 end
 
 ------------------------------------------------------------------------------------------------------------------
@@ -505,7 +525,7 @@ function T.pollPlayer(p, now)
         add(user, "newbie.leave")
     end
 
-    T.skillTotals(p, user)
+    T.skillTotals(p, user, T.ownBase(p, acc, true))
 end
 
 function T.sleepCheck(p)

@@ -99,6 +99,17 @@ function B.dirtyAll()
     end
 end
 
+-- every board of one period, rebuilt at once like dirtyAll: a death wipe (Stats.resetLife) emptied an account's whole
+-- season scope and its notices say "at once"
+function B.dirtyPeriod(period)
+    for _, b in ipairs(B.defs()) do
+        if B.hasPeriod(b, period) then
+            local s = st(b.id .. ":" .. period)
+            s.dirty, s.nextMs = true, 0
+        end
+    end
+end
+
 local function value(acc, def, period, sno)
     if period == "season" and acc.sno ~= sno then return 0 end
     if def.stat == "@points" then return acc.points[period] or 0 end

@@ -567,4 +567,88 @@ return function(T)
     local before = tot("zombie.kills")
     T.fire("OnClientCommand", "MinidoracatQuest", "add", p, { stat = "zombie.kills", n = 100 })
     T.check(tot("zombie.kills") == before, "client command cannot add progress")
+
+    -- rules.deathWipe (owner 2026-11-15): off by default, a death clears this life only
+    local wacc = Q.Store.account("alice", false)
+    Q.Points.award(wacc, "alice", 50, "quest", "t")
+    local ks, kt = wacc.season["zombie.kills"], wacc.total["zombie.kills"]
+    T.fire("OnCharacterDeath", p)   -- the first death also unlocks h_first_death: its points come after
+    local ps, bal = wacc.points.season, wacc.points.balance
+    T.check(ks > 0 and ps >= 50 and wacc.season["zombie.kills"] == ks and wacc.life["zombie.kills"] == nil,
+        "death wipe off: a death clears this life, the season stays")
+    Q.Config.apply({ { op = "set", path = "rules.deathWipe", value = true } }, "wipe", "boss")
+    local cow = human(T.player({ name = "alice" }))   -- an animal that would resolve to alice: only isAnimal stops it
+    cow.isAnimal = function() return true end
+    cow.getAttackedBy = function() return nil end
+    T.fire("OnCharacterDeath", cow)
+    T.check(wacc.points.season == ps, "death wipe on: an animal's death clears nothing")
+    local achv = wacc.achv.zombie_kills
+    Q.Boards.state["kills:season"] = { dirty = false, nextMs = T.now + 1e9 }
+    T.fire("OnCharacterDeath", p)
+    local toast = T.lastOf(p, "toast")
+    T.check(wacc.points.season == 0 and wacc.season["zombie.kills"] == nil and wacc.season["craft.count"] == nil,
+        "death wipe on: the season stats and the season points go")
+    T.check(wacc.points.balance == bal and wacc.points.total >= ps and wacc.total["zombie.kills"] == kt
+        and wacc.achv.zombie_kills == achv, "death wipe on: balance, lifetime points, totals and achievements stay")
+    local ksb = Q.Boards.state["kills:season"]
+    T.check(ksb.dirty == true and ksb.nextMs == 0 and toast ~= nil and toast.kind == "deathWipe" and toast.pts == ps,
+        "death wipe on: the season boards rebuild at once, the player is told what went")
+    -- the season rank and the payout read points.season (Boards value, Seasons freeze: only rows above 0)
+    local pb = Q.Boards.rebuild("points", "season", T.now)
+    local kb = Q.Boards.rebuild("kills", "season", T.now)
+    T.check(pb.rank.alice == nil and kb.rank.alice == nil and Q.Boards.rebuild("kills", "total", T.now).rank.alice ~= nil,
+        "death wipe on: off the season boards, still on the all-time board")
+    Q.Config.apply({ { op = "del", path = "rules" } }, "back", "boss")
+
+    -- rules.ownLevels (owner 2026-11-15): off by default (above: alice's level-up, the veteran's import)
+    Q.Config.apply({ { op = "set", path = "rules.ownLevels", value = true } }, "own", "boss")
+    local n = human(T.player({ name = "newc", x = 700, y = 700, hours = 0 }))
+    n.levels.Strength, n.levels.Woodwork = 9, 3
+    T.cmd(n, "hello")
+    T.fire("LevelPerk", n, Perks.Strength, 9, true)   -- starting levels arrive as level-ups, before the first poll
+    local nacc = Q.Store.account("newc", false)
+    T.check(nacc.total["level.Strength"] == nil and nacc.total["skill.total"] == nil and nacc.base == nil,
+        "own levels: a fresh character's import and its level-ups before the first poll count for nothing")
+    T.advance(60000)
+    T.tick(1)
+    T.check(nacc.base ~= nil and nacc.base["level.Strength"] == 9 and nacc.total["level.Strength"] == nil
+        and nacc.total["skill.max"] == nil and nacc.achv.skill_strength == nil,
+        "own levels: the first poll takes the starting levels as the base")
+    T.fire("LevelPerk", n, Perks.Strength, 9, true)   -- back up to the starting level (after a loss): not gained
+    T.check(nacc.total["level.Strength"] == nil, "own levels: a level-up that only reaches the starting level counts for nothing")
+    n.levels.Woodwork = 4
+    T.fire("LevelPerk", n, Perks.Woodwork, 4, true)
+    T.check(nacc.total["level.Woodwork"] == 4 and nacc.total["skill.total"] == 4 and nacc.total["level.Strength"] == nil
+        and nacc.total["skill.max"] == 4 and nacc.achv.skill_woodwork == 2,
+        "own levels: a skill the character raised counts at its level, alone")
+    T.fire("OnCharacterDeath", n)
+    n.levels.Woodwork, n.levels.Strength, n.levels.Cooking = 0, 5, 6
+    T.advance(60000)
+    T.tick(1)
+    T.check(nacc.base["level.Cooking"] == 6 and nacc.total["level.Cooking"] == nil and nacc.total["level.Woodwork"] == 4
+        and nacc.total["skill.max"] == 4, "own levels: the next character has a base of its own, what was recorded stays")
+    local ov = human(T.player({ name = "oldv", x = 800, y = 800, hours = 2400 }))
+    ov.levels.Woodwork = 8
+    T.cmd(ov, "hello")
+    T.check(Q.Store.account("oldv", false).total["level.Woodwork"] == 8, "own levels: a veteran's levels still import")
+    Q.Config.apply({ { op = "del", path = "rules" } }, "back", "boss")
+    n.levels.Strength = 9
+    T.advance(60000)
+    T.tick(1)
+    T.check(nacc.total["level.Strength"] == 9, "own levels off again: the levels a character has count")
+
+    -- rules.deathWipe and the season end: the frozen list ranks what is left after the wipe
+    Q.Config.apply({ { op = "set", path = "rules.deathWipe", value = true } }, "wipe", "boss")
+    Q.Points.award(wacc, "alice", 700, "quest", "t")
+    Q.Points.award(nacc, "newc", 300, "quest", "t")
+    T.fire("OnCharacterDeath", p)
+    Q.Points.award(wacc, "alice", 40, "quest", "t")   -- earned after the death
+    local se = Q.Store.root().season
+    T.now = se.endMs + 1000
+    T.tick(15)
+    local rank = {}
+    for i, r in ipairs(se.frozen and se.frozen.rows or {}) do rank[r.user] = { i = i, pts = r.pts } end
+    T.check(se.state == "review" and rank.newc ~= nil and rank.alice ~= nil and rank.newc.i < rank.alice.i
+        and rank.alice.pts == 40, "death wipe: the season freezes with the points earned after the death")
+    Q.Config.apply({ { op = "del", path = "rules" } }, "back", "boss")
 end

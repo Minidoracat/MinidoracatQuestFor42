@@ -242,6 +242,7 @@ DEFAULTS = {
   exchange = { enabled = true, rate = 1, perDay = 100, min = 10 },
   broadcast = { enabled = true, minTier = 3, perMinute = 1 },
   boards = { inactiveDays = 180, rebuildSeasonMs = 300000, rebuildTotalMs = 1800000 },
+  rules = { deathWipe = false, ownLevels = false },      -- 兩個都預設關（服主 2026-11-15）；§5.4 resetLife、§5.9 ownBase
   towns = { custom = { }, disabled = { } },              -- custom: { { id, name, rects = { { x1=, y1=, x2=, y2= } } } }
   ceilings = { },                                        -- stat -> 每分鐘上限覆寫
   hordes = { enabled = false,
@@ -393,10 +394,10 @@ boards[i] = { id = "kills", cat = "combat", stat = "zombie.kills", periods = { "
 
 ### 5.4 Stats（Core）
 
-- `Stats.add(who, stat, n, opts)`：`who` 是 player 或 user 字串。`n` 必須是有限正數；超過每分鐘上限的部分丟掉並 `Audit.over`。依序更新 `total`／`life`／`season`（帳號層級統計跳過 `life`，§3.3；`Stats.max` 同），然後呼叫監聽者。`opts.quiet` 給匯入用（不通知）。
+- `Stats.add(who, stat, n, opts)`：`who` 是 player 或 user 字串。`n` 必須是有限正數；超過每分鐘上限的部分丟掉並 `Audit.over`。依序更新 `total`／`life`／`season`（帳號層級統計跳過 `life`，§3.3；`Stats.max` 同），然後呼叫監聽者。`opts.quiet` 給匯入用（不通知）。`opts.calm`（只有 facade `built` 用，§8）：用自己的一份每分鐘視窗（同一個上限值），超過的丟掉、不 `Audit.over`、不加 `anomalies`，也不佔一般呼叫的額度。
 - `Stats.max(who, stat, value, opts)`：三個範圍各取最大值。
 - `Stats.seed(acc, user, stat, value, life)`：匯入用，寫 `total`（取最大值）；`life` 為真時 `life` 也取最大值（角色自己帶的計數，例如擊殺數）。不觸發任務、只觸發成就判定（安靜）。
-- `Stats.resetLife(user)`。
+- `Stats.resetLife(user)`（`OnCharacterDeath`，動物不算）：清 `life` 與 `acc.base`（這個角色的起始等級，§5.9）。`rules.deathWipe` 開著時另外清 `acc.season` 與 `acc.points.season`（和換季的 `lazySeason` 不同：`anomalies` 不清，死亡不能洗掉結算名單要看的異常筆數）：事件記錄 `deathWipe { pts }`、`Boards.dirtyPeriod("season")`（每個本季榜標成要重算並把下次重算時間歸零，和 `dirtyAll` 一樣由 tick 一次重算一個）、個人通知 `{ kind = "deathWipe", pts }`。`points.balance`、`points.total`、`total`、成就、稱號、任務進度（看 `total` 的增量）、連續天數都不動。這個處理在 `Trackers.onCharacterDeath` 之前跑（Stats 先載入），所以這次死亡的 `deaths` 與它解鎖的成就積分算在清空之後的本季；死前的擊殺在死後才發的積分（屍潮結束、小隊合約）也算在清空之後。
 - `Stats.listen(name, fn)`：`fn(acc, user, stat, delta, opts)`；監聽者在 pcall 裡執行，錯誤寫 log 不中斷。Systems 在載入時登記 `quests`、`goal`、`newbie`、`achievements`、`boards`。
 
 ### 5.5 Points（Core）
@@ -450,6 +451,7 @@ boards[i] = { id = "kills", cat = "combat", stat = "zombie.kills", periods = { "
 - `Trackers.install()`：在 `OnServerStarted` 掛事件與包裝原版動作的 `complete()`／`ISBuildIsoEntity:create`；原動作先跑，紀錄包在 `Trackers.guard`（pcall，每個掛點第一次出錯印一行 `[MinidoracatQuestFor42] Trackers: <掛點> failed: …`，記在 `Trackers.failed`）。42.21 封窗是建造實體（CraftRecipe 分類 `Barricades`），`ISBuildIsoEntity:create` 依分類記 `barricade.count` 或 `build.count`。燒屍（`ISBurnCorpseAction:complete`）不管有沒有起火都回 true、照扣汽油與打火機，所以 complete 前屍體那格沒在燒、complete 後有火才記 `corpse.count`（`IsoFire.CanAddFire` 在多人 `NoFire`、不准用火的安全屋、水上、那格已在燒時不放火；服主 2026-10-29）。擠奶、剪毛一次動作有擠到、剪到才記 1：多人伺服器自己結束時 `forceComplete` → `complete`；單人在每個 tick 裡呼叫 Lua 的 `forceStop`（擠奶 `getDuration` 是 -1，單人永遠到不了 complete；剪毛受驚可能先停、同一個 tick 還剪到毛），所以 `forceStop` 只做記號，由那個 tick 的包裝（`milk`、`update`）看完扣量再記，`mqCounted` 讓一次動作只記一次；玩家取消由 Java 停掉動作、不經 Lua 的 `forceStop`，不算。每分鐘輪詢在線玩家（開車與步行里程、存活天數、城鎮、室內睡覺、新手「帶武器離開起始城鎮」）；一段里程換算的速度超過步行 0.5 km／分鐘或開車 4 km／分鐘就視為瞬移、整段不記。輪詢只處理 `imported` 的帳號、不建帳號：`hello` 的匯入要先安靜解鎖舊進度，先輪詢的話技能等級與存活天數會照一般解鎖（全服通知、本季積分）。
 - `Trackers.onZombieCreate(z)`（`OnZombieCreate`，`install` 時掛）：`z:setAttackedBy(nil)`，清掉這個物件的 `seen`／`hitBy`／`hitWith`。引擎重用殭屍物件時不清攻擊者（`VirtualZombieManager.java:266-300`、`IsoZombie.resetForReuse`），專用伺服器從擁有者客戶端得知死亡時 `die()` → `Kill(getAttackedBy())`（`NetworkZombiePacker.java:92-93`、`IsoGameCharacter.java:14623-14626`），不清就把擊殺記給上一輪打過這個物件的玩家（2026-11-08 Discord 回報）。清的是引擎物件本身，伺服器上每隻殭屍都生效；`Trackers.onZombieDead` 與 `Hordes.onZombieDead` 的擊殺歸屬都靠它。
 - 擊殺的武器分類（`Trackers.onZombieDead`）：取同一位玩家在這隻殭屍這一輪最後一次有傷害的命中（`OnWeaponHitXp`）或爆炸（`Trackers.onHitZombie`，`OnHitZombie`）的武器，都沒有才看主手；沒有紀錄而人在車上算車撞。炸彈（`HandWeapon:getExplosionRange() > 0`：土製炸彈、噴霧罐炸彈，丟的、放的、遙控的都算）炸死的只記 `zombie.kills`，不記近戰、徒手、槍械與各武器類（服主 2026-11-10）。爆炸走 `IsoTrap.explosion` → `Hit(炸彈, 投擲者)`，只觸發 `OnHitZombie`、不觸發 `OnWeaponHitXp`（42.22.2 `IsoTrap.java`、`IsoZombie.Hit`，42.21 相同）；`OnHitZombie` 每一次武器命中都觸發（推擠也有），所以只收炸彈那幾筆。
+- 起始等級（`rules.ownLevels`，服主 2026-11-15，預設關）：`Trackers.ownBase(p, acc, make)` 回這個角色的起始等級表 `acc.base = { ["level.<Perk>"] = 等級 }`；規則關著回 nil（不建表）。表在匯入後的第一次輪詢建（`make = true`），`Stats.resetLife` 在死亡時清掉。開著時 `skillTotals` 只算等級高過起始值的技能（`level.<Perk>` 記當下等級，`skill.total`、`skill.max` 只加這些技能）；`onLevelPerk` 在表還沒建時不記（新角色的起始等級也是升級事件），等第一次輪詢。`Import.baseline` 在規則開著而且角色存活不到 24 小時時不匯入等級。開關打開時已經在玩的角色，以第一次輪詢當下的等級當起始值；已記下的 `total` 不降。
 - `Towns.list()`、`Towns.at(x, y)` → townId 或 nil。
 
 ### 5.10 Hordes（Systems 擁有）
@@ -697,7 +699,9 @@ boards[i] = { id = "kills", cat = "combat", stat = "zombie.kills", periods = { "
 
 ## 8. facade `MinidoracatQuest.v1`（伺服器）
 
-`{ API_MAJOR = 1, API_REVISION = 2, registerPack(spec) → pack | nil, code, registerHordeKind(spec) → true | nil, "invalid_args" }`，`pack.add(player, statId, n) → true | false, code`。規則照設計稿：`modId` 為 `[A-Za-z0-9_-]` 最長 64；每個 MOD 統計 ≤ 32、成就 ≤ 64；每個 modId 每 tick 50 次；`n` 是 0～1000 的有限數；錯誤碼 `invalid_args`、`rate_limited`、`not_ready`。統計與成就 id 自動加 `<modId>:`；`board = true` 的統計進「職業」榜。
+`{ API_MAJOR = 1, API_REVISION = 3, registerPack(spec) → pack | nil, code, registerHordeKind(spec) → true | nil, "invalid_args", built(player) → true | false, code }`，`pack.add(player, statId, n) → true | false, code`。規則照設計稿：`modId` 為 `[A-Za-z0-9_-]` 最長 64；每個 MOD 統計 ≤ 32、成就 ≤ 64；每個 modId 每 tick 50 次；`n` 是 0～1000 的有限數；錯誤碼 `invalid_args`、`rate_limited`、`not_ready`。統計與成就 id 自動加 `<modId>:`；`board = true` 的統計進「職業」榜。
+
+`built`（rev 3，服主 2026-11-15）：別的 MOD 用自己的流程替這位玩家蓋好一件、而且扣了材料時呼叫，記 1 個 `build.count`。吃它的每分鐘上限，但超過的只丟掉、不記異常也不寫稽核（`Stats.add` 的 `opts.calm`：自由建造放得比原版建造快，上限是照原版速度定的，2026-11-15 審查）。不是玩家（nil、動物）回 `false, "invalid_args"`；存檔還沒就緒或唯讀回 `false, "not_ready"`；帳號還沒 `hello` 或超過上限回 `false`、沒有錯誤碼。只算哪些放置由呼叫的 MOD 決定：自由建造（Builder）只在付料的新建呼叫，建造作弊、材料倍率 0、原地替換不呼叫；它的配方項目走原版 `ISBuildIsoEntity`，由 `Trackers` 記。
 
 `registerHordeKind`（rev 2）：`spec = { modId, id, nameKey, spawn }`；`modId` `^[%w_%-]+$` ≤ 64、`id` `^[%w_%-]+$` ≤ 32、`nameKey` `^[%w_]+$` ≤ 128、`spawn(x, y, z, n)` 是函式，回傳 ArrayList 或 Lua 陣列；鍵 `<modId>:<id>` 最長 64（方案的 `kinds`／`points`／`hp` 鍵的上限）；每個 modId ≤ 8 種、全部外掛 ≤ 32 種；同一個鍵再登記就取代。Quest 管時間、計數與清除；`spawn` 在 pcall 裡呼叫，只收真的 IsoZombie。登記後每個方案的 `hordes.presets.<方案>.kinds.<modId>:<id>` 預設權重 0。方案的 `hp` 倍率乘在 `spawn` 設好的血量上，最高 `Hordes.HP_MAX`（30，§5.10）。消費者用 `type(v1.registerHordeKind) == "function"` 探測。
 

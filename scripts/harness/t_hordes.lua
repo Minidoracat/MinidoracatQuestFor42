@@ -2528,7 +2528,7 @@ return function(T)
         local Q = boot()
         local H = Q.Hordes
         local v1 = Q.v1
-        T.check(v1 and v1.API_MAJOR == 1 and v1.API_REVISION == 2 and v1.registerHordeKind == H.registerKind, "facade rev 2")
+        T.check(v1 and v1.API_MAJOR == 1 and v1.API_REVISION == 3 and v1.registerHordeKind == H.registerKind, "facade rev 3")
         local function spec(modId, id, extra)
             local s = { modId = modId, id = id, nameKey = "IGUI_X_" .. id, spawn = function() return {} end }
             for k, x in pairs(extra or {}) do s[k] = x end

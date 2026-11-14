@@ -3,6 +3,8 @@
 -- so a consumer that sees v1 sees a working mod. Consumers probe v1.API_MAJOR == 1.
 --   v1.registerPack(spec) -> pack | nil, code      pack.add(player, statId, n) -> true | false, code
 --   v1.registerHordeKind(spec) -> true | nil, "invalid_args"   (API_REVISION 2; Hordes.registerKind)
+--   v1.built(player) -> true | false[, code]   (API_REVISION 3; one paid build by another mod's own build flow;
+--     false without a code: over the per-minute ceiling of build.count, or no account yet)
 -- Codes: invalid_args, rate_limited, not_ready. Stat/achievement/quest ids get the "<modId>:" prefix.
 -- Registered packs live in MinidoracatQuest.Packs[modId] (shape below); Stats.def resolves pack stats from it.
 
@@ -133,6 +135,15 @@ function A.registerPack(spec)
     }
 end
 
+-- Another mod built one thing for this player and took materials for it (Build Anything's tile placements; vanilla
+-- builds, its recipe entries included, are counted by Trackers). One build.count, under that stat's per-minute
+-- ceiling; over it the build is dropped without an anomaly (review 2026-11-15: its placements can outpace vanilla).
+function A.built(player)
+    if not Q.Trackers.isHuman(player) then return false, "invalid_args" end
+    if not Q.Store.ready() or Q.Store.readOnly then return false, "not_ready" end
+    return Q.Stats.add(player, "build.count", 1, { calm = true }) == true
+end
+
 function A.onTick()
     A.budget = {}
 end
@@ -147,7 +158,8 @@ for _, name in ipairs(MODULES) do
     if type(Q[name]) ~= "table" then missing[#missing + 1] = name end
 end
 if #missing == 0 then
-    Q.v1 = { API_MAJOR = 1, API_REVISION = 2, registerPack = A.registerPack, registerHordeKind = Q.Hordes.registerKind }
+    Q.v1 = { API_MAJOR = 1, API_REVISION = 3, registerPack = A.registerPack, registerHordeKind = Q.Hordes.registerKind,
+        built = A.built }
 else
     Q.v1 = nil
     Q.Util.log("facade not published, missing modules: " .. table.concat(missing, ","))

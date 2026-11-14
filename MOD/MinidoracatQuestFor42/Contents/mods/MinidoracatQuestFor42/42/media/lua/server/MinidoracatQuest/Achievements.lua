@@ -249,16 +249,20 @@ function Imp.baseline(acc, user, player)
     -- the vanilla count is this character's, so it is this life's too: pacifist.days must not see a killer as clean
     S.seed(acc, user, "zombie.kills", player:getZombieKills() or 0, true)
     S.seed(acc, user, "life.days", math.floor(hours / 24))
-    local sum, best = 0, 0
-    for _, id in ipairs(MQ.Catalog.perks or {}) do
-        local perk = Perks.FromString(id)
-        local lv = perk and player:getPerkLevel(perk) or 0
-        if lv > 0 then S.seed(acc, user, "level." .. id, lv) end
-        sum = sum + lv
-        if lv > best then best = lv end
+    -- rules.ownLevels: a fresh character's levels are the ones it started with; the first poll makes them its base
+    local rules = MQ.Config.get().rules
+    if not (rules and rules.ownLevels and hours < 24) then
+        local sum, best = 0, 0
+        for _, id in ipairs(MQ.Catalog.perks or {}) do
+            local perk = Perks.FromString(id)
+            local lv = perk and player:getPerkLevel(perk) or 0
+            if lv > 0 then S.seed(acc, user, "level." .. id, lv) end
+            sum = sum + lv
+            if lv > best then best = lv end
+        end
+        S.seed(acc, user, "skill.total", sum)
+        S.seed(acc, user, "skill.max", best)
     end
-    S.seed(acc, user, "skill.total", sum)
-    S.seed(acc, user, "skill.max", best)
     A.evaluate(acc, user, { quiet = true })
     local veteran = hours >= 24
     for _, step in ipairs(MQ.Catalog.newbie or {}) do

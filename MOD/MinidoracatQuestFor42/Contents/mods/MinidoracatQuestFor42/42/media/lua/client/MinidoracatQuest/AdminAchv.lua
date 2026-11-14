@@ -491,6 +491,10 @@ function P_.layout(P, pg, F)
     A.form(P, pg, F, { { "broadcast.enabled", "bool" }, { "broadcast.minTier", "minTier" }, { "broadcast.perMinute", "perMinute" } }, lw)
     F:head("ht", getText("IGUI_MQ_Admin_TitlesHead"))
     A.form(P, pg, F, { { "titles.head", "bool" }, { "titles.chat", "bool" } }, lw)
+    -- own levels only: off by default; the note says what turning it on changes
+    F:head("hl", getText("IGUI_MQ_Admin_LevelsHead"))
+    A.form(P, pg, F, { { "rules.ownLevels", "bool" } })
+    F:text("hln", getText("IGUI_MQ_Admin_OwnLevelsNote"), "textMuted")
 end
 
 A.pages.achv = { layout = P_.layout }

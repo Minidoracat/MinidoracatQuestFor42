@@ -286,6 +286,7 @@ Cf.SCHEMA = {
     broadcast = { enabled = bool, minTier = int(1, 10), perMinute = int(0, 60) },
     titles = { head = bool, chat = bool },
     boards = { inactiveDays = int(7, 365), rebuildSeasonMs = int(60000, 86400000), rebuildTotalMs = int(60000, 86400000) },
+    rules = { deathWipe = bool, ownLevels = bool },
     towns = { custom = townsCustom, disabled = townsDisabled },
     -- timed hordes (Hordes.lua); presets: id -> one set of horde knobs a window (or horde.now) plays, kinds: kindId
     -- ("vanilla", "runner", "<modId>:<id>") -> weight, points: kindId -> points per kill, hp: kindId -> health

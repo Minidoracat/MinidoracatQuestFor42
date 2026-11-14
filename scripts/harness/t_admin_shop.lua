@@ -165,17 +165,17 @@ return function(T, ctx)
     A.select(P, "hordes")
     hp = pool("hordes")
     hp["f:hordes.paid.tiers.2.pts"]:setText("1300")
-    hp["f:hordes.paid.tiers.3.limitMin"]:setText("25")
+    hp["f:hordes.paid.tiers.3.limitMin"]:setText("30")
     hp["f:hordes.paid.tiers.1.name"]:setText("  Easy  ")
     A.select(P, "towns")
     A.select(P, "hordes")
     local dt = P.S.draft.by["hordes.paid.tiers"]
-    T.check(type(dt) == "table" and #dt == 3 and dt[2].pts == 1300 and dt[3].limitMin == 25 and dt[2].limitMin == nil
-        and dt[1].name == "Easy" and dt[3].hp == 3 and AM.draftCount(P.S.draft) == 1,
-        "price, minutes and a trimmed name go into one whole-list entry; a minutes field left at the preset's stays unset")
+    T.check(type(dt) == "table" and #dt == 3 and dt[2].pts == 1300 and dt[3].limitMin == 30 and dt[1].limitMin == nil
+        and dt[2].limitMin == 20 and dt[1].name == "Easy" and dt[3].hp == 3 and AM.draftCount(P.S.draft) == 1,
+        "price, minutes and a trimmed name go into one whole-list entry; a minutes field left at the preset's stays unset, an own one stays")
     hp = pool("hordes")
     hp["f:hordes.paid.tiers.2.pts"]:setText("1200")
-    hp["f:hordes.paid.tiers.3.limitMin"]:setText("15")
+    hp["f:hordes.paid.tiers.3.limitMin"]:setText("25")
     hp["f:hordes.paid.tiers.1.name"]:setText("normal")
     A.select(P, "towns")
     A.select(P, "hordes")

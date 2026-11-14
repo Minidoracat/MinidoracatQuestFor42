@@ -479,8 +479,9 @@ function AM.formToDraft(S, values)
             byPath[f.path] = f.part and (AM.copy(AM.get(S, f.path)) or {}) or fv.value
         end
         local v = fv.value
-        -- at its default an unset key stays unset: a part is dropped from its map, a whole path is not written
-        if f.default ~= nil and v == f.default and (f.part or AM.get(S, f.path) == nil) then v = nil end
+        -- at its default an unset key stays unset: a part is dropped from its map, a whole path is not written. A field
+        -- left as shown keeps a value set at the default (a tier's own 25 minutes on a 25-minute preset: no edit made)
+        if f.default ~= nil and v == f.default and not fv.kept and (f.part or AM.get(S, f.path) == nil) then v = nil end
         if f.part then setPart(byPath[f.path], f.part, v) else byPath[f.path] = v end
     end
     local n, applied = 0, { overrides = S.overrides, defaults = S.defaults }

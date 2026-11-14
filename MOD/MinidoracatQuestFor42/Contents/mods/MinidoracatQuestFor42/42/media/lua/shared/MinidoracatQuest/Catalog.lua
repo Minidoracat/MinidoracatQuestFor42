@@ -521,9 +521,11 @@ Cat.DEFAULTS = {
         paid = { enabled = false, minPledge = 50, fundMin = 30, maxPerDay = 1, rewardPct = 50, backPct = 10,
             leadMin = 15, waitMin = 60,
             tiers = {
+                -- limitMin per wave from E2E horde-hp-mp (2026-11-14): one player, skill 0, kiting, 30 zombies took up to 9.1 / 16.2 /
+                -- 13.4 min at x1 / x2 / x3 (medians 7.7 / 11.7 / 13.1); x1 keeps the preset's 15
                 { name = "normal", preset = "default", pts = 600, hp = 1 },
-                { name = "hard", preset = "default", pts = 1200, hp = 2 },
-                { name = "nightmare", preset = "default", pts = 2500, hp = 3 },
+                { name = "hard", preset = "default", pts = 1200, hp = 2, limitMin = 20 },
+                { name = "nightmare", preset = "default", pts = 2500, hp = 3, limitMin = 25 },
             } } },
 }
 

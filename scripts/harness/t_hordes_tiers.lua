@@ -53,8 +53,9 @@ return function(T, F)
             and t[2].name == "hard" and t[2].pts == 1200 and t[2].hp == 2 and t[2].cap == 600
             and t[3].name == "nightmare" and t[3].pts == 2500 and t[3].hp == 3 and t[3].cap == 1250,
             "normal 600 x1 pays 300, hard 1,200 x2 pays 600, nightmare 2,500 x3 pays 1,250 (50% of the price)")
-        T.check(t[1].waves == 1 and t[1].limitMin == 15 and #t[1].kinds == 2 and t[1].kinds[1].id == "vanilla"
-            and t[1].kinds[2].nameKey == "IGUI_MQ_Horde_Kind_runner", "each tier: waves, the kinds and the minutes per wave it plays")
+        T.check(t[1].waves == 1 and t[1].limitMin == 15 and t[2].limitMin == 20 and t[3].limitMin == 25 and #t[1].kinds == 2
+            and t[1].kinds[1].id == "vanilla" and t[1].kinds[2].nameKey == "IGUI_MQ_Horde_Kind_runner",
+            "each tier: waves, the kinds and the minutes per wave it plays (15 from the preset, 20 and 25 its own)")
         apply(Q, { cap = 700 })
         t = H.stateHordes(nil, "alice", T.now).paid.tiers
         T.check(t[1].cap == 300 and t[2].cap == 600 and t[3].cap == 1250, "a preset cap above the share: the share")
@@ -77,7 +78,7 @@ return function(T, F)
         local r = pledge(alice, 300, 1200, 2)
         local f = h.fund
         T.check(r and r.ok and f and f.tier == 2 and f.name == "hard" and f.preset == "default" and f.pts == 1200 and f.hp == 2
-            and f.limitMin == nil and f.elite == false and bal(Q, "alice") == 4700, "tier 2 opens a fund at 1,200 with a copy of the tier")
+            and f.limitMin == 20 and f.elite == false and bal(Q, "alice") == 4700, "tier 2 opens a fund at 1,200 with a copy of the tier")
         local ft = toasts(bob, "fund")
         T.check(#ft == 1 and ft[1].pts == 1200 and ft[1].name == "hard", "the fund toast names its tier")
         local st = H.stateHordes(nil, "bob", T.now).fund
@@ -487,7 +488,9 @@ return function(T, F)
         local alice, bob, carol = players(Q, { "alice", "bob", "carol" })
         apply(Q, { spots = { SPOT }, waves = { wave(4) }, kinds = { vanilla = 100 }, points = { vanilla = 5 }, cap = 500,
             limitMin = 15 })
-        paid(Q, { enabled = true, leadMin = 0, maxPerDay = 5 })
+        -- tiers without their own minutes: the preset's limitMin is what the copy has to keep
+        paid(Q, { enabled = true, leadMin = 0, maxPerDay = 5, tiers = { { name = "normal", preset = "default", pts = 600, hp = 1 },
+            { name = "hard", preset = "default", pts = 1200, hp = 2 }, { name = "nightmare", preset = "default", pts = 2500, hp = 3 } } })
         pledge(alice, 1000, 1200, 2)
         local f = h.fund
         T.check(f and f.terms and f.terms.cap == 500 and #f.terms.waves == 1 and f.terms.points.vanilla == 5

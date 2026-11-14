@@ -858,12 +858,15 @@ function A.collect(P, pg)
                 -- left as shown: the value itself, not its 2-decimal text (0.125 shown as "0.13" folded in as an edit
                 -- nobody made, now on every show and push too: review r1, 2026-10-28)
                 local text = f.el:getText()
-                local v, key, lo, hi
-                if text == f.shown then v = valueAt(P, f) end
+                local v, key, lo, hi, kept
+                if text == f.shown then
+                    v = valueAt(P, f)
+                    kept = type(v) == "number"
+                end
                 if type(v) ~= "number" then v, key, lo, hi = AM.check(text, f.range) end
                 mark(f.el, v == nil and getText(key, AM.num(lo), AM.num(hi)) or nil)
                 if v ~= nil then
-                    values[#values + 1] = { field = f, value = v }
+                    values[#values + 1] = { field = f, value = v, kept = kept }
                     -- target {min, max}: min <= max
                     if f.part and (f.part[1] == 1 or f.part[1] == 2) and string.match(f.path, "%.target$") then
                         local t = pairsOf[f.path] or {}

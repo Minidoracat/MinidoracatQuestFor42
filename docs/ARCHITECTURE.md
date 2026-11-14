@@ -271,10 +271,11 @@ contracts = { enabled = true, returnPct = 50, bonusPct = 30, sharePct = 30, perD
 -- 每個樣板數的統計是 Catalog.contracts（hunt、long＝zombie.kills，melee＝zombie.kills.melee），不是設定
 hordes.paid = { enabled = false, minPledge = 50, fundMin = 30, maxPerDay = 1, rewardPct = 50, backPct = 10, leadMin = 15, waitMin = 60,
                 tiers = { { name = "normal", preset = "default", pts = 600, hp = 1 },
-                          { name = "hard", preset = "default", pts = 1200, hp = 2 },
-                          { name = "nightmare", preset = "default", pts = 2500, hp = 3 } } },
+                          { name = "hard", preset = "default", pts = 1200, hp = 2, limitMin = 20 },
+                          { name = "nightmare", preset = "default", pts = 2500, hp = 3, limitMin = 25 } } },
 -- minPledge 1～10000；fundMin 5～240 分；maxPerDay 1～24；rewardPct 0～90；backPct 0～50，rewardPct + backPct ≤ 90（why paidBack）；leadMin 0～MAX_LEAD；waitMin 1～240
 -- tiers 整組替換，1～4 級，每級 { name（0～32 字）, preset（存在的方案）, pts 100～100000, hp 0.1～10, limitMin? 1～120 }；pts 不遞減（tierOrder）；有名字的不重複（tierSame）；最後一級（2 級以上時）是 elite
+-- 預設每波時限：普通照方案（15 分），困難 20、惡夢 25（E2E `horde-hp-mp` 2026-11-14：單人、技能 0、邊退邊打，30 隻最長 9.1／16.2／13.4 分）
 donate = { enabled = false, target = 10000, min = 10, day = 6, time = "21:00", preset = "default", hp = 3, leadMin = 30, waitMin = 60 }
 -- target 100～1e7；min 1～10000；day 1～7（1＝星期一）；time H:MM；preset 存在的方案；hp 0.1～10；leadMin 0～MAX_LEAD；waitMin 1～240；
 -- 開著時 round(方案 cap × hp) 要小於 target（why donateCap，路徑 donate.target：發回的不能比收進的多）

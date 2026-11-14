@@ -203,7 +203,7 @@ Account = {
   spent = {},                                   -- 用積分買東西的紀錄，新的在前、最多 10 筆：{ at, what, n, ref }；n < 0 花掉、n > 0 退回；what：swap／shield／title／horde／hordeRefund／hordeBack（清光拿回，ref horde:<id>）／donate／contract／contractRefund／contractBack／contractBonus（合約獎勵，`Points.note`，積分本身走 award）／color（§5.5 `Points.pay`）
     spendSeq = 0,                                 -- 花費序號：spend 指令每評估一筆加一（Server.onClientCommand）
   contract = nil,                               -- 所在的小隊合約 id（一次一個；§5.11）
-  contractDay = nil,                            -- { key = dayKey, n }：這一天開始了幾個合約（每日任務同一個換日）
+  contractDay = nil,                            -- { key = dayKey, n }：這一天用掉的合約次數（開始、主動退出、隊長解散各算一次；每日任務同一個換日）
   titleColor = nil,                             -- 租用的稱號顏色 { c, untilMs, told }（told：到期前一天的通知已送；§5.8）
 }
 ```
@@ -375,7 +375,7 @@ boards[i] = { id = "kills", cat = "combat", stat = "zombie.kills", periods = { "
 ### 5.1 Store（Core）
 
 - `Store.ready()` → bool。`Store.root()` → 共用表。
-- `Store.account(user, create)` → acc 或 nil。create 為 true 時建新帳號並填預設欄位。
+- `Store.account(user, create, bare)` → acc 或 nil。create 為 true 時建新帳號並填預設欄位（報表 `fresh + 1`、`newbie.enabled` 沒關就建 `newbie`）。`bare = true`（和 create 一起）：這個帳號只是為了把欠的積分發回去才建（小隊合約的退款與獎勵 `Contracts` 的 `payee`、贊助屍潮的 `Hordes.refund`／`Hordes.payBack`；押過積分的人帳號卻不在了），不是新玩家：不算 `fresh`、不建 `newbie`，其餘欄位一樣（審查 2026-11-14 第 2 輪 B2-1）。已經在的帳號，`bare` 沒有作用。
 - `Store.each(fn)`：逐帳號呼叫 `fn(user, acc)`（跨 16 張表）。只給榜單重算、結算與管理查詢用。`Store.eachIn(i, fn)`：只走第 i 張表（0～15），報表快照一 tick 走一張。
 - `Store.touch(user, acc)`：更新 `seenMs`，季數不同時懶重置本季欄位。
 
@@ -498,12 +498,12 @@ boards[i] = { id = "kills", cat = "combat", stat = "zombie.kills", periods = { "
 - `Contracts.leave(acc, user, id, now)`（`contractLeave`，不扣積分）：先 `settle`；只有招人中能退（進行中 → `FORBIDDEN`，不在裡面 → `NOT_FOUND`），押金全額 `Points.unpay(…, "contractRefund", tpl)`（失敗寫 log，和解散一樣）；隊長退出＝解散（`Contracts.disband(c, "leader")`），每個人都退回並收到 `contract { ev = "refund", why = "leader" }`。主動退出的人與解散隊伍的隊長本人各算當天一次（`contractDay.n + 1`，B-4：不然發起再退出不算次數，可以一直灌事件檔、佔同時上限）；招人不夠被解散（`small`）不算，被隊長解散的其他隊員也不算。客戶端兩個都先開確認框：隊長的按鈕是「解散隊伍」（`danger`；寫所有人的押金都會退回、會用掉你今天的一次），隊員的「退出並拿回 N 積分」寫押金會退回、會用掉今天的一次（B-5）。`Contracts.go(user, id, now)`（`contractGo`）：先 `settle`；不在招人 → `NOT_FOUND`，只有隊長（`FORBIDDEN`），人數 < `minSize` → `CONTRACT_SMALL`。
 - `Contracts.begin(c, now)`：`target = perMember × size`、`endsAt = now + limitMin`，每位隊員 `contractDay.n + 1`（日界線＝`Clock.dayKey`，和每日任務同一個換日），事件 `contract { ev = "start", id, tpl, size, target, startMs }`。
 - 進度：`Stats.listen("contracts", Contracts.onStat)`：沒有 `acc.contract` 的人第一行就回（擊殺是最熱的路徑，不讀 `root.contracts`）；`opts.quiet`（匯入）、別的統計、`delta <= 0`、已過 `endsAt` 都不算。屍潮裡的擊殺也算（同一套統計）。進度只標隊員 `contracts`；招人清單變動（發起、加入、退出、開始、結算）標所有人。
-- `Contracts.tick(now)`（`OnTickEvenPaused`，每秒最多一次）：開機後第一個 tick（或比它早到的合約指令，見 `settle`）把每個合約的 `openUntil`／`endsAt` 往後移 `now − beat`（停機的長度；當機回到舊存檔時 `beat` 也回去，存檔後到當機的時間也不算），之後每個 tick 記 `beat`。招人時間到：和 `settle` 同一個處理，不夠的全額退回（不在線的也退）。進行中時間到：結算（沒達標）。
+- `Contracts.tick(now)`（`OnTickEvenPaused`，每秒最多一次）：開機後第一個 tick（或比它早到的合約指令：`settle`，以及 `Contracts.start` 開頭也先做一次，否則開機後第一個 tick 前發起的新合約也會被往後推，B2-2）把每個合約的 `openUntil`／`endsAt` 往後移 `now − beat`（停機的長度；當機回到舊存檔時 `beat` 也回去，存檔後到當機的時間也不算），之後每個 tick 記 `beat`。招人時間到：和 `settle` 同一個處理，不夠的全額退回（不在線的也退）。進行中時間到：結算（沒達標）。
 - `Contracts.finish(c, won, now)`：先 `detach`（從 `list` 拿掉、清掉每個人的 `acc.contract`）再發錢，中途出錯不會再結算一次。達標：每位隊員 `back = floor(stake × returnPct ÷ 100)` 走 `Points.unpay(…, "contractBack", tpl)`；自己的擊殺 ≥ `need = ceil(perMember × sharePct ÷ 100)` 的另得 `bonus = floor(stake × bonusPct ÷ 100)`（`Points.award(…, "contract", "contract:<id>")`＋`Points.note(…, "contractBonus", bonus, tpl)`）與 `contract.wins + 1`。沒達標：不退。每位隊員一則個人通知 `contract`（§6.3），結果記進 `log`（最新 20 筆）、報表 `contracts["<tpl>:won"|"<tpl>:lost"]`、事件 `contract { ev = "won"|"lost", id, tpl, size, target, prog, startMs }`。
-- 發錢的帳號（`disband` 的退款、`finish` 達標的退回與獎勵）用 `Store.account(u, true)`：帳號不在（例如被管理員清掉）就建立再發，押金不會跟著消失；唯讀存檔時建立不了，寫 log（B-1）。沒達標的不建立帳號。
+- 發錢的帳號（`disband` 的退款、`finish` 達標的退回與獎勵）用 `Store.account(u, true, true)`：帳號不在（例如被管理員清掉）就建立再發，押金不會跟著消失；建出來的帳號不算新玩家（`bare`：不算 `fresh`、沒有新手任務，B2-1）；唯讀存檔時建立不了，寫 log（B-1）。沒達標的不建立帳號。
 - 已知限制（B-7）：合約 id 是 `root.contracts.seq`，跟著 Global ModData 存檔；當機回到舊存檔時 `seq` 倒回、之後的合約會重用 id，事件檔不會倒回。所以事件 `contract` 的每一筆都帶 `startMs`（`start`、`won`、`lost`），分析時用 `id`＋`startMs` 分開兩個同號的合約；招人中就解散的合約不寫事件。不改 id 的做法：結算、退款都只看 `root.contracts` 裡的合約本身，重用的 id 不會碰到舊合約。
 - 狀態 provider `contracts`：`{ on, perDay, today, returnPct, bonusPct, sharePct, joinMin, minSize, maxSize, tpls = { { id, stake, perMember, limitMin, sig } }（啟用的，固定順序 hunt、melee、long）, open = { { id, tpl, size, leader, openUntil, stake, perMember, limitMin, returnPct, bonusPct, sharePct } }（自己不在的招人中隊伍）, mine = { id, tpl, state, size, lead, openUntil, startMs, endsAt, target, prog, stake, perMember, limitMin, returnPct, bonusPct, sharePct, members = { { me | n | anon, a, k, lead } } } | nil }`（`on` 見 `Contracts.on`）。名字照屍潮結算的規則：自己是 `me`，匿名帳號 `anon = true` 不給名字，管理員另拿 `a`。`Contracts.recent(user)`（`records` 回覆的 `contracts`）：這個人最近 10 個合約，新的在前 `{ at, tpl, size, won, prog, target, back, bonus, mine }`。
-- 成就 `contract_wins`（分類 `quest`，1／5／15／40／100，第 4 級給稱號）看帳號層統計 `contract.wins`。
+- 成就 `contract_wins`（分類 `quest`，1／5／15／40／100，第 4 級給稱號）看帳號層統計 `contract.wins`。單人存檔沒有小隊合約，`Catalog.statOn("contract.wins")` 在不是伺服器也不是客戶端時為 false，成就頁不列它，「已解鎖／總數」也不算它（已經解鎖的照樣列，和睡眠成就同一個規則；B2-3）。
 
 ## 6. 網路協定
 
@@ -739,7 +739,7 @@ boards[i] = { id = "kills", cat = "combat", stat = "zombie.kills", periods = { "
 | mutation 回覆 | 玩家 mutation 成功時 Server 先送 `result` 再送 `state`；query 成功不送 `result`，只送該查詢的推送 |
 | Core 額外函式 | `Config.addHistory(actor, summary, changes, undoable)`、`Audit.recent(filter, max)`、`Sync.dirty(nil, part)`（所有開著視窗的人）、`Sync.broadcastToast(t, achiever)`、`Store.serverKey/path/writeLines/readLines`、`Clock.dayStartMs/shiftMs/civil` |
 | `Boards.profileChanged(user)` | `anon` 或 `title` 改變後 Server 會呼叫；空操作。榜單快取只存帳號、數值與名次，`Boards.page` 送出每一列時即時讀該帳號的 `anon`／`title`，所以下一次 `board` 回覆就是新名字與稱號，不用重算。管理員隱藏仍走 `Boards.setHidden` → `dirtyAll` 重算 |
-| 新手欄位 | `Store.account(user, true)` 建帳號時，`newbie.enabled` 沒關就一起建 `newbie` |
+| 新手欄位 | `Store.account(user, true)` 建帳號時，`newbie.enabled` 沒關就一起建 `newbie`；`Store.account(user, true, true)`（只為發回積分而建）不建 |
 | facade 分類 | pack 成就的 `life` 歸到 `job`；pack 任務主題不在 11 個主題時設 nil |
 | facade 發布 | 全部伺服器模組的全域表都在才賦值 `v1` |
 | `AdminRoles` | 逗號或分號分隔 |

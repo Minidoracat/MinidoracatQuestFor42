@@ -111,7 +111,8 @@ function St.root()
     return St.rootT
 end
 
-local function newAccount(t, sno)
+-- bare: an account made only to pay someone back (Contracts, Hordes): no newbie quest
+local function newAccount(t, sno, bare)
     local acc = {
         v = C.ACCOUNT_V, firstMs = t, seenMs = t,
         total = {}, life = {}, season = {}, sno = sno,
@@ -125,7 +126,7 @@ local function newAccount(t, sno)
     }
     local cfg = Q.Config and Q.Config.get and Q.Config.get() or nil
     local nb = cfg and cfg.newbie or nil
-    if nb == nil or nb.enabled ~= false then
+    if not bare and (nb == nil or nb.enabled ~= false) then
         acc.newbie = { startMs = t, steps = { false, false, false, false, false } }
     end
     return acc
@@ -155,16 +156,19 @@ local function lazySeason(acc)
     end
 end
 
-function St.account(user, create)
+-- create: make it when it is not there. bare (with create): the account is made only to pay points owed to someone who
+-- staked them (a squad contract, a sponsored horde) and whose account is gone; not a new player, so no "fresh" in the
+-- report and no newbie quest (review 2026-11-14 round 2 B2-1).
+function St.account(user, create, bare)
     if not St.ready() or type(user) ~= "string" then return nil end
     local accounts = St.shards[Q.Util.hash(user) % C.SHARDS].accounts
     if accounts == nil then return nil end
     local acc = accounts[user]
     if acc == nil then
         if not create or St.readOnly then return nil end
-        acc = newAccount(now(), St.rootT.season.no)
+        acc = newAccount(now(), St.rootT.season.no, bare == true)
         accounts[user] = acc
-        if Q.Report then Q.Report.add("fresh") end
+        if Q.Report and bare ~= true then Q.Report.add("fresh") end
         return acc
     end
     lazySeason(acc)

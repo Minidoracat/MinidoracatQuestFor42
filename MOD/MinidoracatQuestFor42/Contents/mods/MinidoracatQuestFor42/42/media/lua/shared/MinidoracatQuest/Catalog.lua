@@ -120,10 +120,14 @@ end
 -- false for a stat nobody can earn on this server. An MP server with SleepAllowed off (the vanilla default,
 -- ServerOptions.java:120) has no Sleep in the bed menu (ISWorldObjectContextMenuLogic.java:1684) and resets fatigue
 -- (IsoGameCharacter.java:9955); clients get the option at connect. Owner 2026-10-29: the newbie track skips its
--- sleep step and the achievements page leaves the sleep achievements out.
+-- sleep step and the achievements page leaves the sleep achievements out. Squad contracts need other players: none in
+-- single player (neither server nor client; Contracts.on), so contract.wins is off there (review 2026-11-14 B2-3).
 local SLEEP_STATS = { ["sleep.indoor"] = true, ["sleep.outdoor"] = true }
+local MP_STATS = { ["contract.wins"] = true }
 function Cat.statOn(stat)
-    if not SLEEP_STATS[stat] or not (isServer() or isClient()) then return true end
+    local mp = isServer() or isClient()
+    if MP_STATS[stat] then return mp == true end
+    if not SLEEP_STATS[stat] or not mp then return true end
     return getServerOptions():getBoolean("SleepAllowed") == true
 end
 
@@ -480,7 +484,8 @@ Cat.DEFAULTS = {
     -- squad contracts (Contracts.lua): each member stakes the list entry's `stake`; joinMin minutes to gather minSize ..
     -- maxSize players; the target is perMember x the members, within limitMin minutes. Met: every member gets returnPct %
     -- of the stake back, and one with sharePct % of perMember kills of their own also bonusPct % as earned points (and a
-    -- contract.wins). Not met: nothing back. perDay contracts started a day each; maxActive gathering or running at once
+    -- contract.wins). Not met: nothing back. perDay contracts a day each (one used by a start, by leaving a gathering one
+    -- and by calling it off as its leader); maxActive gathering or running at once
     contracts = { enabled = true, returnPct = 50, bonusPct = 30, sharePct = 30, perDay = 3, joinMin = 10,
         minSize = 2, maxSize = 6, maxActive = 10,
         list = {

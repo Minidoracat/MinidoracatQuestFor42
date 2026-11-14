@@ -72,7 +72,8 @@ function Ct.statOf(tpl)
     return nil
 end
 
--- contracts started today (the daily quests' day)
+-- the day's contracts used (the daily quests' day): one for each that started with the player in it, one for leaving a
+-- gathering one and one for calling it off as its leader (Contracts.leave)
 function Ct.today(acc, now)
     local d = acc.contractDay
     if type(d) == "table" and d.key == MQ.Clock.dayKey(now) then return d.n end
@@ -123,9 +124,10 @@ local function detach(c)
     end
 end
 
--- a payout's account: created when it is missing (a stake must not vanish with it); nil only in a read-only store
+-- a payout's account: created when it is missing (a stake must not vanish with it), bare: not a new player (no newbie
+-- quest, not counted as fresh); nil only in a read-only store
 local function payee(c, u, n)
-    local acc = MQ.Store.account(u, true)
+    local acc = MQ.Store.account(u, true, true)
     if acc == nil then U.log("contract " .. c.id .. ": " .. n .. " points not paid to " .. U.logSafe(u)) end
     return acc
 end
@@ -239,6 +241,8 @@ end
 
 -- true, { id } | false, code. sig: the template's Ct.sig the question showed
 function Ct.start(acc, user, tpl, pay, sig, now)
+    -- before the first tick after a start: catch up first, or that tick would move this new contract on by the gap too
+    catchUp(now)
     local cfg = settings()
     if not Ct.on(cfg) then return false, CODE.CONTRACT_OFF end
     local t, stat = cfg.list[tpl], Ct.statOf(tpl)

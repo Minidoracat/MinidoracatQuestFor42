@@ -1014,7 +1014,7 @@ end
 -- callers do: the points must not vanish); why: expired | spots | file | ended (H.finish)
 function H.refund(by, why)
     for user, pts in pairs(by) do
-        local acc = MQ.Store.account(user, true)
+        local acc = MQ.Store.account(user, true, true)   -- bare: made only to pay back, not a new player
         if acc == nil or not MQ.Points.unpay(acc, user, pts, "hordeRefund", nil) then
             U.log("horde fund: " .. pts .. " points not paid back to " .. U.logSafe(user))
         else
@@ -1038,7 +1038,7 @@ function H.payBack(cur)
     for user, mine in pairs(cur.sponsors) do
         local back = math.floor(mine * pct / 100)
         if back > 0 then
-            local acc = MQ.Store.account(user, true)   -- made when missing (H.refund)
+            local acc = MQ.Store.account(user, true, true)   -- made when missing, bare (H.refund)
             if acc == nil or not MQ.Points.unpay(acc, user, back, "hordeBack", "horde:" .. cur.id) then
                 U.log("horde fund: " .. back .. " points not given back to " .. U.logSafe(user))
             else

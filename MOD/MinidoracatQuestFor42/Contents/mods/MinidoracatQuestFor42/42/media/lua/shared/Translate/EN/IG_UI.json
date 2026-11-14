@@ -1310,7 +1310,7 @@
   "IGUI_MQ_Contract_Start": "Start...",
   "IGUI_MQ_Contract_Join": "Join...",
   "IGUI_MQ_Contract_TodayLeft": "%1 left today",
-  "IGUI_MQ_Contract_DayUsed": "You have started %1 contracts today. Come back tomorrow.",
+  "IGUI_MQ_Contract_DayUsed": "You have used today's %1 contracts. Come back tomorrow.",
   "IGUI_MQ_Contract_OpenHead": "Squads gathering",
   "IGUI_MQ_Contract_OpenNone": "No squad is gathering right now.",
   "IGUI_MQ_Contract_Size": "%1 · %2/%3 players",

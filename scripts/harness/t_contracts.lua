@@ -394,9 +394,12 @@ return function(T)
         T.cmd(a, "contractGo", { id = id })
         kill(Q, "bob", 5)
         drop("bob")
+        local fresh0 = Q.Report.row(T.now).fresh
         kill(Q, "alice", 15)
         T.check(list(Q)[id] == nil and acct(Q, "bob") ~= nil and bal(Q, "bob") == 50 + 30,
             "met: bob's account is made again with his 50 back and the 30 bonus")
+        T.check(acct(Q, "bob").newbie == nil and Q.Report.row(T.now).fresh == fresh0,
+            "made only to pay him: no newbie quest, not a fresh player in the report (review r2 B2-1)")
         local id2 = start(a).id
         join(c, id2)
         drop("carol")
@@ -457,9 +460,16 @@ return function(T)
         T.now = T.now + 3 * 3600000
         Q = T.boot({ sandbox = { AdminRoles = "admin" }, keepGmd = true, keepFiles = true })
         a, b = players(Q, { "alice", "bob" })
+        local c = players(Q, { "carol" }, 1000)
+        local cid = start(c).id
+        local cUntil = list(Q)[cid] and list(Q)[cid].openUntil
+        T.check(cUntil == T.now + 10 * MIN, "a contract started before the first tick: joinMin from now")
         local r = join(b, id)
         T.check(r.ok and list(Q)[id] ~= nil and list(Q)[id].size == 2 and list(Q)[id].state == "open",
             "joined: the 3 hours down do not end the gathering")
+        T.tick(1)
+        T.check(list(Q)[cid].openUntil == cUntil,
+            "the catch-up does not move the new contract on by the 3 hours (review r2 B2-2)")
     end)
 
     section("review r1 B-3: Start carries what its question showed (sig)", function()
@@ -518,6 +528,45 @@ return function(T)
         local C = MinidoracatQuest.Client
         T.check(C.state ~= nil and C.state.contracts ~= nil and C.state.contracts.on == false and C.uses(C.state).contract == nil
             and not MinidoracatQuest.PageContracts.shown(), "the client: no page, no row on the Points page")
+        local PA = MinidoracatQuest.PageAchievements
+        local function has(defs, id)
+            for _, a in ipairs(defs.achievements) do if a.id == id then return true end end
+            return false
+        end
+        local all = C.defs()
+        local vis = PA.visible(all, {})
+        local withIt = PA.visible(all, { contract_wins = 1 })
+        local _, total = PA.counts(vis, {})
+        local _, totalWith = PA.counts(withIt, { contract_wins = 1 })
+        T.check(not Q.Catalog.statOn("contract.wins") and has(all, "contract_wins") and not has(vis, "contract_wins")
+            and total == totalWith - 1, "the achievements page leaves contract_wins out, and its count with it (review r2 B2-3)")
+        T.check(has(withIt, "contract_wins"), "one already unlocked stays")
+    end)
+
+    section("review r2 B2-1: an account made to pay someone back is not a new player", function()
+        local Q = boot()
+        local fresh0 = Q.Report.row(T.now).fresh
+        Q.Hordes.refund({ zed = 50 }, "expired")
+        Q.Hordes.payBack({ id = 7, sponsors = { yan = 100 }, backPct = 10 })
+        T.check(acct(Q, "zed") ~= nil and bal(Q, "zed") == 50 and acct(Q, "zed").newbie == nil
+            and acct(Q, "yan") ~= nil and bal(Q, "yan") == 10 and acct(Q, "yan").newbie == nil
+            and Q.Report.row(T.now).fresh == fresh0, "sponsored horde refund and pay-back: paid, no newbie, not fresh")
+        local n = Q.Store.account("newcomer", true)
+        T.check(n ~= nil and n.newbie ~= nil and Q.Report.row(T.now).fresh == fresh0 + 1,
+            "Store.account(user, true) as before: a new player with the newbie quest, counted fresh")
+        local again = Q.Store.account("newcomer", true, true)
+        T.check(again == n and n.newbie ~= nil and Q.Report.row(T.now).fresh == fresh0 + 1, "bare does nothing to one that is there")
+    end)
+
+    section("review r2 B2-3 / B2-4: contract.wins is a multiplayer stat; the day's count text", function()
+        T.boot({ sandbox = { AdminRoles = "admin" } })
+        T.check(MinidoracatQuest.Catalog.statOn("contract.wins") and MinidoracatQuest.Catalog.statOn("zombie.kills"),
+            "dedicated server: contract.wins is on")
+        local f = io.open("MOD/MinidoracatQuestFor42/Contents/mods/MinidoracatQuestFor42/42/media/lua/shared/Translate/EN/IG_UI.json", "r")
+        local en = f and f:read("a") or ""
+        if f then f:close() end
+        T.check(string.find(en, "\"IGUI_MQ_Contract_DayUsed\": \"You have used today's %1 contracts. Come back tomorrow.\"", 1, true) ~= nil,
+            "EN: the day's contracts are used (start, leave, call off), not only started")
     end)
 
     section("Points.unpay: the report column follows what was paid back", function()

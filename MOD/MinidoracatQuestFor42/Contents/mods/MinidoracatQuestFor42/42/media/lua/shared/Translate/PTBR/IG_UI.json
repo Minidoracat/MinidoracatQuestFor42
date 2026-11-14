@@ -1621,7 +1621,7 @@
   "IGUI_MQ_UI_TitleCondNewbie": "Concluir cada etapa das missões de iniciante em %1 dias",
   "IGUI_MQ_UI_TitleCondRank": "Temporada %1, pontos: %2",
   "IGUI_MQ_UI_TitleCondFirst": "Temporada %1: 1º em \"%2\"",
-  "IGUI_MQ_WhatsNew": "Novo: Contratos de equipe. Aposte pontos em grupo e bata uma meta de abates. Títulos agora têm cor.",
+  "IGUI_MQ_WhatsNew": "Missões noturnas agora mostram o horário: 21:00–06:00. Construções pagas com Build Anything contam como construção quando esse mod atualizar.",
   "IGUI_MQ_Code_PRICE_CHANGED": "O dono do servidor acabou de mudar o preço. A tela agora mostra o preço novo; confira e tente de novo.",
   "IGUI_MQ_Code_SHOP_OFF": "O dono do servidor desativou este uso de pontos. Nenhum ponto foi gasto.",
   "IGUI_MQ_Code_SHIELD_HELD": "Você já tem um escudo de sequência. Pode comprar outro depois que ele for usado.",

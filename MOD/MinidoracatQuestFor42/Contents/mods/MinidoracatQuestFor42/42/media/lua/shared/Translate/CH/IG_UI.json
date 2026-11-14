@@ -1621,7 +1621,7 @@
   "IGUI_MQ_UI_TitleCondNewbie": "%1 天內完成新手任務的每一步",
   "IGUI_MQ_UI_TitleCondRank": "第 %1 季積分%2",
   "IGUI_MQ_UI_TitleCondFirst": "第 %1 季「%2」榜第一",
-  "IGUI_MQ_WhatsNew": "新增小隊合約：幾個人各押積分組隊，限時一起完成擊殺目標。稱號也能換顏色了，到「積分」頁看看。",
+  "IGUI_MQ_WhatsNew": "夜間任務與成就寫明時段：21:00～06:00。用自由建造付材料蓋的也算進建造成就（自由建造更新後生效）。",
   "IGUI_MQ_Code_PRICE_CHANGED": "服主剛調整了價格，畫面已更新成新的價格。請確認後再試一次。",
   "IGUI_MQ_Code_SHOP_OFF": "服主已關閉這個積分用途，積分沒有扣。",
   "IGUI_MQ_Code_SHIELD_HELD": "你手上已經有 1 天保護，用掉之後才能再買。",

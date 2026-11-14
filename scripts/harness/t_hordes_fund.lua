@@ -9,7 +9,7 @@ return function(T, F)
     local MIN = 60000
     local SPOT, section, boot, step, apply, cmd, adm = F.SPOT, F.section, F.boot, F.step, F.apply, F.cmd, F.adm
     local near, toasts, killAlive, lastLog, sum, spyAwards = F.near, F.toasts, F.killAlive, F.lastLog, F.sum, F.spyAwards
-    local encoded, today, keyOf, wave = F.encoded, F.today, F.keyOf, F.wave
+    local encoded, today, keyOf, wave, sig = F.encoded, F.today, F.keyOf, F.wave, F.sig
 
     -- hordes.paid.<key> through Config.apply; pts = the one tier's price (hordes.paid.tiers = { normal, default, pts,
     -- x1 }), set with the first call and whenever pts is given
@@ -37,7 +37,7 @@ return function(T, F)
         return table.unpack(out)
     end
     local function bal(Q, name) return Q.Store.account(name, false).points.balance end
-    local function pledge(p, n, total) return cmd(p, "pledge", { n = n, total = total or 600 }) end
+    local function pledge(p, n, total) return cmd(p, "pledge", { n = n, total = total or 600, sig = sig(1) }) end
     local function refunds(p)
         local out = {}
         for _, t in ipairs(T.sentTo(p, "toast")) do if t.kind == "fundRefund" then out[#out + 1] = t end end
@@ -210,7 +210,8 @@ return function(T, F)
         paid(Q, { enabled = true })
         pledge(alice, 500)
         T.clearOutbox()
-        local ok, res = Q.Hordes.pledge(Q.Store.account("bob", false), "bob", 100, 600, h.fund.expireAt)
+        -- bob's dialog showed the open fund; it sends the tier's sig all the same (C.pledgeQuote), which opens the new one
+        local ok, res = Q.Hordes.pledge(Q.Store.account("bob", false), "bob", 100, 600, h.fund.expireAt, nil, sig(1))
         T.check(bal(Q, "alice") == 1000 and #refunds(alice) == 1, "the expired fund is paid back first")
         T.check(ok == true and res.n == 100 and h.fund ~= nil and h.fund.state == "open" and h.fund.total == 100
             and h.fund.by.alice == nil and bal(Q, "bob") == 900, "the late pledge opens a new fund instead")
@@ -226,9 +227,10 @@ return function(T, F)
         paid(Q, { enabled = true })
         local acc = Q.Store.account("alice", false)
         local seq, rid = acc.spendSeq or 0, T.newRequestId()
-        local r1 = T.cmd(alice, "pledge", { n = 50, total = 600, seq = seq }, rid)
+        local first = { n = 50, total = 600, seq = seq, sig = sig(1) }   -- the same packet each time
+        local r1 = T.cmd(alice, "pledge", first, rid)
         T.advance(20000)
-        local r2 = T.cmd(alice, "pledge", { n = 50, total = 600, seq = seq }, rid)
+        local r2 = T.cmd(alice, "pledge", first, rid)
         T.check(r1 and r1.ok and r1.n == 50 and r2 and r2.ok and r2.replay == true and r2.n == 50 and h.fund.total == 50
             and bal(Q, "alice") == 950, "inside the cache: the first answer again, 50 taken once")
         -- ten more pledges (more than acc.spent keeps), then past the cache's lifetime: the first packet again

@@ -587,8 +587,10 @@ end
 -- the pledge dialog (sponsored hordes, contract 4 and 6; tiers plan points-play-1113). tier: the one picked for a new
 -- fund (nil = 1, kept within paid.tiers); an open fund plays its own (fund.tier). target: the fund's pts, or that
 -- tier's with no fund (what the server checks `total` against); left: what it still needs; min = min(minPledge,
--- left); dflt = min(left, 100, balance). text nil = the default amount. Returns { balance, tier, target, got, left,
--- min, dflt, amount, after, ok, reason }
+-- left); dflt = min(left, 100, balance); sig: that tier's sig in paid.tiers (what the server checks a new fund
+-- against: the tier still plays what this client shows; sent when joining too, for a fund that expired this second
+-- and is opened anew). text nil = the default amount. Returns
+-- { balance, tier, target, sig, got, left, min, dflt, amount, after, ok, reason }
 function C.pledgeQuote(s, text, tier)
     local hs = part(s, "hordes") or {}
     local paid, fund = part(hs, "paid") or {}, part(hs, "fund")
@@ -596,6 +598,7 @@ function C.pledgeQuote(s, text, tier)
     local q = { balance = balance(s) }
     q.tier = fund and math.floor(tonumber(fund.tier) or 1) or math.max(1, math.min(math.floor(tonumber(tier) or 1), #tiers))
     q.target = math.floor(tonumber(fund and fund.pts or (part(tiers, q.tier) or {}).pts) or 0)
+    q.sig = (part(tiers, q.tier) or {}).sig
     q.got = fund and math.floor(tonumber(fund.total) or 0) or 0
     q.left = math.max(0, q.target - q.got)
     q.min = math.max(1, math.min(math.floor(tonumber(paid.minPledge) or 1), q.left))

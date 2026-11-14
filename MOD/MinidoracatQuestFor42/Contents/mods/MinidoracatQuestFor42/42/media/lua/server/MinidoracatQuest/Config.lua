@@ -684,8 +684,10 @@ end
 --    the default preset of Catalog.DEFAULTS, so config.json is written back whole.
 -- 4. Before the paid tiers (0.8.0, plan points-play-1113): hordes.paid.pts / preset -> one tier { name "normal", that
 --    preset ("default" when only pts was set), those pts (OLD_PAID_PTS when only preset was set), hp 1 }. A tree
---    that set neither gets the default tiers.
-local oldChance, oldCount, oldPer = int(0, 100), int(1, 100), int(0, 1000)
+--    that set neither gets the default tiers. A 0.7.0 rewardPct (0..90) that set no backPct and would go over 90 with
+--    the default backPct (validation paidBack) gets backPct = 90 - rewardPct: what it paid before plus the share back
+--    stays within 90, and the tree still applies.
+local oldChance, oldCount, oldPer, oldReward = int(0, 100), int(1, 100), int(0, 1000), int(0, 90)
 local OLD_LEAD, OLD_WAIT, OLD_PAID_PTS = 15, 60, 600
 function Cf.migrate(tree)
     local h = type(tree) == "table" and tree.hordes or nil
@@ -774,6 +776,10 @@ function Cf.migrate(tree)
             p.tiers = { { name = "normal", preset = preset, pts = pts, hp = 1 } }
             p.pts, p.preset, changed = nil, nil, true
         end
+    end
+    if type(p) == "table" and p.backPct == nil and oldReward(p.rewardPct)
+        and p.rewardPct + Cf.defaults().hordes.paid.backPct > 90 then
+        p.backPct, changed = 90 - p.rewardPct, true
     end
     return changed
 end

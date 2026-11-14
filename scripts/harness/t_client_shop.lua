@@ -137,9 +137,9 @@ return function(T)
     -- state.hordes.paid.tiers: one tier (as before the tiers) and the three default ones (plan points-play-1113)
     local KINDS = { { id = "vanilla", nameKey = "IGUI_MQ_Horde_Kind_vanilla" }, { id = "runner", nameKey = "IGUI_MQ_Horde_Kind_runner" } }
     local function oneTier(pts, cap) return { { name = "normal", pts = pts or 600, hp = 1, cap = cap, waves = 1, kinds = KINDS, limitMin = 15 } } end
-    local THREE = { { name = "normal", pts = 600, hp = 1, cap = 300, waves = 1, kinds = KINDS, limitMin = 15 },
-        { name = "hard", pts = 1200, hp = 2, cap = 600, waves = 1, kinds = KINDS, limitMin = 15 },
-        { name = "nightmare", pts = 2500, hp = 3, cap = 1250, waves = 2, kinds = KINDS, limitMin = 20 } }
+    local THREE = { { name = "normal", pts = 600, hp = 1, cap = 300, waves = 1, kinds = KINDS, limitMin = 15, sig = "s1" },
+        { name = "hard", pts = 1200, hp = 2, cap = 600, waves = 1, kinds = KINDS, limitMin = 15, sig = "s2" },
+        { name = "nightmare", pts = 2500, hp = 3, cap = 1250, waves = 2, kinds = KINDS, limitMin = 20, sig = "s3" } }
     catalog(SHOP)
 
     T.section("points uses: the daily page's swap button")
@@ -490,6 +490,7 @@ return function(T)
     press(X.pool.items.submit)
     check(lastSent().command == "pledge" and lastSent().args.tier == 3 and lastSent().args.total == 2500 and lastSent().args.n == 300,
         "submit sends the picked tier and its price")
+    check(lastSent().args.sig == "s3", "and the sig of the tier it showed (review r1 A-2)")
     push("result", { ok = true, command = "pledge", requestId = lastSent().args.requestId, n = 300 })
     local fund2 = { total = 300, pts = 1200, n = 1, mine = 300, expireAt = now + 20 * 60000, state = "open", tier = 2, name = "hard", hp = 2 }
     state({ balance = 3000, hordes = { on = true, paid = paid3, fund = fund2 } })
@@ -592,6 +593,18 @@ return function(T)
     check(b1t == "IGUI_MQ_UI_FundBackTitle" and b1b == "IGUI_MQ_UI_FundBackBody|25|250"
         and b2t == "IGUI_MQ_UI_DonateDoneTitle" and string.find(b2b, "IGUI_MQ_UI_DonateDoneToast|", 1, true) == 1,
         "a cleared sponsored horde: what came back of what I gave; a full donation: when its horde comes")
+    local mt, mb = E.toastText({ kind = "donateMoved", at = now + 86400000 })
+    check(mt == "IGUI_MQ_UI_DonateMovedTitle" and string.find(mb, "IGUI_MQ_UI_DonateMovedToast|", 1, true) == 1,
+        "the donation's horde did not play: when it plays instead (review r1 A-4)")
+    local _, f3 = E.toastText({ kind = "horde", ev = "fund", total = 150, pts = 2500, expireAt = now + 30 * 60000,
+        name = "nightmare", tier = 3, tiers = 3 })
+    local _, f4 = E.toastText({ kind = "horde", ev = "fund", total = 150, pts = 1500, expireAt = now + 30 * 60000,
+        name = "", tier = 2, tiers = 2 })
+    local _, f1 = E.toastText({ kind = "horde", ev = "fund", total = 150, pts = 600, expireAt = now + 30 * 60000,
+        name = "normal", tier = 1, tiers = 1 })
+    check(f3 == "IGUI_MQ_UI_FundTier|IGUI_MQ_Tier_nightmare\nIGUI_MQ_Horde_FundBody|150|2,500|30"
+        and f4 == "IGUI_MQ_UI_FundTier|IGUI_MQ_UI_TierN|2\nIGUI_MQ_Horde_FundBody|150|1,500|30"
+        and f1 == "IGUI_MQ_Horde_FundBody|150|600|30", "a fund's toast names its tier with 2+ tiers, not with one (review r1 A-6)")
     check(#errors == 0, "points uses ran clean " .. tostring(errors[1]))
 
     for k, v in pairs(saved) do _G[k] = v end

@@ -7,7 +7,8 @@
 return function(T, F)
     local MIN, HOUR, DAY = 60000, 3600000, 86400000
     local SPOT, section, boot, step, apply, cmd, adm = F.SPOT, F.section, F.boot, F.step, F.apply, F.cmd, F.adm
-    local near, killAlive, lastLog, wave, at, encoded = F.near, F.killAlive, F.lastLog, F.wave, F.at, F.encoded
+    local near, killAlive, lastLog, wave, at, encoded, sig = F.near, F.killAlive, F.lastLog, F.wave, F.at, F.encoded, F.sig
+    local far = F.far
 
     local function set(Q, changes) return Q.Config.apply(changes, "test", "tester") end
     local function donateCfg(Q, fields)
@@ -176,7 +177,7 @@ return function(T, F)
         local busy = h.cur
         step(Q)
         T.check(h.cur == busy and d.hordeAt == due, "another horde on: it waits")
-        cmd(bob, "pledge", { n = 600, total = 600, tier = 1 })
+        cmd(bob, "pledge", { n = 600, total = 600, tier = 1, sig = sig(1) })
         adm(admin, "horde.stop", { id = busy.id })
         T.check(h.fund and h.fund.state == "ready", "a full fund waits too")
         step(Q)
@@ -266,5 +267,109 @@ return function(T, F)
         local admin = players(Q, { "admin" })
         local r = adm(admin, "horde.status")
         T.check(r and r.donate and r.donate.total == 0 and r.donate.round == 1, "horde.status carries root.donate")
+    end)
+    local function moved(p)
+        local out = {}
+        for _, t in ipairs(T.sentTo(p, "toast")) do if t.kind == "donateMoved" then out[#out + 1] = t end end
+        return out
+    end
+
+    section("review r1 A-5: a full round keeps its terms; later settings do not make it pay more", function()
+        local Q = boot()
+        local d, h = Q.Donate.root(), Q.Store.root().hordes
+        local alice = players(Q, { "alice" })
+        setup(Q)
+        donate(alice, 2000)
+        local n = d.next
+        T.check(n and n.preset == "default" and n.hp == 3 and n.target == 2000 and n.leadMin == 30 and n.waitMin == 60,
+            "filled: the round's preset, hp, target, lead and wait copied into root.donate.next")
+        local due = d.hordeAt
+        -- switched off (the cap check lapses), then the preset pays more, x5, a bigger target, 10 minutes' lead
+        donateCfg(Q, { enabled = false })
+        apply(Q, { cap = 1000 })
+        donateCfg(Q, { hp = 5, target = 5000, leadMin = 10 })
+        T.check(Q.Donate.state(nil, "alice", T.now).hp == 3, "the part shows the scheduled horde's x3, not today's x5")
+        T.now = due - 30 * MIN
+        step(Q)
+        local cur = h.cur
+        T.check(cur and cur.actor == "donate" and cur.announceAt == due - 30 * MIN and cur.hpMult == 3 and cur.points.vanilla == 15
+            and cur.waitMin == 60, "planned on its copy: 30 minutes ahead, x3, points 15, waits 60")
+        T.check(cur.cap == 1999 and cur.donate.target == 2000, "cap min(1,000 x 3, 2,000 - 1) = 1,999: under what it took in")
+        T.check(d.next == nil and d.hordeAt == nil, "the copy goes with the horde")
+        -- a horde scheduled before the copies (none): today's settings, the same ceiling
+        local Q2 = boot()
+        d, h = Q2.Donate.root(), Q2.Store.root().hordes
+        local a2 = players(Q2, { "alice" })
+        setup(Q2)
+        donate(a2, 2000)
+        d.next = nil
+        donateCfg(Q2, { enabled = false })
+        apply(Q2, { cap = 1000 })
+        T.now = d.hordeAt - 30 * MIN
+        step(Q2)
+        T.check(h.cur and h.cur.hpMult == 3 and h.cur.cap == 1999, "no copy: today's x3, cap 1,999 (today's target - 1)")
+        -- the copied preset deleted since: the default one
+        local Q3 = boot()
+        d, h = Q3.Donate.root(), Q3.Store.root().hordes
+        local a3 = players(Q3, { "alice" })
+        setup(Q3)
+        donate(a3, 2000)
+        d.next.preset = "gone"
+        T.now = d.hordeAt - 30 * MIN
+        step(Q3)
+        T.check(h.cur and h.cur.actor == "donate" and #h.cur.waves == 1 and h.cur.cap == 1500, "a preset gone: played on the default")
+    end)
+
+    section("review r1 A-4: the donation's horde that ends before a zombie comes is scheduled again", function()
+        local Q = boot()
+        local D, d, h = Q.Donate, Q.Donate.root(), Q.Store.root().hordes
+        local admin, alice = players(Q, { "admin", "alice" }, 20000)
+        setup(Q)
+        donate(alice, 2000)
+        local function plan()
+            T.now = d.hordeAt - 30 * MIN
+            step(Q)
+            return h.cur
+        end
+        local cur = plan()
+        T.clearOutbox()
+        adm(admin, "horde.stop", { id = cur.id })
+        local mv = moved(alice)
+        T.check(h.cur == nil and d.hordeAt == D.nextAt(T.now, 6, "21:00", 8) and d.hordeAt >= T.now + DAY and d.next.target == 2000
+            and d.next.hp == 3 and d.total == 0 and d.round == 2, "cancelled before the start: next Saturday 21:00 again, its terms")
+        T.check(#mv == 1 and mv[1].at == d.hordeAt, "everyone is told when (toast donateMoved { at })")
+        -- nobody came
+        cur = plan()
+        far(alice)
+        T.now = cur.startMs
+        step(Q)
+        T.now = h.cur.expireAt
+        step(Q)
+        T.check(lastLog(Q).why == "nobody" and d.hordeAt ~= nil and d.hordeAt > T.now + DAY - MIN and #moved(alice) == 2,
+            "nobody came: scheduled again")
+        -- a zombie came, then it failed: played, not again
+        cur = plan()
+        near(alice)
+        T.now = cur.startMs
+        step(Q)
+        step(Q)
+        T.check(cur.firstSpawnAt ~= nil, "zombies came")
+        T.now = cur.endsAt
+        step(Q)
+        T.check(lastLog(Q).state == "failed" and d.hordeAt == nil and #moved(alice) == 2, "failed after a zombie came: not again")
+        -- the next round scheduled already: it waits behind that one
+        donate(alice, 2000)
+        cur = plan()
+        donate(alice, 2000)
+        local nextRound = d.hordeAt
+        T.check(nextRound ~= nil and d.later == nil, "the next round filled while this one waits")
+        adm(admin, "horde.stop", { id = cur.id })
+        T.check(d.hordeAt == nextRound and #d.later == 1 and d.later[1].at >= nextRound + DAY
+            and d.later[1].at == D.nextAt(nextRound, 6, "21:00", 8) and d.later[1].terms.target == 2000
+            and moved(alice)[3].at == d.later[1].at, "cancelled: behind the next round, the Saturday after it")
+        local back = d.later[1].at
+        plan()
+        T.check(h.cur.actor == "donate" and d.hordeAt == back and d.later == nil and d.next.target == 2000,
+            "the next round planned: the one behind takes the slot")
     end)
 end

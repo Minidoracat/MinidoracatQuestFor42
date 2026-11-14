@@ -200,6 +200,10 @@ function E.toastText(t)
         -- the server-wide donation filled: when its horde comes (plan points-play-1112 claim 3)
         return getText("IGUI_MQ_UI_DonateDoneTitle"), getText("IGUI_MQ_UI_DonateDoneToast", D.dateTime(t.at or 0)),
             D.EXTRA.info
+    elseif k == "donateMoved" then
+        -- the donation's horde ended before a zombie came: its round plays at this time instead (review r1 A-4)
+        return getText("IGUI_MQ_UI_DonateMovedTitle"), getText("IGUI_MQ_UI_DonateMovedToast", D.dateTime(t.at or 0)),
+            D.EXTRA.info
     end
     return nil
 end
@@ -247,8 +251,12 @@ function E.hordeToast(t)
         return getText("IGUI_MQ_Horde_Title_soon", place), sponsored(t,
             getText("IGUI_MQ_Horde_SoonBody", tostring(minsTo(t.startMs)), D.hordeKinds(t.kinds), waves)), D.EXTRA.hordeSoon
     elseif ev == "fund" then   -- somebody started a fund: where it stands and how long it has
-        return getText("IGUI_MQ_Horde_Title_fund"), getText("IGUI_MQ_Horde_FundBody", D.num(t.total or 0), D.num(t.pts or 0),
-            tostring(minsTo(t.expireAt))), D.EXTRA.gold
+        local body = getText("IGUI_MQ_Horde_FundBody", D.num(t.total or 0), D.num(t.pts or 0), tostring(minsTo(t.expireAt)))
+        -- its difficulty on a line of its own with 2 or more tiers (t.tiers); one tier says none, as in 0.7.0
+        if (tonumber(t.tiers) or 1) > 1 then
+            body = getText("IGUI_MQ_UI_FundTier", D.paidTier(t.name, tonumber(t.tier) or 1)) .. "\n" .. body
+        end
+        return getText("IGUI_MQ_Horde_Title_fund"), body, D.EXTRA.gold
     elseif ev == "remind" then
         return getText("IGUI_MQ_Horde_Title_remind", tostring(minsTo(t.startMs)), place), getText("IGUI_MQ_Horde_Remind"),
             D.EXTRA.hordeSoon

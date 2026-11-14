@@ -1,8 +1,9 @@
 -- MinidoracatQuest/PledgeDialog.lua: pledge points to a sponsored horde (plan points-sinks 4, contract 4 and 6), opened
 --   by the Hordes page's "Start a fund..." / "Sponsor...". Amount field (ExchangeDialog's), "Fill the remaining N",
---   the least one may give, the balance before and after, the refund rule; sends pledge { n, total, tier } where total
---   is the fund's target this client saw (C.pledgeQuote; the server refuses PRICE_CHANGED when it is not the current
---   one). With 2+ tiers (plan points-play-1113) a new fund first picks its difficulty: one row per tier (a chip
+--   the least one may give, the balance before and after, the refund rule; sends pledge { n, total, tier, sig } where
+--   total is the fund's target this client saw and sig the tier's (a new fund; C.pledgeQuote; the server refuses
+--   PRICE_CHANGED when either is not the current one, e.g. an admin changed the tier while the dialog was open).
+--   With 2+ tiers (plan points-play-1113) a new fund first picks its difficulty: one row per tier (a chip
 --   button, the price, the waves / toughness / most it pays, "exclusive achievement" on the last); joining an open
 --   fund names its tier only. One tier: no difficulty at all, as before the tiers.
 --   A taken pledge closes it with a toast of what was taken; a refusal toasts why and leaves it open.
@@ -82,7 +83,7 @@ function X.onSubmit()
     -- the dialog redraws with every state, so what it shows and the spendSeq sendSpend takes now go together
     local q = C.pledgeQuote(C.state, X.text, X.tier)
     if not q.ok then return end
-    X.rid = C.sendSpend("pledge", { n = q.amount, total = q.target, tier = q.tier },
+    X.rid = C.sendSpend("pledge", { n = q.amount, total = q.target, tier = q.tier, sig = q.sig },
         function(r) MinidoracatQuest.PledgeDialog.onReply(r) end)
     if X.rid == nil then D.toast(D.codeText("RATE_LIMITED"), "", nil) end   -- another spend still waits for its reply
     X.layout()

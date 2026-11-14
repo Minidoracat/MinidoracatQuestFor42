@@ -8,7 +8,7 @@
 return function(T, F)
     local MIN, DAY = 60000, 86400000
     local SPOT, section, boot, step, apply, cmd, adm = F.SPOT, F.section, F.boot, F.step, F.apply, F.cmd, F.adm
-    local near, toasts, killAlive, lastLog, wave = F.near, F.toasts, F.killAlive, F.lastLog, F.wave
+    local near, toasts, killAlive, lastLog, wave, sig = F.near, F.toasts, F.killAlive, F.lastLog, F.wave, F.sig
 
     local function set(Q, changes)
         return Q.Config.apply(changes, "test", "tester")
@@ -29,7 +29,8 @@ return function(T, F)
         return table.unpack(out)
     end
     local function bal(Q, name) return Q.Store.account(name, false).points.balance end
-    local function pledge(p, n, total, tier) return cmd(p, "pledge", { n = n, total = total, tier = tier }) end
+    -- as PledgeDialog: the tier's sig of the state the player sees now
+    local function pledge(p, n, total, tier) return cmd(p, "pledge", { n = n, total = total, tier = tier, sig = sig(tier) }) end
     local function backs(p)
         local out = {}
         for _, t in ipairs(T.sentTo(p, "toast")) do if t.kind == "fundBack" then out[#out + 1] = t end end
@@ -365,5 +366,119 @@ return function(T, F)
         step(Q)
         T.check(h.cur and h.cur.actor == "fund" and h.cur.hpMult == nil and h.cur.points.vanilla == 5 and h.cur.tier == 1
             and h.cur.elite == nil, "planned on the first tier's preset at x1")
+    end)
+    section("review r1 A-1: a refund or share back for an account that is not there makes it", function()
+        local Q = boot()
+        local h = Q.Store.root().hordes
+        players(Q, { "alice" })
+        apply(Q, { spots = { SPOT } })
+        paid(Q, { enabled = true })
+        T.check(Q.Store.account("ghost", false) == nil and Q.Store.account("ghost2", false) == nil, "no such accounts yet")
+        h.fund = { by = { ghost = 120 }, total = 120, pts = 600, startMs = T.now, expireAt = T.now - 1, state = "open",
+            tier = 1, name = "normal", preset = "default", hp = 1, elite = false }
+        step(Q)
+        local g = Q.Store.account("ghost", false)
+        T.check(h.fund == nil and g ~= nil and g.points.balance == 120 and g.spent[1].what == "hordeRefund" and g.spent[1].n == 120,
+            "an expired fund pays back a sponsor with no account: made, 120 on it")
+        Q.Hordes.payBack({ id = 77, sponsors = { ghost2 = 500 }, backPct = 10 })
+        local g2 = Q.Store.account("ghost2", false)
+        T.check(g2 ~= nil and g2.points.balance == 50 and g2.spent[1].what == "hordeBack" and g2.spent[1].ref == "horde:77",
+            "the share back too: made, 50 on it")
+    end)
+
+    section("review r1 A-2: a new fund opens only on the terms the dialog showed (sig)", function()
+        local Q = boot()
+        local H, h = Q.Hordes, Q.Store.root().hordes
+        local alice, bob = players(Q, { "alice", "bob" })
+        apply(Q, { spots = { SPOT } })
+        paid(Q, { enabled = true })
+        local v = H.stateHordes(nil, "alice", T.now).paid.tiers
+        T.check(type(v[1].sig) == "string" and #v[1].sig <= Q.Contract.LIMIT.STR and v[1].sig ~= v[2].sig and v[2].sig ~= v[3].sig
+            and H.stateHordes(nil, "bob", T.now).paid.tiers[2].sig == v[2].sig, "every tier has a short sig, its own, the same for everyone")
+        local function changes(label, fn, i)
+            local before = sig(i)
+            fn()
+            T.check(sig(i) ~= before, label .. ": tier " .. i .. "'s sig changes")
+            return before
+        end
+        local old = changes("its toughness", function()
+            paid(Q, { tiers = { tier("normal", nil, 600, 1), tier("hard", nil, 1200, 3), tier("nightmare", nil, 2500, 3) } })
+        end, 2)
+        local r = cmd(alice, "pledge", { n = 300, total = 1200, tier = 2, sig = old })
+        T.check(r and r.code == "PRICE_CHANGED" and h.fund == nil and bal(Q, "alice") == 5000,
+            "the dialog showed x2, the tier is x3 now: PRICE_CHANGED, nothing taken")
+        r = cmd(alice, "pledge", { n = 300, total = 1200, tier = 2 })
+        T.check(r and r.code == "PRICE_CHANGED" and h.fund == nil, "no sig for a new fund: PRICE_CHANGED")
+        old = changes("the preset's waves", function() apply(Q, { waves = { wave(4), wave(4) } }) end, 1)
+        r = cmd(alice, "pledge", { n = 300, total = 600, tier = 1, sig = old })
+        T.check(r and r.code == "PRICE_CHANGED" and h.fund == nil, "the preset got a second wave: PRICE_CHANGED")
+        changes("the preset's kinds", function() apply(Q, { kinds = { vanilla = 100, runner = 0 } }) end, 1)
+        changes("the preset's minutes", function() apply(Q, { limitMin = 25 }) end, 1)
+        changes("rewardPct (the most it pays)", function() paid(Q, { rewardPct = 40 }) end, 2)
+        changes("the preset's cap", function() apply(Q, { cap = 100 }) end, 1)
+        changes("its name", function()
+            paid(Q, { tiers = { tier("normal", nil, 600, 1), tier("Hard!", nil, 1200, 3), tier("nightmare", nil, 2500, 3) } })
+        end, 2)
+        local same = sig(3)
+        paid(Q, { minPledge = 60 })
+        T.check(sig(3) == same, "a setting it does not show (minPledge): the same sig")
+        r = cmd(alice, "pledge", { n = 300, total = 1200, tier = 2, sig = sig(2) })
+        T.check(r and r.ok and h.fund and h.fund.tier == 2 and h.fund.hp == 3, "the current sig opens it")
+        r = cmd(bob, "pledge", { n = 100, total = 1200, sig = "stale" })
+        T.check(r and r.ok and h.fund.total == 400, "joining an open fund: the sig is not compared (it plays its copy)")
+        r = cmd(bob, "pledge", { n = 100, total = 1200 })
+        T.check(r and r.ok and h.fund.total == 500, "joining without one")
+        h.fund = nil
+        paid(Q, { tiers = { tier("normal", nil, 600, 1) } })
+        r = cmd(alice, "pledge", { n = 100, total = 600 })
+        T.check(r and r.code == "PRICE_CHANGED" and h.fund == nil, "one tier: a new fund needs the sig too")
+        r = cmd(alice, "pledge", { n = 100, total = 600, sig = sig(1) })
+        T.check(r and r.ok and h.fund ~= nil, "and opens with it")
+    end)
+
+    section("review r1 A-3: a 0.7.0 rewardPct over 80 gets the backPct that keeps the two within 90", function()
+        local Q = boot()
+        local Cf = Q.Config
+        local DIR = "MinidoracatQuest/servertest/"
+        local function fileTree()
+            local f = T.files[DIR .. "config.json"]
+            return f and Q.Util.decode(table.concat(f.lines, "\n"), 1000000) or nil
+        end
+        local function m(paidT)
+            local t = { hordes = { paid = paidT } }
+            return Cf.migrate(t), t.hordes.paid
+        end
+        local c, p = m({ rewardPct = 90 })
+        T.check(c == true and p.backPct == 0 and p.rewardPct == 90, "rewardPct 90: backPct 0")
+        c, p = m({ rewardPct = 85, pts = 800 })
+        T.check(c == true and p.backPct == 5 and p.tiers[1].pts == 800, "rewardPct 85 (and the old price): backPct 5, one tier")
+        c, p = m({ rewardPct = 80 })
+        T.check(c == false and p.backPct == nil, "rewardPct 80: 80 + 10 fits, untouched")
+        c, p = m({ rewardPct = 90, backPct = 5 })
+        T.check(c == false and p.backPct == 5, "a backPct written next to it: untouched (fails on paidBack)")
+        c, p = m({ rewardPct = 95 })
+        T.check(c == false and p.backPct == nil, "a rewardPct the old validation refused: untouched (fails on its path)")
+        -- (a) stored overrides at boot
+        Q.Store.root().config.overrides.hordes = { paid = { enabled = true, rewardPct = 90 } }
+        T.files[DIR .. "config.json"] = nil
+        Q = boot({ keepGmd = true })
+        Cf = Q.Config
+        local pt = Cf.get().hordes.paid
+        T.check(pt.rewardPct == 90 and pt.backPct == 0 and Q.Store.root().config.overrides.hordes.paid.backPct == 0,
+            "old overrides with rewardPct 90: backPct 0 at boot")
+        local ok = set(Q, { { op = "set", path = "hordes.paid.minPledge", value = 60 } })
+        T.check(ok == true, "and the next change from the panel applies")
+        local mf = fileTree()
+        T.check(mf and mf.hordes.paid.backPct == 0, "config.json written with it")
+        -- (b) a 0.7.0 config.json with rewardPct 90 applies and is rewritten
+        T.files[DIR .. "config.json"] = { lines = { '{ "hordes": { "paid": { "enabled": true, "rewardPct": 90, "pts": 700 }, '
+            .. '"spots": [ { "name": "Lot", "x": 10600, "y": 9800, "z": 0 } ] } }' } }
+        T.advance(Cf.POLL_MS)
+        T.tick(1)
+        pt = Cf.get().hordes.paid
+        T.check(Cf.file.status.ok == true and pt.rewardPct == 90 and pt.backPct == 0 and pt.tiers[1].pts == 700,
+            "a 0.7.0 config.json with rewardPct 90: applies with backPct 0")
+        mf = fileTree()
+        T.check(mf and mf.hordes.paid.backPct == 0 and mf.hordes.paid.pts == nil, "config.json rewritten with backPct 0")
     end)
 end

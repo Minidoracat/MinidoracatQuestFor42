@@ -579,9 +579,10 @@ local function spawnAt(cur, kind, x, y, n)
                 z:setOwnerPlayer(nil)
                 H.live[z] = { horde = cur.id, onlineId = z:getOnlineID(), kind = kind.id }
                 got = got + 1
-                -- the preset's toughness: x the health the kind spawned with (sandbox ZombieLore.Toughness for the
-                -- built-in ones), x the tier's or the donation's hp (cur.hpMult); set at the spawn it reaches the
-                -- clients (quest-hz-1027k)
+                -- the preset's toughness: x the health the kind spawned with, x the tier's or the donation's hp
+                -- (cur.hpMult); set at the spawn it reaches the clients (quest-hz-1027k). The built-in kinds spawn
+                -- at health 1.0 whatever the sandbox ZombieLore.Toughness: addZombiesInOutfit sets it (42.22.2
+                -- LuaManager.java:10398, :10681, the short overload passes 1.0F; E2E horde-hp-mp: 54 of 54 at 1.000)
                 local mult = (cur.hp and cur.hp[kind.id] or 1) * (cur.hpMult or 1)
                 if mult ~= 1 then z:setHealth(math.min(z:getHealth() * mult, H.HP_MAX)) end
             end
@@ -823,7 +824,8 @@ function H.finish(result, why, now)
     -- A sponsored horde that ended before its first zombie came (cancelled, stopped, nobody came, nothing could
     -- spawn) gave its sponsors nothing: they get their points back, before anything below can fail. The day's count
     -- stays, so it cannot be done over and over for the notices. One that did play counts for them; cleared, each
-    -- gets backPct of their share back (plan points-play-1113 claim 3; cur is nil already, so never twice).
+    -- gets backPct of their share back (plan points-play-1113 claim 3; cur is nil already, so never twice). The
+    -- donation's horde that never played goes back on the calendar (Donate.unplayed): its round was paid for.
     if cur.sponsors ~= nil then
         if cur.firstSpawnAt == nil then
             H.refund(cur.sponsors, "ended")
@@ -831,6 +833,8 @@ function H.finish(result, why, now)
             for user in pairs(cur.sponsors) do MQ.Stats.add(user, "horde.sponsored", 1) end
             if result == "success" then H.payBack(cur) end
         end
+    elseif cur.actor == "donate" and cur.firstSpawnAt == nil and MQ.Donate ~= nil then
+        MQ.Donate.unplayed(cur, now)
     end
     local users = participants(cur)
     local paid, pool, capped = pay(cur)
@@ -1006,10 +1010,11 @@ local function paidToday(h, now, tz)
     return (h.paidDay or {})[dayKey(localDay(now, tz))] or 0
 end
 
--- every sponsor in by gets their points back (online or not); why: expired | spots | file | ended (H.finish)
+-- every sponsor in by gets their points back (online or not; an account that is not there is made, as Points.award's
+-- callers do: the points must not vanish); why: expired | spots | file | ended (H.finish)
 function H.refund(by, why)
     for user, pts in pairs(by) do
-        local acc = MQ.Store.account(user, false)
+        local acc = MQ.Store.account(user, true)
         if acc == nil or not MQ.Points.unpay(acc, user, pts, "hordeRefund", nil) then
             U.log("horde fund: " .. pts .. " points not paid back to " .. U.logSafe(user))
         else
@@ -1033,7 +1038,7 @@ function H.payBack(cur)
     for user, mine in pairs(cur.sponsors) do
         local back = math.floor(mine * pct / 100)
         if back > 0 then
-            local acc = MQ.Store.account(user, false)
+            local acc = MQ.Store.account(user, true)   -- made when missing (H.refund)
             if acc == nil or not MQ.Points.unpay(acc, user, back, "hordeBack", "horde:" .. cur.id) then
                 U.log("horde fund: " .. back .. " points not given back to " .. U.logSafe(user))
             else
@@ -1043,12 +1048,30 @@ function H.payBack(cur)
     end
 end
 
+-- What one tier plays at these settings, as the players see it (state.hordes.paid.tiers[i]): name, pts, hp, waves,
+-- kinds { id, nameKey }, limitMin per wave, cap (the preset's x hp, at most rewardPct of its price) and sig, a hash of
+-- all of them. A pledge that opens a fund sends the sig its dialog showed: the tier must still play what it showed.
+function H.tierView(cfg, p, t)
+    local pre = H.presetOf(cfg, t.preset)
+    local kinds, ids = {}, {}
+    for _, m in ipairs(H.mix(pre.kinds, 0)) do
+        kinds[#kinds + 1] = { id = m.kind, nameKey = m.nameKey }
+        ids[#ids + 1] = m.kind
+    end
+    local v = { name = t.name, pts = t.pts, hp = t.hp, waves = #pre.waves, kinds = kinds,
+        limitMin = t.limitMin or pre.limitMin,
+        cap = math.min(MQ.Catalog.hordeScale(pre.cap, t.hp), math.floor(t.pts * p.rewardPct / 100)) }
+    v.sig = tostring(U.hash(table.concat({ tostring(v.name), tostring(v.pts), tostring(v.hp), tostring(v.waves),
+        table.concat(ids, ","), tostring(v.limitMin), tostring(v.cap) }, "|")))
+    return v
+end
+
 -- Command pledge: n points into the fund whose goal the client saw (total). With no fund the pledge opens one for tier
--- (nil = 1) of hordes.paid.tiers at that tier's pts, and the fund keeps a copy of the tier (tier, name, preset, pts,
--- hp, limitMin; elite = the last of 2+ tiers); an open fund takes total = its pts and, when given, tier = its tier.
--- A tier out of range or another price: PRICE_CHANGED. The last pledge takes only what is missing. Returns true,
--- { n = taken } | false, code.
-function H.pledge(acc, user, n, total, now, tier)
+-- (nil = 1) of hordes.paid.tiers at that tier's pts and sig (H.tierView), and the fund keeps a copy of the tier (tier,
+-- name, preset, pts, hp, limitMin; elite = the last of 2+ tiers); an open fund takes total = its pts and, when given,
+-- tier = its tier (its sig is not compared: the fund plays its copy). A tier out of range, another price or another
+-- sig: PRICE_CHANGED. The last pledge takes only what is missing. Returns true, { n = taken } | false, code.
+function H.pledge(acc, user, n, total, now, tier, sig)
     local h, cfg = hordes(), settings()
     -- past its expiry but before this second's tick: paid back first, so a late pledge cannot fill it; the pledge
     -- then opens a new fund like any first one
@@ -1062,7 +1085,7 @@ function H.pledge(acc, user, n, total, now, tier)
     local t
     if f == nil then
         t = p.tiers[tier or 1]
-        if t == nil or total ~= t.pts then return false, CODE.PRICE_CHANGED end
+        if t == nil or total ~= t.pts or sig ~= H.tierView(cfg, p, t).sig then return false, CODE.PRICE_CHANGED end
     elseif total ~= f.pts or (tier ~= nil and tier ~= (f.tier or 1)) then
         return false, CODE.PRICE_CHANGED
     end
@@ -1082,8 +1105,9 @@ function H.pledge(acc, user, n, total, now, tier)
     f.total = f.total + take
     if f.total >= f.pts then f.state = "ready" end
     if new then
+        -- tier and tiers: the clients name the tier when there are 2 or more (Entry.hordeToast)
         MQ.Net.broadcast("toast", { kind = "horde", ev = "fund", total = f.total, pts = f.pts, expireAt = f.expireAt,
-            name = f.name })
+            name = f.name, tier = f.tier, tiers = #p.tiers })
     end
     dirty()
     return true, { n = take }
@@ -1497,14 +1521,7 @@ function H.stateHordes(acc, user, now)
     end
     local paidOn = p.enabled == true and #cfg.spots > 0
     local tiers = {}
-    for i, t in ipairs(p.tiers) do
-        local pre = H.presetOf(cfg, t.preset)
-        local kinds = {}
-        for _, m in ipairs(H.mix(pre.kinds, 0)) do kinds[#kinds + 1] = { id = m.kind, nameKey = m.nameKey } end
-        tiers[i] = { name = t.name, pts = t.pts, hp = t.hp, waves = #pre.waves, kinds = kinds,
-            limitMin = t.limitMin or pre.limitMin,
-            cap = math.min(MQ.Catalog.hordeScale(pre.cap, t.hp), math.floor(t.pts * p.rewardPct / 100)) }
-    end
+    for i, t in ipairs(p.tiers) do tiers[i] = H.tierView(cfg, p, t) end
     out.paid = { on = paidOn, tiers = tiers, minPledge = p.minPledge, rewardPct = p.rewardPct, backPct = p.backPct,
         leadMin = p.leadMin, left = math.max(0, p.maxPerDay - paidToday(h, now, MQ.Sandbox.get("TimezoneOffset"))) }
     if f ~= nil then
@@ -1648,11 +1665,12 @@ MQ.Server.defineAdmin("horde.stop", { kind = "mutation", fields = { id = "int" }
     run = function(ctx) return H.stop(ctx.args.id, ctx.user, ctx.now) end })
 
 -- a player's pledge to the sponsored horde fund (H.pledge); total = the goal the client showed, tier = the tier picked
--- (a new fund) or the open fund's
-MQ.Server.define("pledge", { kind = "mutation", spend = true, fields = { n = "int", total = "int", tier = "int?" },
+-- (a new fund) or the open fund's, sig = that tier's sig the dialog showed (a new fund only)
+MQ.Server.define("pledge", { kind = "mutation", spend = true,
+    fields = { n = "int", total = "int", tier = "int?", sig = "str?" },
     run = function(ctx)
         local a = ctx.args
-        return H.pledge(MQ.Store.account(ctx.user, true), ctx.user, a.n, a.total, ctx.now, a.tier)
+        return H.pledge(MQ.Store.account(ctx.user, true), ctx.user, a.n, a.total, ctx.now, a.tier, a.sig)
     end })
 
 MQ.Sync.provider("hordes", H.stateHordes)

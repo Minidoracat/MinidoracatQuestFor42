@@ -24,12 +24,16 @@ AM.RANGE = {
     swapPts = { 1, 10000, true }, swapPerDay = { 1, 10, true }, shieldPts = { 1, 10000, true }, shieldPerWeek = { 1, 7, true },
     titlePts = { 1, 100000, true }, titleSeason = { 0, 100000, true },
     paidPts = { 100, 100000, true }, paidPledge = { 1, 10000, true }, paidFund = { 5, 240, true }, paidReward = { 0, 90, true },
+    paidBack = { 0, 50, true },
+    -- donate.* (Config.SCHEMA.donate; hp, leadMin, waitMin reuse the horde ranges)
+    donateTarget = { 100, 10000000, true }, donateMin = { 1, 10000, true },
 }
 AM.MAX_SPOTS = 32
 AM.MAX_WINDOWS = 8   -- hordes.windows items (Config.SCHEMA.hordes)
 AM.MAX_WAVES = 10    -- a preset's waves items
 AM.MAX_NAME = 32     -- a preset's name (characters: Kahlua's # and string.sub count UTF-16 units, so 32 Chinese too)
 AM.MAX_TIERS = 10
+AM.MAX_PAID_TIERS = 4   -- hordes.paid.tiers items (Config.SCHEMA.hordes.paid)
 AM.DEL = {}   -- draft marker: path removed (falls back to defaults)
 
 -- uses for points (exchange tab) and sponsored hordes (hordes tab): { path, AM.RANGE key | "bool" | "pick" } in the
@@ -40,10 +44,17 @@ AM.USES = {
     { "shop.titles.enabled", "bool" }, { "shop.titles.list.spend_1", "titlePts" }, { "shop.titles.list.spend_2", "titlePts" },
     { "shop.titles.list.spend_3", "titlePts" }, { "shop.titles.list.spend_4", "titlePts" }, { "shop.titles.season", "titleSeason" },
 }
+-- the sponsored horde's tiers are a whole-set list of their own (AdminHordes.lua)
 AM.PAID = {
-    { "hordes.paid.enabled", "bool" }, { "hordes.paid.pts", "paidPts" }, { "hordes.paid.minPledge", "paidPledge" },
-    { "hordes.paid.maxPerDay", "hordePerDay" }, { "hordes.paid.rewardPct", "paidReward" }, { "hordes.paid.fundMin", "paidFund" },
-    { "hordes.paid.preset", "pick" }, { "hordes.paid.leadMin", "hordeLead" }, { "hordes.paid.waitMin", "hordeWait" },
+    { "hordes.paid.enabled", "bool" }, { "hordes.paid.minPledge", "paidPledge" }, { "hordes.paid.maxPerDay", "hordePerDay" },
+    { "hordes.paid.rewardPct", "paidReward" }, { "hordes.paid.backPct", "paidBack" }, { "hordes.paid.fundMin", "paidFund" },
+    { "hordes.paid.leadMin", "hordeLead" }, { "hordes.paid.waitMin", "hordeWait" },
+}
+-- the server-wide donation (hordes tab): "day" a weekday dropdown, "clock" an HH:MM field, "pick" a preset
+AM.DONATE = {
+    { "donate.enabled", "bool" }, { "donate.target", "donateTarget" }, { "donate.min", "donateMin" },
+    { "donate.day", "day" }, { "donate.time", "clock" }, { "donate.preset", "pick" }, { "donate.hp", "hordeHp" },
+    { "donate.leadMin", "hordeLead" }, { "donate.waitMin", "hordeWait" },
 }
 
 -- ===== numbers =====

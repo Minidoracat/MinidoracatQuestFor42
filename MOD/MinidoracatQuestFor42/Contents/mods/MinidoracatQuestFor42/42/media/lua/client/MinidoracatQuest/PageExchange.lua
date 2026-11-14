@@ -73,7 +73,9 @@ local function uses(b, page, x, y, w, s)
             "textMuted" } }, go("useShield", "daily", "IGUI_MQ_UI_GoDaily") }
     end
     if u.horde then
-        rows[#rows + 1] = { getText("IGUI_MQ_UI_Fund"), { { getText("IGUI_MQ_UI_UseFundSub", D.num(u.horde.pts or 0)),
+        -- the cheapest tier (hordes.paid.tiers go by price, plan points-play-1113)
+        local t1 = type(u.horde.tiers) == "table" and u.horde.tiers[1] or {}
+        rows[#rows + 1] = { getText("IGUI_MQ_UI_Fund"), { { getText("IGUI_MQ_UI_UseFundSub", D.num(t1.pts or 0)),
             "textMuted" } }, go("useHorde", "hordes", "IGUI_MQ_UI_GoHordes") }
     end
     local e = ex(s)
@@ -203,7 +205,8 @@ end
 local EX_STATE = { paid = { "IGUI_MQ_UI_ExStatePaid", "success" }, queued = { "IGUI_MQ_UI_ExQueued", "warning" },
     refunded = { "IGUI_MQ_UI_ExStateRefunded", "errorText" } }
 local SPENT = { swap = "IGUI_MQ_UI_LogSwap", shield = "IGUI_MQ_UI_LogShield", title = "IGUI_MQ_UI_LogTitle",
-    horde = "IGUI_MQ_UI_LogHorde", hordeRefund = "IGUI_MQ_UI_LogHordeRefund" }
+    horde = "IGUI_MQ_UI_LogHorde", hordeRefund = "IGUI_MQ_UI_LogHordeRefund", hordeBack = "IGUI_MQ_UI_LogHordeBack",
+    donate = "IGUI_MQ_UI_LogDonate" }
 
 local function logRow(e)
     local r = { time = D.dateTime(e.at) }

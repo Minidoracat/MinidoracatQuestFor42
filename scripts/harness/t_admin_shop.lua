@@ -37,7 +37,7 @@ return function(T, ctx)
                 el():setChecked(was)
                 bounce()
                 T.check(drafted and P.S.draft.by[path] == nil, path .. ": switched goes into the draft, switched back leaves it")
-            elseif range ~= "pick" then
+            elseif range ~= "pick" and range ~= "day" and range ~= "clock" then
                 local orig = el():getText()
                 local lo, hi = AM.RANGE[range][1], AM.RANGE[range][2]
                 T.check(orig == tostring(default(path)), path .. " shows the default " .. tostring(default(path)))
@@ -132,47 +132,131 @@ return function(T, ctx)
         "the sponsored hordes section sits after the windows and before the presets")
     T.check(hp["f:hordes.paid.enabled"]:getChecked() == false and hp["f:hordes.paid.enabled"].opts.label == "IGUI_MQ_Admin_F_hordes_paid_enabled",
         "sponsoring starts off; the switch carries its label")
-    local dd = hp["f:hordes.paid.preset"]
+    T.check(hp["f:hordes.paid.pts"] == nil and hp["f:hordes.paid.preset"] == nil and shown("hordes", "f:hordes.paid.backPct"),
+        "price and preset left the form for the difficulty table; the share back on a clear is a field")
+    local dd = hp["t:p1"]
     local opts = {}
     for _, o in ipairs(dd.opts.options or {}) do opts[o.id] = true end
-    T.check(dd.selected == "default" and opts.default, "the preset dropdown lists the presets, on the default one")
+    T.check(dd.selected == "default" and opts.default and hp["f:hordes.paid.tiers.1.name"]:getText() == "normal"
+        and hp["f:hordes.paid.tiers.3.name"]:getText() == "nightmare" and hp["f:hordes.paid.tiers.2.pts"]:getText() == "1200"
+        and hp["f:hordes.paid.tiers.3.hp"]:getText() == "3" and hp["f:hordes.paid.tiers.1.limitMin"]:getText() == "15"
+        and hp["f:hordes.paid.tiers.4.pts"] == nil, "the three default tiers: name, preset, price, toughness, the preset's minutes")
+    T.check(hp["t:r1"]:isEnabled() and hp["t:add"]:isEnabled() and hp["t:p1"].y > hp["f:hordes.paid.waitMin"].y
+        and hp["t:p3"].y < hp["hdn"].y, "the table comes after the rules, before the donation; Add and Remove on")
     roundTrip("hordes", "towns", AM.PAID)
 
-    T.section("admin shop: deleting the sponsored horde's preset moves it back to the default")
+    T.section("admin shop: the difficulty table edits the whole tier list")
+    A.select(P, "hordes")
+    hp = pool("hordes")
+    hp["f:hordes.paid.tiers.2.pts"]:setText("1300")
+    hp["f:hordes.paid.tiers.3.limitMin"]:setText("25")
+    hp["f:hordes.paid.tiers.1.name"]:setText("  Easy  ")
+    A.select(P, "towns")
+    A.select(P, "hordes")
+    local dt = P.S.draft.by["hordes.paid.tiers"]
+    T.check(type(dt) == "table" and #dt == 3 and dt[2].pts == 1300 and dt[3].limitMin == 25 and dt[2].limitMin == nil
+        and dt[1].name == "Easy" and dt[3].hp == 3 and AM.draftCount(P.S.draft) == 1,
+        "price, minutes and a trimmed name go into one whole-list entry; a minutes field left at the preset's stays unset")
+    hp = pool("hordes")
+    hp["f:hordes.paid.tiers.2.pts"]:setText("1200")
+    hp["f:hordes.paid.tiers.3.limitMin"]:setText("15")
+    hp["f:hordes.paid.tiers.1.name"]:setText("normal")
+    A.select(P, "towns")
+    A.select(P, "hordes")
+    T.check(P.S.draft.by["hordes.paid.tiers"] == nil, "typed back: the list leaves the draft")
+    press("hordes", "t:add")
+    hp = pool("hordes")
+    dt = P.S.draft.by["hordes.paid.tiers"]
+    T.check(#dt == 4 and dt[4].name == "" and dt[4].pts == 2500 and dt[4].preset == "default" and dt[4].hp == 3
+        and not hp["t:add"]:isEnabled() and hp["t:max"].color.token == "warning",
+        "Add copies the last tier without its name; at 4 Add is off and the max note warns")
+    press("hordes", "t:r2")
+    dt = P.S.draft.by["hordes.paid.tiers"]
+    T.check(#dt == 3 and dt[2].pts == 2500 and dt[3].name == "", "Remove takes that tier out")
+    A.discard(P)
+    P.S.overrides.hordes = { paid = { tiers = { { name = "normal", preset = "default", pts = 600, hp = 1 } } } }
+    A.resync(P)
+    A.select(P, "hordes")
+    T.check(not pool("hordes")["t:r1"]:isEnabled() and pool("hordes")["f:hordes.paid.tiers.2.pts"]:isVisible() == false,
+        "one tier: it cannot be removed")
+    local rows
+    keyed(function()
+        rows = A.diffRows(P, { { path = "hordes.paid.tiers", before = C.DEFAULTS.hordes.paid.tiers,
+            after = { { name = "", preset = "default", pts = 700, hp = 1.5 } } }, { path = "donate.day", before = 6, after = 2 },
+            { path = "hordes.paid.tiers.2.pts", before = 1200, after = 1100 } })
+    end)
+    T.check(rows[1].after == "IGUI_MQ_Admin_HordeTierText|IGUI_MQ_UI_TierN|1|700|1.5|IGUI_MQ_Admin_HordePresetDefault"
+        and string.find(rows[1].before, "IGUI_MQ_Tier_hard|1,200|2|", 1, true) ~= nil
+        and rows[2].before == "IGUI_MQ_UI_Weekday_6" and rows[2].after == "IGUI_MQ_UI_Weekday_2"
+        and rows[3].label == "IGUI_MQ_Admin_UseRow|IGUI_MQ_Admin_Use_horde|IGUI_MQ_UI_TierN|2 - IGUI_MQ_Admin_F_hordes_paid_tiers_pts",
+        "the confirm view reads the tiers, the weekday and one tier's field")
+    P.S.overrides.hordes = nil
+    A.resync(P)
+
+    T.section("admin shop: the server-wide donation on the hordes tab")
+    A.select(P, "hordes")
+    hp = pool("hordes")
+    T.check(shown("hordes", "hdn") and hp["hdn"].y > hp["hpd"].y and hp["hdn"].y < hp["hpre"].y
+        and hp["f:donate.enabled"]:getChecked() == false and hp["f:donate.day"].selected == 6
+        and hp["f:donate.time"]:getText() == "21:00" and hp["f:donate.preset"].selected == "default",
+        "after the sponsored hordes: off, Saturday 21:00 on the default preset")
+    roundTrip("hordes", "towns", AM.DONATE)
+    A.select(P, "hordes")
+    pool("hordes")["f:donate.day"]:setSelected(2)
+    pool("hordes")["f:donate.time"]:setText("20:30")
+    A.select(P, "towns")
+    T.check(P.S.draft.by["donate.day"] == 2 and P.S.draft.by["donate.time"] == "20:30", "the weekday and the time go into the draft")
+    A.discard(P)
+    A.select(P, "hordes")
+    pool("hordes")["f:donate.time"]:setText("25:00")
+    A.select(P, "towns")
+    T.check(P.current == "hordes" and P.S.draft.by["donate.time"] == nil, "a bad time is marked and not drafted")
+    A.discard(P)
+
+    T.section("admin shop: deleting a preset a tier or the donation plays moves them back to the default")
     A.select(P, "hordes")
     press("hordes", "pre:copy")
     local pg = P.pages.hordes
     local copyId = pg.preset
-    dd = pool("hordes")["f:hordes.paid.preset"]
-    dd:setSelected(copyId)
+    dd = pool("hordes")["t:p2"]
+    dd.opts.onChange(dd.opts.target, copyId, dd)
+    pool("hordes")["f:donate.preset"]:setSelected(copyId)
     press("hordes", "pre:del")
     local d = dialogs[#dialogs]
-    T.check(P.S.draft.by["hordes.paid.preset"] == copyId and string.find(d.text, "IGUI_MQ_Admin_HordePresetDelPaid", 1, true) == 1,
-        "the picked preset went into the draft; the delete dialog says sponsored hordes move to the default")
+    T.check(P.S.draft.by["hordes.paid.tiers"][2].preset == copyId and P.S.draft.by["donate.preset"] == copyId
+        and string.find(d.text, "IGUI_MQ_Admin_HordePresetDelPaid\nIGUI_MQ_Admin_HordePresetDelDonate", 1, true) == 1,
+        "the picks went into the draft; the delete dialog says the tiers and the donation move to the default")
     answer(true)
-    T.check(AM.get(P.S, "hordes.paid.preset") == "default" and P.S.draft.by["hordes.paid.preset"] == nil
-        and pool("hordes")["f:hordes.paid.preset"].selected == "default",
+    T.check(AM.get(P.S, "hordes.paid.tiers")[2].preset == "default" and P.S.draft.by["hordes.paid.tiers"] == nil
+        and P.S.draft.by["donate.preset"] == nil and pool("hordes")["t:p2"].selected == "default",
         "deleted: back on the default preset, nothing left in the draft (default is applied)")
     press("hordes", "pre:copy")
     copyId = pg.preset
     press("hordes", "pre:del")
     d = dialogs[#dialogs]
-    T.check(string.find(d.text, "HordePresetDelPaid", 1, true) == nil, "a preset the sponsored horde does not use: the dialog does not mention it")
+    T.check(string.find(d.text, "HordePresetDelPaid", 1, true) == nil and string.find(d.text, "DelDonate", 1, true) == nil,
+        "a preset nothing paid uses: the dialog does not mention them")
     answer(true)
-    T.check(P.S.draft.by["hordes.paid.preset"] == nil, "and its setting is not touched")
+    T.check(P.S.draft.by["hordes.paid.tiers"] == nil and P.S.draft.by["donate.preset"] == nil, "and their settings are not touched")
     A.discard(P)
-    -- applied on a preset: deleting it drafts a set back to "default"
+    -- applied on a preset: deleting it drafts the tiers and the donation back to "default"
     P.S.overrides.hordes = { presets = { hard = { name = "Hard", waves = { { base = 50, perPlayer = 50 } }, kinds = { runner = 100 },
-        points = { runner = 9 }, hp = {}, limitMin = 10, restSec = 30, maxAlive = 200, cap = 900 } }, paid = { preset = "hard" } }
+        points = { runner = 9 }, hp = {}, limitMin = 10, restSec = 30, maxAlive = 200, cap = 900 } },
+        paid = { tiers = { { name = "normal", preset = "default", pts = 600, hp = 1 }, { name = "hard", preset = "hard", pts = 900, hp = 2 } } } }
+    P.S.overrides.donate = { preset = "hard" }
     A.resync(P)
     local pick = pool("hordes")["pre:pick"]
     pick.opts.onChange(pick.opts.target, "hard", pick)
-    T.check(pool("hordes")["f:hordes.paid.preset"].selected == "hard", "the dropdown shows the applied preset")
+    T.check(pool("hordes")["t:p2"].selected == "hard" and pool("hordes")["f:hordes.paid.tiers.2.limitMin"]:getText() == "10",
+        "the dropdown shows the applied preset; the minutes field that preset's")
     press("hordes", "pre:del")
     answer(true)
-    T.check(P.S.draft.by["hordes.paid.preset"] == "default" and P.S.draft.by["hordes.presets.hard"] == AM.DEL,
-        "an applied preset deleted: the sponsored horde's preset is set back to default in the same draft")
+    local back = P.S.draft.by["hordes.paid.tiers"]
+    T.check(back and back[2].preset == "default" and back[1].preset == "default" and P.S.draft.by["donate.preset"] == "default"
+        and P.S.draft.by["hordes.presets.hard"] == AM.DEL,
+        "an applied preset deleted: the tier and the donation are set back to default in the same draft")
     A.discard(P)
+    P.S.overrides.donate = nil
     P.S.overrides.hordes = nil
     A.resync(P)
 
@@ -203,6 +287,17 @@ return function(T, ctx)
     reopen()
     T.check(pool("hordes")["fund"]:isVisible() and pool("hordes")["fund"].lines[1] == "IGUI_MQ_Admin_HordeFundNone|1|2",
         "no fund but sponsoring on: the line says so with today's count")
+    -- the donation where it stands (horde.status donate = root.donate) and its horde on the status line
+    status = { paid = { n = 0, max = 1 }, donate = { total = 4200, n = 7, by = {}, round = 1 },
+        cur = { id = 4, state = "planned", startMs = now + 900000, waves = 1, weights = {}, preset = "", actor = "donate" } }
+    reopen()
+    T.check(pool("hordes")["dns"]:isVisible() and pool("hordes")["dns"].lines[1] == "IGUI_MQ_Admin_DonateNow|4,200|10,000|7"
+        and string.find(pool("hordes")["cur"].lines[1], "IGUI_MQ_Admin_HordeCurDonate|", 1, true) == 1,
+        "the donation section: this round's points / target and donations; its horde says so on the status line")
+    status.donate.hordeAt, status.cur = now + 86400000, nil
+    reopen()
+    T.check(string.find(pool("hordes")["dns"].lines[1], "IGUI_MQ_Admin_DonateFull|", 1, true) == 1
+        and string.find(pool("hordes")["dns"].lines[1], "|4,200", 1, true) ~= nil, "full: the extra horde's time, what the next round has")
     P.S.overrides.hordes = nil
     replies["horde.status"] = stReply
     A.resync(P)

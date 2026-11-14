@@ -43,17 +43,27 @@ local function fund(b, page, x, y, w, s)
     local paid = type(hs.paid) == "table" and hs.paid or {}
     local f = type(hs.fund) == "table" and hs.fund or nil
     if paid.on ~= true and f == nil then return y end
+    local tiers = type(paid.tiers) == "table" and paid.tiers or {}
     local q = C.pledgeQuote(s, nil)
     local chips, lines, label = {}, {}, nil
+    local back = math.floor(tonumber(paid.backPct) or 0)
     if f == nil then
         local left = math.floor(tonumber(paid.left) or 0)
         if left <= 0 then
             lines[1] = { getText("IGUI_MQ_UI_FundDayUsed"), "textMuted" }
         else
             chips[1] = { getText("IGUI_MQ_UI_FundLeftToday", tostring(left)), "textMuted" }
-            -- paid.cap: the server's figure (the preset's cap may be lower than the share of the fund)
-            local cap = math.floor(tonumber(paid.cap) or q.target * (tonumber(paid.rewardPct) or 0) / 100)
-            lines[1] = { getText("IGUI_MQ_UI_FundIdle", D.num(q.target), tostring(paid.leadMin or 0), D.num(cap)), "textMuted" }
+            if #tiers > 1 then
+                -- the tiers and what each pays are in the dialog: the price range here
+                lines[1] = { getText("IGUI_MQ_UI_FundIdleTiers", D.num(tiers[1].pts or 0), D.num(tiers[#tiers].pts or 0),
+                    tostring(paid.leadMin or 0)), "textMuted" }
+            else
+                -- the tier's cap: the server's figure (the preset's cap may be lower than the share of the fund)
+                local cap = math.floor(tonumber((tiers[1] or {}).cap) or q.target * (tonumber(paid.rewardPct) or 0) / 100)
+                lines[1] = { getText("IGUI_MQ_UI_FundIdle", D.num(q.target), tostring(paid.leadMin or 0), D.num(cap)),
+                    "textMuted" }
+            end
+            if back > 0 then lines[2] = { getText("IGUI_MQ_UI_FundBack", tostring(back)), "textMuted" } end
             label = "IGUI_MQ_UI_FundStart"
         end
     elseif f.state == "ready" then
@@ -63,8 +73,11 @@ local function fund(b, page, x, y, w, s)
     else
         chips[1] = { getText("IGUI_MQ_UI_FundOpen"), "warning" }
         lines[1] = { getText("IGUI_MQ_UI_FundOpenBody", tostring(f.n or 0), D.num(f.mine or 0)), "textMuted" }
+        if back > 0 then lines[2] = { getText("IGUI_MQ_UI_FundBack", tostring(back)), "textMuted" } end
         label = "IGUI_MQ_UI_FundPledge"
     end
+    local tl = f ~= nil and D.paidTierOf(tiers, f.name, f.tier, f.hp) or nil
+    if tl ~= nil then table.insert(lines, 1, { tl, "text" }) end
     y = b:header(x, y, x + w, getText("IGUI_MQ_UI_Fund"), chips)
     if f ~= nil and f.state ~= "ready" then
         local lh = D.fontH()

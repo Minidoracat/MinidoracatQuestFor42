@@ -561,8 +561,8 @@ return function(T)
     end
     local _, allN = PA.counts(C.defs(), {})
     local _, offN = PA.counts(PA.visible(C.defs()), {})
-    check(hordeCat(C.defs()) and not hordeCat(PA.visible(C.defs())) and offN == allN - 3,
-        "hordes off: the achievements page leaves out the horde category and its 3 from the count")
+    check(hordeCat(C.defs()) and not hordeCat(PA.visible(C.defs())) and offN == allN - 5,
+        "hordes off: the achievements page leaves out the horde category and its 5 from the count")
     C.state.hordes = { on = true }
     check(MQ.PageHordes.shown(), "on: the page is in the nav")
     check(hordeCat(PA.visible(C.defs())), "on: the horde achievements are listed")

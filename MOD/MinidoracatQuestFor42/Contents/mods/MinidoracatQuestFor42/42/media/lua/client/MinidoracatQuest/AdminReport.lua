@@ -11,8 +11,10 @@ local ROMAN = { "I", "II", "III", "IV", "V" }
 -- Points kinds grouped the way the legend reads (Contract.POINT_KINDS; anything else is "other")
 local KIND_GROUP = { quest = "daily", shared = "daily", week = "weekly", achv = "achv", goal = "goal" }
 local GROUPS = { "daily", "weekly", "achv", "goal", "other" }
--- points spent by use (contract 8: sum.spentBy; a fund's refund comes off "horde")
-local SPENT = { "swap", "shield", "title", "horde" }
+-- points spent by use (contract 8: sum.spentBy; a fund's refund and a cleared sponsored horde's payback come off
+-- "horde"; donate: the server-wide donation)
+local SPENT = { "swap", "shield", "title", "horde",
+    "donate" }
 
 local function pct(rate)
     if type(rate) ~= "number" then return "-" end

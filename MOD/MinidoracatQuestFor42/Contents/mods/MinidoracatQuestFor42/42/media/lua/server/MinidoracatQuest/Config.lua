@@ -237,6 +237,23 @@ local function hordeSpots(v)
     end
     return true
 end
+-- hordes.paid.tiers (plan points-play-1113 claim 1): 1 to 4 tiers, each { name, preset, pts, hp, limitMin? }; a
+-- name like a preset's ("normal" / "hard" / "nightmare" are translated, "" reads "Tier N"). validateAll checks the
+-- rest: the presets exist, pts never go down, no two names alike
+local TIER_KEYS = { name = true, preset = true, pts = true, hp = true, limitMin = true }
+local tierPts, tierHp, tierLimit = int(100, 100000), num(0.1, 10), int(1, 120)
+local function paidTiers(v)
+    if not isArray(v, 4) or #v < 1 then return false, "tiers" end
+    for _, t in ipairs(v) do
+        if type(t) ~= "table" then return false, "tiers" end
+        for k in pairs(t) do if not TIER_KEYS[k] then return false, "tiers" end end
+        if not presetName(t.name) or not presetId(t.preset) or not tierPts(t.pts) or not tierHp(t.hp)
+            or (t.limitMin ~= nil and not tierLimit(t.limitMin)) then
+            return false, "tiers"
+        end
+    end
+    return true
+end
 
 -- Branch tables: named children, "*" = any id key ([%w_:-], <= 64), "*lower" = lowerId, "*id" = presetId, "#" = tier
 -- key 1..10. Functions are leaves.
@@ -267,15 +284,20 @@ Cf.SCHEMA = {
     -- ("vanilla", "runner", "<modId>:<id>") -> weight, points: kindId -> points per kill, hp: kindId -> health
     -- multiplier; windows, waves and spots are whole-set only. validateAll checks the result: at most
     -- C.LIMIT.MAX_PRESETS presets, each but "default" whole (hp may be left out) with a name of its own, and every
-    -- window's preset exists, and so does the paid one (paid.preset).
+    -- window's preset exists, and so does every paid tier's; tiers by price, no two names alike; rewardPct + backPct
+    -- <= 90 (a sponsored horde pays back less than it took, plan points-play-1113).
     hordes = { enabled = bool, windows = hordeWindows, maxPerDay = int(1, 24), resumeMin = int(0, 60),
         corpses = { max = int(0, 5000), afterMin = int(0, 240) },
         presets = { ["*id"] = { name = presetName, waves = hordeWaves, kinds = { ["*"] = int(0, 100) },
             points = { ["*"] = int(0, 1000) }, hp = { ["*"] = num(0.1, 10) }, limitMin = int(1, 120),
             restSec = int(0, 600), maxAlive = int(10, 2000), cap = int(1, 1000000) } },
         spots = hordeSpots,
-        paid = { enabled = bool, pts = int(100, 100000), minPledge = int(1, 10000), fundMin = int(5, 240),
-            maxPerDay = int(1, 24), rewardPct = int(0, 90), preset = presetRef, leadMin = leadV, waitMin = waitV } },
+        paid = { enabled = bool, minPledge = int(1, 10000), fundMin = int(5, 240), maxPerDay = int(1, 24),
+            rewardPct = int(0, 90), backPct = int(0, 50), tiers = paidTiers, leadMin = leadV, waitMin = waitV } },
+    -- the server-wide donation (Donate.lua); validateAll: the preset exists and, while on, its horde pays less than
+    -- the target (cap x hp)
+    donate = { enabled = bool, target = int(100, 10000000), min = int(1, 10000), day = int(1, 7), time = clock,
+        preset = presetRef, hp = num(0.1, 10), leadMin = leadV, waitMin = waitV },
     ceilings = ceilingsMap,
     -- season.lengthDays only changes through the season ops (section 3.4); not a config path
 }
@@ -440,7 +462,8 @@ local function validateAll(changes)
     if n > Cf.MAX_CUSTOM then return false, { why = "custom count" } end
     -- hordes: at most MAX_PRESETS presets; every one but "default" (Catalog.DEFAULTS fills that one, a del of its
     -- override only brings them back) has every knob and a name; no two names alike; every window plays one that exists
-    local hz = effective(after).hordes
+    local eff = effective(after)
+    local hz = eff.hordes
     local ids = {}
     for id in pairs(hz.presets) do ids[#ids + 1] = id end
     if #ids > C.LIMIT.MAX_PRESETS then return false, { why = "presets" } end
@@ -462,7 +485,24 @@ local function validateAll(changes)
     for i, w in ipairs(hz.windows) do
         if hz.presets[w.preset] == nil then return false, { why = "preset", path = "hordes.windows." .. i .. ".preset" } end
     end
-    if hz.presets[hz.paid.preset] == nil then return false, { why = "preset", path = "hordes.paid.preset" } end
+    local paid, low, tierNamed = hz.paid, 0, {}
+    for i, t in ipairs(paid.tiers) do
+        local at = "hordes.paid.tiers." .. i .. "."
+        if hz.presets[t.preset] == nil then return false, { why = "preset", path = at .. "preset" } end
+        if t.pts < low then return false, { why = "tierOrder", path = at .. "pts" } end
+        low = t.pts
+        if t.name ~= "" then
+            if tierNamed[t.name] then return false, { why = "tierSame", path = at .. "name" } end
+            tierNamed[t.name] = true
+        end
+    end
+    if paid.rewardPct + paid.backPct > 90 then return false, { why = "paidBack", path = "hordes.paid.backPct" } end
+    -- the donation's horde: its preset exists; while on it pays at most cap x hp, which must stay under the target
+    local dn = eff.donate
+    if hz.presets[dn.preset] == nil then return false, { why = "preset", path = "donate.preset" } end
+    if dn.enabled and Q.Catalog.hordeScale(hz.presets[dn.preset].cap, dn.hp) >= dn.target then
+        return false, { why = "donateCap", path = "donate.target" }
+    end
     return true, after
 end
 
@@ -631,8 +671,11 @@ end
 --    "default".
 -- 3. Every preset but "default" is whole (review r1, 2026-10-28): the knobs it leaves out (not name, not hp) come from
 --    the default preset of Catalog.DEFAULTS, so config.json is written back whole.
+-- 4. Before the paid tiers (0.8.0, plan points-play-1113): hordes.paid.pts / preset -> one tier { name "normal", that
+--    preset ("default" when only pts was set), those pts (OLD_PAID_PTS when only preset was set), hp 1 }. A tree
+--    that set neither gets the default tiers.
 local oldChance, oldCount, oldPer = int(0, 100), int(1, 100), int(0, 1000)
-local OLD_LEAD, OLD_WAIT = 15, 60
+local OLD_LEAD, OLD_WAIT, OLD_PAID_PTS = 15, 60, 600
 function Cf.migrate(tree)
     local h = type(tree) == "table" and tree.hordes or nil
     if type(h) ~= "table" then return false end
@@ -708,6 +751,17 @@ function Cf.migrate(tree)
                     if p[k] == nil then p[k], changed = U.copy(def[k]), true end
                 end
             end
+        end
+    end
+    -- 4. paid tiers
+    local p = h.paid
+    if type(p) == "table" and (p.pts ~= nil or p.preset ~= nil) and p.tiers == nil then
+        local pts, preset = p.pts, p.preset
+        if pts == nil then pts = OLD_PAID_PTS end
+        if preset == nil then preset = "default" end
+        if tierPts(pts) and presetId(preset) then
+            p.tiers = { { name = "normal", preset = preset, pts = pts, hp = 1 } }
+            p.pts, p.preset, changed = nil, nil, true
         end
     end
     return changed

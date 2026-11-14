@@ -244,6 +244,9 @@ function P.hordeBlock(page, b, x, y, w, s)
         chip = { getText("IGUI_MQ_Horde_PaidChip"), D.EXTRA.gold }
         body = getText("IGUI_MQ_Horde_Join", body,
             getText("IGUI_MQ_Horde_PaidLine", D.num(tonumber(live.sponsorN) or 0), D.num(tonumber(live.capPts) or 0)))
+        -- with 2+ tiers its difficulty (plan points-play-1113)
+        local tier = D.paidTierOf((s.hordes.paid or {}).tiers, live.tierName, live.tier, live.hp)
+        if tier ~= nil then body = getText("IGUI_MQ_Horde_Join", body, tier) end
     end
     if live ~= nil then
         local hidden = C.hordeHidden ~= nil and live.id == C.hordeHidden

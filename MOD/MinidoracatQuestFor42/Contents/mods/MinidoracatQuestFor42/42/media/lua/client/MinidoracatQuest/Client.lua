@@ -582,14 +582,18 @@ function C.pointsLog(s)
     return rows
 end
 
--- the pledge dialog (sponsored hordes, contract 4 and 6). target: the fund's pts, or the setting's with no fund (what
--- the server checks `total` against); left: what it still needs; min = min(minPledge, left); dflt = min(left, 100,
--- balance). text nil = the default amount. Returns { balance, target, got, left, min, dflt, amount, after, ok, reason }
-function C.pledgeQuote(s, text)
+-- the pledge dialog (sponsored hordes, contract 4 and 6; tiers plan points-play-1113). tier: the one picked for a new
+-- fund (nil = 1, kept within paid.tiers); an open fund plays its own (fund.tier). target: the fund's pts, or that
+-- tier's with no fund (what the server checks `total` against); left: what it still needs; min = min(minPledge,
+-- left); dflt = min(left, 100, balance). text nil = the default amount. Returns { balance, tier, target, got, left,
+-- min, dflt, amount, after, ok, reason }
+function C.pledgeQuote(s, text, tier)
     local hs = part(s, "hordes") or {}
     local paid, fund = part(hs, "paid") or {}, part(hs, "fund")
+    local tiers = part(paid, "tiers") or {}
     local q = { balance = balance(s) }
-    q.target = math.floor(tonumber(fund and fund.pts or paid.pts) or 0)
+    q.tier = fund and math.floor(tonumber(fund.tier) or 1) or math.max(1, math.min(math.floor(tonumber(tier) or 1), #tiers))
+    q.target = math.floor(tonumber(fund and fund.pts or (part(tiers, q.tier) or {}).pts) or 0)
     q.got = fund and math.floor(tonumber(fund.total) or 0) or 0
     q.left = math.max(0, q.target - q.got)
     q.min = math.max(1, math.min(math.floor(tonumber(paid.minPledge) or 1), q.left))
@@ -611,6 +615,29 @@ function C.pledgeQuote(s, text)
         q.reason = "PLEDGE_MAX"
     elseif amount < q.min then
         q.reason = "PLEDGE_MIN"
+    end
+    q.ok = q.reason == nil
+    return q
+end
+
+-- the donation dialog (plan points-play-1112 claim 3): state.donate; min = the least one may give; dflt = min(100,
+-- balance), at least min. Returns { balance, target, min, dflt, amount, after, ok, reason }
+function C.donateQuote(s, text)
+    local d = part(s, "donate") or {}
+    local q = { balance = balance(s), target = math.floor(tonumber(d.target) or 0) }
+    q.min = math.max(1, math.floor(tonumber(d.min) or 1))
+    q.dflt = math.max(q.min, math.min(100, q.balance))
+    local amount = text == nil and q.dflt or math.floor(tonumber(text) or 0)
+    if amount < 0 then amount = 0 end
+    q.amount, q.after = amount, q.balance - amount
+    if d.on ~= true then
+        q.reason = "DONATE_OFF"
+    elseif amount <= 0 then
+        q.reason = "EMPTY"
+    elseif amount > q.balance then
+        q.reason = "NOT_ENOUGH_POINTS"
+    elseif amount < q.min then
+        q.reason = "DONATE_MIN"
     end
     q.ok = q.reason == nil
     return q

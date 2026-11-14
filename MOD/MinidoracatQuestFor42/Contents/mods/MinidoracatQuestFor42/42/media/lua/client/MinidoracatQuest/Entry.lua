@@ -187,6 +187,14 @@ function E.toastText(t)
         -- ended before a zombie came (cancelled, nobody there)
         local why = t.why == "expired" and "IGUI_MQ_UI_FundRefund" or "IGUI_MQ_UI_FundRefundFail"
         return getText(why, D.num(t.pts or 0)), "", D.EXTRA.gold
+    elseif k == "fundBack" then
+        -- a sponsored horde cleared: this sponsor's share of it back (plan points-play-1113 claim 3)
+        return getText("IGUI_MQ_UI_FundBackTitle"), getText("IGUI_MQ_UI_FundBackBody", D.num(t.pts or 0), D.num(t.mine or 0)),
+            D.EXTRA.success
+    elseif k == "donateDone" then
+        -- the server-wide donation filled: when its horde comes (plan points-play-1112 claim 3)
+        return getText("IGUI_MQ_UI_DonateDoneTitle"), getText("IGUI_MQ_UI_DonateDoneToast", D.dateTime(t.at or 0)),
+            D.EXTRA.info
     end
     return nil
 end

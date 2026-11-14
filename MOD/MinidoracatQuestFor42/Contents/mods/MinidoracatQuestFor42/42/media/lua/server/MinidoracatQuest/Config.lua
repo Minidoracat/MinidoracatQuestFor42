@@ -241,6 +241,7 @@ end
 -- Branch tables: named children, "*" = any id key ([%w_:-], <= 64), "*lower" = lowerId, "*id" = presetId, "#" = tier
 -- key 1..10. Functions are leaves.
 local POOL = { ["*"] = { enabled = bool, target = target, pts = ptsV } }
+local CONTRACT = { enabled = bool, perMember = int(1, 100000), limitMin = int(5, 600), stake = int(1, 100000) }
 Cf.SCHEMA = {
     daily = { swapsPerDay = int(0, 10), pts = ptsV, rarePts = ptsV, sharedPts = ptsV, pool = POOL },
     weekly = { count = int(1, 3), pts = ptsV, pool = POOL },
@@ -258,7 +259,13 @@ Cf.SCHEMA = {
     shop = { swap = { enabled = bool, pts = int(1, 10000), perDay = int(1, 10) },
         shield = { enabled = bool, pts = int(1, 10000), perWeek = int(1, 7) },
         titles = { enabled = bool, season = int(0, 100000),
-            list = { spend_1 = int(1, 100000), spend_2 = int(1, 100000), spend_3 = int(1, 100000), spend_4 = int(1, 100000) } } },
+            list = { spend_1 = int(1, 100000), spend_2 = int(1, 100000), spend_3 = int(1, 100000), spend_4 = int(1, 100000) } },
+        color = { enabled = bool, pts = int(1, 100000), days = int(1, 90) } },
+    -- squad contracts (Contracts.lua); validateAll: returnPct + bonusPct <= 95 (what goes back stays under the stakes),
+    -- minSize <= maxSize
+    contracts = { enabled = bool, returnPct = int(0, 100), bonusPct = int(0, 100), sharePct = int(0, 100),
+        perDay = int(1, 20), joinMin = int(1, 60), minSize = int(2, 6), maxSize = int(2, 12), maxActive = int(1, 50),
+        list = { hunt = CONTRACT, melee = CONTRACT, long = CONTRACT } },
     broadcast = { enabled = bool, minTier = int(1, 10), perMinute = int(0, 60) },
     titles = { head = bool, chat = bool },
     boards = { inactiveDays = int(7, 365), rebuildSeasonMs = int(60000, 86400000), rebuildTotalMs = int(60000, 86400000) },
@@ -463,6 +470,10 @@ local function validateAll(changes)
         if hz.presets[w.preset] == nil then return false, { why = "preset", path = "hordes.windows." .. i .. ".preset" } end
     end
     if hz.presets[hz.paid.preset] == nil then return false, { why = "preset", path = "hordes.paid.preset" } end
+    -- squad contracts: every member gets back less than the stake, met or not (owner 2026-11-13: no way to farm points)
+    local ct = effective(after).contracts
+    if ct.returnPct + ct.bonusPct > 95 then return false, { why = "contractPct", path = "contracts.bonusPct" } end
+    if ct.minSize > ct.maxSize then return false, { why = "contractSize", path = "contracts.minSize" } end
     return true, after
 end
 

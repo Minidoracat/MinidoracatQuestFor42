@@ -24,7 +24,8 @@ Writing scenarios:
 local T = dofile("scripts/harness/env.lua")
 
 -- fixed order; files that do not exist yet are skipped
-local SCENARIOS = { "t_core", "t_catalog", "t_systems", "t_client", "t_admin", "t_report", "t_hordes", "t_hordes_ui" }
+local SCENARIOS = { "t_core", "t_catalog", "t_systems", "t_client", "t_admin", "t_report", "t_hordes", "t_hordes_ui",
+    "t_contracts" }
 
 local only = arg and arg[1]
 local ran = 0

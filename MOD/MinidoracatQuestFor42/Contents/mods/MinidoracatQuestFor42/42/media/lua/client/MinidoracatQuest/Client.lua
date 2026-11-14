@@ -521,16 +521,18 @@ C.balance = balance
 
 local function part(t, k) return type(t) == "table" and type(t[k]) == "table" and t[k] or nil end
 
--- the uses on now: { swap, shield, titles } = their cfg.shop table while enabled, horde = state.hordes.paid while on
--- (enabled with a spot); a missing part reads as off
+-- the uses on now: { swap, shield, titles, color } = their cfg.shop table while enabled, horde = state.hordes.paid while
+-- on (enabled with a spot), contract = state.contracts while on; a missing part reads as off
 function C.uses(s)
     local sh, out = part(C.defs().cfg, "shop"), {}
-    for _, k in ipairs({ "swap", "shield", "titles" }) do
+    for _, k in ipairs({ "swap", "shield", "titles", "color" }) do
         local p = part(sh, k)
         if p ~= nil and p.enabled ~= false then out[k] = p end
     end
     local hp = part(part(s, "hordes"), "paid")
     if hp ~= nil and hp.on == true then out.horde = hp end
+    local ct = part(s, "contracts")
+    if ct ~= nil and ct.on == true then out.contract = ct end
     return out
 end
 

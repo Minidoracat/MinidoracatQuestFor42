@@ -1,7 +1,8 @@
 -- MinidoracatQuest/PageExchange.lua: the Points page (page id still "exchange"; user 2026-10-24 split it from My
 --   records, plan points-sinks 2026-11-12 made it the page for every use of points): balance card, the uses on this
---   server (swap / shield / sponsored horde jump to their page, the exchange row opens ExchangeDialog, the page's only
---   primary button), the point titles (buy, wear) and the points history (state.exchange.hist and state.spent merged,
+--   server (swap / shield / sponsored horde / squad contracts jump to their page, the exchange row opens
+--   ExchangeDialog, the page's only primary button), the point titles (buy, wear), the title colour for rent (plan
+--   points-play 2026-11-12 section 4) and the points history (state.exchange.hist and state.spent merged,
 --   C.pointsLog). In the nav while any use is on, exchange works, or there is history (spec.shown, Window.navGroups).
 
 if isServer() then return end
@@ -75,6 +76,10 @@ local function uses(b, page, x, y, w, s)
     if u.horde then
         rows[#rows + 1] = { getText("IGUI_MQ_UI_Fund"), { { getText("IGUI_MQ_UI_UseFundSub", D.num(u.horde.pts or 0)),
             "textMuted" } }, go("useHorde", "hordes", "IGUI_MQ_UI_GoHordes") }
+    end
+    if u.contract then
+        rows[#rows + 1] = { getText("IGUI_MQ_UI_NavContracts"), { { getText("IGUI_MQ_UI_UseContractSub"), "textMuted" } },
+            go("useContract", "contracts", "IGUI_MQ_UI_GoContracts") }
     end
     local e = ex(s)
     if open(e) then
@@ -199,11 +204,114 @@ local function titles(b, page, x, y, w, s)
     return b:listEnd(L, y) + GAP
 end
 
+-- ===== title colour (plan points-play 2026-11-12 section 4): a preview with the worn title, gold and the five colours,
+-- each row a swatch, its name and its button (review 1112: never the colour alone); every change asks first =====
+function P.onColor(page, btn)
+    local c, s = btn.internal, C.state
+    if c == "" then
+        D.askSpend(page, "colorRid", { title = getText("IGUI_MQ_UI_ColorBackAsk"), text = getText("IGUI_MQ_UI_ColorBackNote"),
+            confirm = getText("IGUI_MQ_UI_ColorBack") }, "titleColor", { c = "", pay = 0 })
+        return
+    end
+    local cfg = C.uses(s).color or {}
+    local name, days = getText("IGUI_MQ_UI_Color_" .. c), D.days(tonumber(cfg.days) or 0)
+    local text = getText("IGUI_MQ_UI_ColorAskNote", D.num(btn.pay), days)
+    if D.titleColorId(s and s.titleColor) ~= nil then text = text .. "\n" .. getText("IGUI_MQ_UI_ColorAskRestart", days) end
+    D.askSpend(page, "colorRid", { title = getText("IGUI_MQ_UI_ColorAsk", name), text = text .. "\n" .. D.balanceAfter(btn.pay),
+        confirm = getText("IGUI_MQ_UI_ColorUse", name) }, "titleColor", { c = c, pay = btn.pay })
+end
+
+local function colors(b, page, x, y, w, s)
+    local cfg = C.uses(s).color
+    local tc = type(s.titleColor) == "table" and s.titleColor or nil
+    local cur = D.titleColorId(tc)
+    if cfg == nil and cur == nil then return y end
+    local chips = nil
+    if cur ~= nil then
+        chips = { { getText("IGUI_MQ_UI_ColorLeft", getText("IGUI_MQ_UI_Color_" .. cur), D.duration(D.left(tc.untilMs))),
+            D.TITLE_RGB[cur] } }
+    end
+    y = b:header(x, y, x + w, getText("IGUI_MQ_UI_ColorHead"), chips)
+    local lh = D.fontH()
+    b:text(x, y, getText("IGUI_MQ_UI_ColorPreview"), "textMuted")
+    y = y + lh + 2
+    if s.title ~= nil and s.title ~= "" then
+        y = b:para(x, y, getText("IGUI_MQ_UI_ChatTitle", D.titleText(s.title)), w, D.TITLE_RGB[cur or "gold"]) + 4
+    else
+        y = b:para(x, y, getText("IGUI_MQ_UI_ColorNoTitle"), w, "textMuted") + 4
+    end
+    local bal, pending = C.balance(s), C.isPending(page.colorRid)
+    local pts = cfg ~= nil and tonumber(cfg.pts) or nil
+    local worn = getText("IGUI_MQ_UI_TitleWorn")
+    local rows, actW = {}, 0
+    local ids = { "gold" }
+    for _, c in ipairs(Q.Contract.TITLE_COLORS) do ids[#ids + 1] = c end
+    for _, c in ipairs(ids) do
+        local r = { c = c, name = getText("IGUI_MQ_UI_Color_" .. c) }
+        if c == (cur or "gold") then
+            r.worn, r.actW = true, 20 + D.textW(worn)
+        elseif c == "gold" then
+            r.btn = page.pool:button("col:gold", page.UI, page.theme, getText("IGUI_MQ_UI_ColorBack"), page, P.onColor)
+            r.btn.internal = ""
+        elseif pts ~= nil and bal >= pts then
+            r.btn = page.pool:button("col:" .. c, page.UI, page.theme, getText("IGUI_MQ_UI_ColorUse", r.name), page, P.onColor)
+            r.btn.internal, r.btn.pay = c, pts
+        elseif pts ~= nil then
+            r.short = getText("IGUI_MQ_UI_PointsShort", D.num(pts - bal))
+            r.actW = D.textW(r.short)
+        end
+        if r.btn then
+            r.btn:setEnabled(not pending)
+            r.actW = r.btn.width
+        end
+        actW = math.max(actW, r.actW or 0)
+        rows[#rows + 1] = r
+    end
+    local below = actW > w * 0.35
+    local nameW = w - 16 - 22 - (below and 0 or actW + 12)
+    local L = b:list(x, y, w)
+    for i, r in ipairs(rows) do
+        if i > 1 then b:listSep(L, y) end
+        b:rect(x + 8, y + 4 + math.floor((lh - 14) / 2), 14, 14, D.TITLE_RGB[r.c])   -- the swatch
+        local ny = b:para(x + 30, y + 4, r.name, nameW, "text")
+        if r.c == "gold" then ny = b:para(x + 30, ny, getText("IGUI_MQ_UI_ColorFree"), nameW, "textMuted") end
+        local ay, ax = y + 4, x + w - 8 - (r.actW or 0)
+        if below then ay, ax = ny + 2, x + 30 end
+        local bottom = ay + lh
+        if r.btn then
+            r.btn:setX(ax)
+            r.btn:setY(ay - 2)
+            bottom = ay - 2 + r.btn.height
+        elseif r.worn then
+            b:icon(ax, ay, 16, "check", D.EXTRA.success, "v")
+            b:text(ax + 20, ay, worn, D.EXTRA.success)
+        elseif r.short then
+            b:text(ax, ay, r.short, "textMuted")
+        end
+        y = math.max(ny, bottom) + 4
+    end
+    y = b:listEnd(L, y)
+    if cfg ~= nil then
+        local days = D.days(tonumber(cfg.days) or 0)
+        y = b:para(x, y + 6, getText("IGUI_MQ_UI_ColorNote", D.num(cfg.pts or 0), days), w, "textMuted")
+    end
+    return y + GAP
+end
+
 -- ===== points history: exchanges (their state in words and color) and spends / refunds, newest first =====
 local EX_STATE = { paid = { "IGUI_MQ_UI_ExStatePaid", "success" }, queued = { "IGUI_MQ_UI_ExQueued", "warning" },
     refunded = { "IGUI_MQ_UI_ExStateRefunded", "errorText" } }
 local SPENT = { swap = "IGUI_MQ_UI_LogSwap", shield = "IGUI_MQ_UI_LogShield", title = "IGUI_MQ_UI_LogTitle",
-    horde = "IGUI_MQ_UI_LogHorde", hordeRefund = "IGUI_MQ_UI_LogHordeRefund" }
+    horde = "IGUI_MQ_UI_LogHorde", hordeRefund = "IGUI_MQ_UI_LogHordeRefund", contract = "IGUI_MQ_UI_LogContract",
+    contractRefund = "IGUI_MQ_UI_LogContractRefund", contractBack = "IGUI_MQ_UI_LogContractBack",
+    contractBonus = "IGUI_MQ_UI_LogContractBonus", color = "IGUI_MQ_UI_LogColor" }
+-- what a history row names: the title, the contract or the colour (Points.pay / unpay ref)
+local function refText(what, ref)
+    if what == "title" then return D.titleText(ref) end
+    if string.sub(what, 1, 8) == "contract" then return getText("IGUI_MQ_Contract_" .. tostring(ref)) end
+    if what == "color" then return getText("IGUI_MQ_UI_Color_" .. tostring(ref)) end
+    return nil
+end
 
 local function logRow(e)
     local r = { time = D.dateTime(e.at) }
@@ -220,7 +328,8 @@ local function logRow(e)
     end
     local sp = e.spent
     local key = SPENT[sp.what]
-    r.detail = key == nil and tostring(sp.what) or (sp.what == "title" and getText(key, D.titleText(sp.ref)) or getText(key))
+    local ref = key ~= nil and refText(sp.what, sp.ref) or nil
+    r.detail = key == nil and tostring(sp.what) or (ref ~= nil and getText(key, ref) or getText(key))
     local n = tonumber(sp.n) or 0
     if n > 0 then r.pts, r.ptsTok = "+" .. D.num(n), D.EXTRA.success else r.pts, r.ptsTok = D.num(n), "text" end
     return r
@@ -289,6 +398,7 @@ function P.layout(page)
     y = card(b, page, x, y, w, s)
     y = uses(b, page, x, y, w, s)
     y = titles(b, page, x, y, w, s)
+    y = colors(b, page, x, y, w, s)
     y = history(b, x, y, w, s)
     D.finish(page, y)
 end

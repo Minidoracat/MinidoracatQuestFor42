@@ -154,8 +154,8 @@ return function(T)
         end
     end
     T.check(five, "regular achievements: 5 tiers, 10/20/30/50/80, title at IV only, skill levels top at 10")
-    T.check(nTiers == 487 and nTitles == 103 and nPts == 18370,
-        "487 tiers, 103 titles, 18,370 points (" .. nTiers .. ", " .. nTitles .. ", " .. nPts .. ")")
+    T.check(nTiers == 492 and nTitles == 104 and nPts == 18560,
+        "492 tiers, 104 titles, 18,560 points (" .. nTiers .. ", " .. nTitles .. ", " .. nPts .. ")")
     T.check(Cat.ach("skill_total").tiers[5] <= 10 * #Cat.perks and Cat.ach("towns").tiers[5] < Cat.ach("h_all_towns").tiers[1]
         and Cat.ach("achv_tiers").tiers[5] <= nTiers, "tier V within the ceiling: skill total, towns, achievement tiers")
     T.check(not Cat.scalable("level.Axe") and not Cat.scalable("skill.total") and not Cat.scalable("town.visited")

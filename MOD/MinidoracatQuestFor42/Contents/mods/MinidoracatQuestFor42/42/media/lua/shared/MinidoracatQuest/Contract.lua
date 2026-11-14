@@ -39,7 +39,8 @@ for _, k in ipairs({ "OK", "PROTOCOL_MISMATCH", "BAD_ARGS", "IDENTITY_UNVERIFIED
     "EXCHANGE_MIN", "EXCHANGE_DAY_LIMIT", "NOT_ENOUGH_POINTS", "ECONOMY_MISSING", "BAD_BOARD", "BAD_CONFIG",
     "BAD_SEASON_LENGTH", "TOO_SOON", "NOT_FOUND", "FILE_ERROR", "INTERNAL", "TOO_MANY_PINS", "HORDE_BUSY", "NO_SPOTS",
     "CONFIG_CHANGED", "PRICE_CHANGED", "SHOP_OFF", "SHIELD_HELD", "SHIELD_WEEK", "TITLE_OWNED", "FUND_OFF", "FUND_DAY",
-    "FUND_FULL", "STALE" }) do
+    "FUND_FULL", "STALE",
+    "CONTRACT_OFF", "CONTRACT_IN", "CONTRACT_DAY", "CONTRACT_MAX", "CONTRACT_FULL", "CONTRACT_SMALL" }) do
     C.CODE[k] = k
 end
 
@@ -54,7 +55,11 @@ C.ACH_CATS = { "combat", "survival", "skill", "production", "nature", "explore",
 C.BOARD_CATS = { "overall", "combat", "survival", "skill", "life", "explore", "quest", "job" }
 
 C.POINT_KINDS = { quest = true, shared = true, week = true, goal = true, streak = true, achv = true,
-    newbie = true, season = true, import = true, admin = true, horde = true }
+    newbie = true, season = true, import = true, admin = true, horde = true,
+    contract = true }   -- contract: the bonus of a squad contract met (Contracts.lua), earned like a quest's
+
+-- title colours for rent (Shop.titleColor, shop.color); "" / none is the default gold. Client palette: Draw.TITLE_RGB
+C.TITLE_COLORS = { "blue", "green", "purple", "red", "white" }
 
 -- Built-in horde kinds (Hordes.lua spawns them); other mods add "<modId>:<id>" kinds through v1.registerHordeKind.
 C.HORDE_KINDS = { "vanilla", "runner" }

@@ -1,8 +1,11 @@
--- MinidoracatQuest/Titles.lua: worn titles of the online players (design round 7): a gold title after the author
+-- MinidoracatQuest/Titles.lua: worn titles of the online players (design round 7): a gold title (or the colour the
+--   player rents, Shop.titleColor; plan points-play 2026-11-12 section 4) after the author
 --   in chat and one line over the head, above the vanilla name. MP only; each follows its server switch
 --   (cfg.titles.chat / .head) and the player's MOD option. An anonymous player's title shows here too (decision
 --   "board": only leaderboard rows hide it).
---   Data: T.byUser (user -> title id) from "titles": the full map at hello, then { u, t } per change.
+--   Data: T.byUser (user -> title id) and T.colorBy (user -> { c, cu }) from "titles": the full maps at hello, then
+--   { u, t, c, cu } per change. A colour shows until cu by the server clock (Draw.titleColorId), then gold: the server
+--   sends nothing when it ends. Leaderboards keep gold.
 --   Chat: ISChat.addLineInChat is wrapped at file load (vanilla adds it to OnAddMessage on OnGameStart,
 --   ISChat.lua:1176). A message from a titled author goes in as a proxy: getTextWithPrefix() adds the title after
 --   "[author]", every other method goes to the real message (ISChat calls getAuthor / setText, and
@@ -27,19 +30,25 @@ local first = Q.Titles == nil
 local T = Q.Titles or {}
 Q.Titles = T
 
-T.COLOR = { r = 0.91, g = 0.76, b = 0.35 }
-T.CHAT_RGB = "0.91,0.76,0.35"
 T.SCAN_MS = 500
 T.RANGE2 = 40 * 40   -- tiles squared: farther players are off screen at any zoom
 T.byUser = T.byUser or {}
-T.text, T.chatMark = {}, {}   -- title id -> display text / chat markup (cleared with the catalog)
-T.nearP, T.nearText, T.n = {}, {}, 0
+T.colorBy = T.colorBy or {}
+T.text, T.chatMark = {}, {}   -- title id -> display text / title id .. "|" .. colour -> chat markup (cleared with the catalog)
+T.nearP, T.nearText, T.nearC, T.n = {}, {}, {}, 0
+
+-- the colour of a user's title now: a D.TITLE_RGB entry, gold unless a rent runs
+function T.colorOf(user)
+    return D.TITLE_RGB[D.titleColorId(T.colorBy[user]) or "gold"]
+end
 
 function T.onTitles(p)
     if p.full then
         T.byUser = type(p.map) == "table" and p.map or {}
+        T.colorBy = type(p.colors) == "table" and p.colors or {}
     elseif type(p.u) == "string" then
         T.byUser[p.u] = type(p.t) == "string" and p.t or nil
+        T.colorBy[p.u] = type(p.c) == "string" and { c = p.c, cu = p.cu } or nil
     end
     T.lastScan = nil
 end
@@ -68,12 +77,14 @@ function T.decorateLine(line, user)
     if id == nil or type(line) ~= "string" or not enabled("chat", "showChatTitles") then return line end
     local i = string.find(line, "[" .. user .. "]:", 1, true)
     if i == nil then return line end
-    local mark = T.chatMark[id]
+    local cid = D.titleColorId(T.colorBy[user]) or "gold"
+    local key = id .. "|" .. cid
+    local mark = T.chatMark[key]
     if mark == nil then
         -- the rich text panel reads "<...>" as a command: a title cannot open one
         local name = string.gsub(string.gsub(T.textOf(id), "<", "&lt;"), ">", "&gt;")
-        mark = " <SPACE> <PUSHRGB:" .. T.CHAT_RGB .. "> " .. getText("IGUI_MQ_UI_ChatTitle", name) .. " <POPRGB> "
-        T.chatMark[id] = mark
+        mark = " <SPACE> <PUSHRGB:" .. D.TITLE_RGB[cid].rgb .. "> " .. getText("IGUI_MQ_UI_ChatTitle", name) .. " <POPRGB> "
+        T.chatMark[key] = mark
     end
     local cut = i + #user + 1   -- the "]" after the name
     return string.sub(line, 1, cut) .. mark .. string.sub(line, cut + 1)
@@ -139,7 +150,7 @@ function T.scan()
         local dx, dy = p:getX() - mx, p:getY() - my
         if dx * dx + dy * dy > T.RANGE2 then return end
         T.n = T.n + 1
-        T.nearP[T.n], T.nearText[T.n] = p, T.textOf(id)
+        T.nearP[T.n], T.nearText[T.n], T.nearC[T.n] = p, T.textOf(id), T.colorOf(p:getUsername())
     end
     if getCore():isShowYourUsername() then add(me) end
     local list = getOnlinePlayers()
@@ -147,7 +158,7 @@ function T.scan()
         local p = list:get(i)
         if p ~= me then add(p) end
     end
-    for i = T.n + 1, #T.nearP do T.nearP[i], T.nearText[i] = nil, nil end
+    for i = T.n + 1, #T.nearP do T.nearP[i], T.nearText[i], T.nearC[i] = nil, nil, nil end
 end
 
 local function shown(me, p)
@@ -169,7 +180,6 @@ function T.render()
     local lift = 64 * Core.getTileScale() / zoom   -- vanilla name anchor over the feet: 128 / zoom (42.22.2 renderlast; tileScale is always 2)
     local half = 16 * Core.getTileScale() / zoom
     local lh = T.lineH or 16
-    local c = T.COLOR
     local mx, my, tz, tx, ty
     for i = 1, n do
         local p = T.nearP[i]
@@ -195,7 +205,7 @@ function T.render()
                 end
             end
             if hover then
-                local text = T.nearText[i]
+                local text, c = T.nearText[i], T.nearC[i]
                 tm:DrawStringCentre(UIFont.Small, sx + 1, top + 1, text, 0, 0, 0, 0.8)
                 tm:DrawStringCentre(UIFont.Small, sx, top, text, c.r, c.g, c.b, 1)
             end

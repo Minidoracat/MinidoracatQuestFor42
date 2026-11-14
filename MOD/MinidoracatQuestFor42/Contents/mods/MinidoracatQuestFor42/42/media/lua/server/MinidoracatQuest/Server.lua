@@ -389,11 +389,13 @@ S.define("hello", { kind = "query", run = function(ctx)
     if Q.Achievements then safeCall("Achievements.evaluate", Q.Achievements.evaluate, acc, ctx.user, { noBroadcast = true }) end
     Q.Net.send(ctx.player, "catalog", Q.Sync.catalog())
     Q.Net.send(ctx.player, "state", Q.Sync.state(ctx.user, acc))
-    Q.Net.send(ctx.player, "titles", { full = true, map = Q.Sync.titles() })
+    local titleMap, titleColors = Q.Sync.titles()
+    Q.Net.send(ctx.player, "titles", { full = true, map = titleMap, colors = titleColors })
     -- the player's own corpse mark (Hordes.lua, a private file); none: false clears the client's (an empty table would
     -- reach the client as nil, GameServer.java:3501)
     Q.Net.send(ctx.player, "corpseMark", { mark = Q.Hordes and Q.Hordes.markOf(ctx.user) or false })
     Q.Sync.titleChanged(ctx.user, acc)
+    if Q.Shop then safeCall("Shop.colorSoon", Q.Shop.colorSoon, acc, ctx.user, ctx.now) end
     return true
 end })
 
@@ -477,7 +479,9 @@ S.define("records", { kind = "query", run = function(ctx)
     local hordes = Q.Hordes ~= nil and Q.Hordes.recent(ctx.user, Q.Hordes.RECENT) or nil
     Q.Net.send(ctx.player, "records", { rows = rows, points = { season = p.season, total = p.total, balance = p.balance },
         spendSeq = acc.spendSeq or 0,   -- the client takes the points only into the state of this spendSeq
-        hordes = hordes })
+        hordes = hordes,
+        -- the Squad contracts page: this player's last contracts (Contracts.recent)
+        contracts = Q.Contracts ~= nil and Q.Contracts.recent(ctx.user) or nil })
     return true
 end })
 

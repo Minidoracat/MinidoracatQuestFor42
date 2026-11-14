@@ -3,7 +3,8 @@
 --   and above them one horde row while a horde is announced, waits for players, runs or rests between waves (not a
 --   pin, not counted); a Map button on its second line, an x on its first that takes this horde off the panel
 --   (C.hordeHidden; the next horde shows again). After a horde, while its pushed results wait for the player to be
---   safe (HordeResult.pending), that row says so and has a Results button.
+--   safe (HordeResult.pending), that row says so and has a Results button. A running squad contract of the player's
+--   has a row after it (H.contractRow: not a pin, not counted, no x; plan points-play 2026-11-12 section 2).
 --   Drag to move; the arrow or the MinidoracatQuest_Hud key (Entry.lua) collapses it to the title row (both go to
 --   layout.ini); hovering a pin row shows an x that unpins it. Hidden while there is nothing to show, the player is
 --   dead, the Esc menu is up or V hid the UI; it stays while the main window is open, so a Track press shows up at
@@ -13,7 +14,8 @@
 --   horde or results row takes all of H.width(). Dragging the right edge sets a smaller cap (layout.ini maxW), a
 --   double click or a drag past H.width() clears it; a panel in the right half keeps its right edge when the width
 --   changes. The background alpha is the HudOpacity MOD option; under 80 % the text gets a shadow (Draw.renderOps).
---   Data: state.pins, state.trk and state.hordes, kept fresh by the server while the panel is on ("track"; Sync.lua).
+--   Data: state.pins, state.trk, state.hordes and state.contracts, kept fresh by the server while the panel is on
+--   ("track"; Sync.lua).
 --   Texts and widths are laid out when the data changes; render only walks the op list (Draw canvas).
 
 if isServer() then return end
@@ -23,6 +25,7 @@ require "MinidoracatQuest/Draw"
 require "MinidoracatQuest/Window"
 require "MinidoracatQuest/PageAchievements"
 require "MinidoracatQuest/HordeResult"
+require "MinidoracatQuest/PageContracts"
 
 local Q = MinidoracatQuest
 local C, D, W = Q.Client, Q.Draw, Q.Window
@@ -98,11 +101,25 @@ function H.resultRow()
         line = getText("IGUI_MQ_Horde_HudResultWait"), state = s.state }
 end
 
--- the horde row first, then one row per pin that still names something: { id, tag, name, prog, target, done, pts, color }
+-- the player's running squad contract: { id = "contract", contract = true, tag, name, time, prog, target, color } or
+-- nil; time counts down by the second like the horde row's
+function H.contractRow(state, now)
+    local ct = type(state) == "table" and type(state.contracts) == "table" and state.contracts or nil
+    local c = ct ~= nil and type(ct.mine) == "table" and ct.mine or nil
+    if c == nil or c.state ~= "active" then return nil end
+    now = now or C.serverNow()
+    return { id = "contract", contract = true, tag = getText("IGUI_MQ_Contract_Tag"), name = Q.PageContracts.name(c.tpl),
+        time = getText("IGUI_MQ_UI_Left", D.countdown((tonumber(c.endsAt) or now) - now)), prog = tonumber(c.prog) or 0,
+        target = tonumber(c.target) or 0, color = D.EXTRA.gold }
+end
+
+-- the horde row first, then the contract row, then one row per pin that still names something: { id, tag, name, prog,
+-- target, done, pts, color }
 function H.rows(state, defs, now)
     local out = {}
     if type(state) ~= "table" then return out end
     out[1] = H.hordeRow(state, now) or H.resultRow()
+    out[#out + 1] = H.contractRow(state, now)
     local trk = type(state.trk) == "table" and state.trk or {}
     local achv = type(state.achv) == "table" and state.achv or {}
     for _, id in ipairs(type(state.pins) == "table" and state.pins or {}) do
@@ -166,6 +183,8 @@ function H.fitWidth(rows, maxW)
     local countW = H.countW(rows)
     for _, r in ipairs(rows) do
         local name = D.chipW(r.tag) + 6 + D.textW(r.name)
+        -- the contract countdown: its widest form, so the panel does not move as the digits change
+        if r.contract then need = math.max(need, 2 * pad + name + 8 + D.textW(getText("IGUI_MQ_UI_Left", "00:00:00"))) end
         if r.done then
             need = math.max(need, 2 * pad + name + 40 + D.textW(getText("IGUI_MQ_UI_PlusPoints", D.num(r.pts))))
         else
@@ -281,9 +300,12 @@ end
 function H.layout(p)
     H.dirty = false
     local rows = H.rows(C.state, C.defs())
-    local pins = rows[1] ~= nil and rows[1].horde and #rows - 1 or #rows
+    local pins = 0
+    for _, r in ipairs(rows) do if not r.horde and not r.contract then pins = pins + 1 end end
     p.rows, p.hits, p.mapHit, p.hideHit, p.resultHit = rows, {}, nil, nil, nil
     p.hordeTime = rows[1] ~= nil and rows[1].horde and rows[1].time or nil
+    local cr = H.contractRow(C.state)
+    p.contractTime = cr ~= nil and cr.time or nil
     H.fit(p, H.fitWidth(rows, p.maxW))
     p.textShadow = H.opacity < H.SHADOW_BELOW
     local b = D.begin(p)
@@ -307,7 +329,7 @@ function H.layout(p)
         local countW = H.countW(rows)
         for _, r in ipairs(rows) do
             local top = y
-            local nameX = not r.horde and pad + b:chip(pad, y, r.tag, "textMuted") + 6
+            local nameX = not r.horde and pad + b:chip(pad, y, r.tag, r.contract and D.EXTRA.gold or "textMuted") + 6
             if r.horde then
                 hordeRowOps(b, r, y, w, pad, lh)
             elseif r.done then
@@ -315,14 +337,17 @@ function H.layout(p)
                 b:icon(xRight - pw - 16, y + 3, 14, "check", D.EXTRA.success, "v")
                 b:fitText(nameX, y + 3, r.name, xRight - pw - 24 - nameX, "textMuted")
             else
-                b:fitText(nameX, y + 3, r.name, xRight - nameX, "text")
+                local tw = r.time ~= nil and b:textRight(w - pad, y + 3, r.time, D.EXTRA.gold) + 8 or 0
+                b:fitText(nameX, y + 3, r.name, (r.time ~= nil and w - pad - tw or xRight) - nameX, "text")
                 local ly = y + D.chipH() + 2
                 b:textRight(w - pad, ly, H.countText(r), "textMuted")
                 b:bar(pad, ly + math.floor((lh - 4) / 2), w - 2 * pad - countW - 8, 4, r.target > 0 and r.prog / r.target or 0,
                     r.color or "accent")
             end
             y = y + H.rowH(r)
-            if not r.horde then p.hits[#p.hits + 1] = { id = r.id, y0 = top - 2, y1 = y - 2, xx = w - pad - 12, ty = top + 3 } end
+            if not r.horde and not r.contract then
+                p.hits[#p.hits + 1] = { id = r.id, y0 = top - 2, y1 = y - 2, xx = w - pad - 12, ty = top + 3 }
+            end
         end
     end
     p.gripTip = getText("IGUI_MQ_UI_HudResize")
@@ -534,7 +559,9 @@ end
 -- player to be safe (same hide rules for all)
 function H.wanted()
     if not H.show or C.state == nil or uiHidden() then return false end
-    if #C.pins() == 0 and shownHorde(C.state) == nil and Q.HordeResult.pending == nil then return false end
+    if #C.pins() == 0 and shownHorde(C.state) == nil and Q.HordeResult.pending == nil and H.contractRow(C.state) == nil then
+        return false
+    end
     local p = getSpecificPlayer(0)
     return p ~= nil and not p:isDead()
 end
@@ -589,6 +616,10 @@ function H.onTick()
     if p ~= nil and p.hordeTime ~= nil then
         local r = H.hordeRow(C.state)
         if r == nil or r.time ~= p.hordeTime then H.dirty = true end
+    end
+    if p ~= nil and p.contractTime ~= nil then
+        local r = H.contractRow(C.state)
+        if r == nil or r.time ~= p.contractTime then H.dirty = true end
     end
     H.sync()
 end

@@ -11,8 +11,8 @@ local ROMAN = { "I", "II", "III", "IV", "V" }
 -- Points kinds grouped the way the legend reads (Contract.POINT_KINDS; anything else is "other")
 local KIND_GROUP = { quest = "daily", shared = "daily", week = "weekly", achv = "achv", goal = "goal" }
 local GROUPS = { "daily", "weekly", "achv", "goal", "other" }
--- points spent by use (contract 8: sum.spentBy; a fund's refund comes off "horde")
-local SPENT = { "swap", "shield", "title", "horde" }
+-- points spent by use (contract 8: sum.spentBy; a refund comes off the use it was paid for: horde, contract)
+local SPENT = { "swap", "shield", "title", "horde", "contract", "color" }
 
 local function pct(rate)
     if type(rate) ~= "number" then return "-" end
@@ -236,6 +236,20 @@ local function layoutReport(P, pg, F)
             end
         end
         if #sparts > 0 then F:text("psk", table.concat(sparts, getText("IGUI_MQ_UI_ListSep")), "textMuted") end
+    end
+    -- squad contracts by template (sum.contractsBy "<tpl>:open|won|lost"): started, met, not met, and the share met of
+    -- the ones that ended
+    local cb, cparts = type(sum.contractsBy) == "table" and sum.contractsBy or {}, {}
+    for _, t in ipairs(MQ.Catalog.contracts) do
+        local o, w, l = tonumber(cb[t.id .. ":open"]) or 0, tonumber(cb[t.id .. ":won"]) or 0, tonumber(cb[t.id .. ":lost"]) or 0
+        if o + w + l > 0 then
+            cparts[#cparts + 1] = getText("IGUI_MQ_Admin_ReportContract", getText("IGUI_MQ_Contract_" .. t.id), A.num(o),
+                A.num(w), A.num(l), w + l > 0 and pct(w / (w + l)) or "-")
+        end
+    end
+    if #cparts > 0 then
+        F:text("pc", getText("IGUI_MQ_Admin_ReportContracts", data.days), "text")
+        for i, s in ipairs(cparts) do F:text("pc" .. i, s, "textMuted") end
     end
     F:text("pe", getText("IGUI_MQ_Admin_ReportEcon", A.num(sum.coins or 0), A.num(s.exPlayers or 0), A.num(s.unspent or 0),
         pct(s.top10)), "text")

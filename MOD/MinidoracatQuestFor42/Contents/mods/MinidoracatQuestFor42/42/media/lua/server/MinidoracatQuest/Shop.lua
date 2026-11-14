@@ -1,6 +1,7 @@
 -- MinidoracatQuest/Shop.lua: point sinks bought outright (plan points-sinks 2026-11-12): a streak shield and the point
--- titles. Paid swaps live in Quests.swap, sponsored hordes in Hordes.pledge. Every price, limit and switch comes from
--- Config shop.* on the server; pay is the price the player saw, a different one is PRICE_CHANGED.
+-- titles; and the title colour for rent (plan points-play 2026-11-13). Paid swaps live in Quests.swap, sponsored
+-- hordes in Hordes.pledge, squad contracts in Contracts.lua. Every price, limit and switch comes from Config shop.* on
+-- the server; pay is the price the player saw, a different one is PRICE_CHANGED.
 
 if isClient() then return end
 
@@ -19,6 +20,7 @@ local CODE = MQ.Contract.CODE
 
 Sh.TITLES = { spend_1 = true, spend_2 = true, spend_3 = true, spend_4 = true }   -- the fixed list (Config shop.titles.list)
 Sh.SHIELD_HOLD = 1                                                               -- shield days held at most
+local DAY = 86400000
 
 -- true | false, code
 function Sh.buyShield(acc, user, pay, now)
@@ -56,10 +58,45 @@ function Sh.buyTitle(acc, user, id, pay)
     return true
 end
 
+local function isColor(c)
+    for _, x in ipairs(MQ.Contract.TITLE_COLORS) do if x == c then return true end end
+    return false
+end
+
+-- true | false, code. c = "" is the default gold again: free (pay 0), the rest of the rent is not given back. A colour
+-- rents for shop.color.days from now, also over one still running (owner 2026-11-13). acc.titleColor = { c, untilMs };
+-- every client drops it at untilMs by the server clock (Titles.lua), the server sends nothing then
+function Sh.titleColor(acc, user, c, pay, now)
+    if c == "" then
+        if pay ~= 0 then return false, CODE.BAD_ARGS end
+        acc.titleColor = nil
+    else
+        local cfg = MQ.Config.get().shop.color
+        if not cfg.enabled then return false, CODE.SHOP_OFF end
+        if not isColor(c) then return false, CODE.BAD_ARGS end
+        if pay ~= cfg.pts then return false, CODE.PRICE_CHANGED end
+        if not MQ.Points.pay(acc, user, cfg.pts, "color", c) then return false, CODE.NOT_ENOUGH_POINTS end
+        acc.titleColor = { c = c, untilMs = now + cfg.days * DAY }
+    end
+    MQ.Sync.titleChanged(user, acc)
+    return true
+end
+
+-- hello: a colour that ends within a day says so once per rent (told is kept on that rent's table)
+function Sh.colorSoon(acc, user, now)
+    local tc = acc.titleColor
+    if type(tc) ~= "table" or tc.told or tc.untilMs <= now or tc.untilMs - now > DAY then return end
+    tc.told = true
+    MQ.Sync.toast(user, { kind = "colorSoon", c = tc.c, untilMs = tc.untilMs })
+end
+
 MQ.Server.define("buyShield", { kind = "mutation", spend = true, fields = { pay = "int" },
     run = function(ctx) return Sh.buyShield(MQ.Store.account(ctx.user, true), ctx.user, ctx.args.pay, ctx.now) end })
 
 MQ.Server.define("buyTitle", { kind = "mutation", spend = true, fields = { id = "str", pay = "int" },
     run = function(ctx) return Sh.buyTitle(MQ.Store.account(ctx.user, true), ctx.user, ctx.args.id, ctx.args.pay) end })
+
+MQ.Server.define("titleColor", { kind = "mutation", spend = true, fields = { c = "str", pay = "int" },
+    run = function(ctx) return Sh.titleColor(MQ.Store.account(ctx.user, true), ctx.user, ctx.args.c, ctx.args.pay, ctx.now) end })
 
 return Sh

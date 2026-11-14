@@ -81,6 +81,22 @@ return function(T, ctx)
     T.check(wide.width >= A.textW(AM.num(AM.RANGE.titleSeason[2])) + A.FIELD_CHROME, "a price field fits 100,000 with the error mark")
     T.check(pool("basic")["f:shop.swap.pts"] == nil and pool("basic")["hu"] == nil, "Basic (five steps) gets nothing new")
     roundTrip("exchange", "season", AM.USES)
+    -- squad contracts below the uses: the shared knobs, then each template's four
+    local ctRows = {}
+    for _, r in ipairs(AM.CONTRACTS) do ctRows[#ctRows + 1] = r end
+    for _, t in ipairs(C.contracts) do
+        for _, k in ipairs(AM.CONTRACT_TPL) do ctRows[#ctRows + 1] = { "contracts.list." .. t.id .. "." .. k[1], k[2] } end
+    end
+    T.check(#ctRows == 9 + 3 * 4 and shown("exchange", "hct") and pool("exchange")["hct"].y > pool("exchange")["hu"].y,
+        "a Squad contracts heading after the uses")
+    roundTrip("exchange", "season", ctRows)
+    keyed(function()
+        T.check(A.pathLabel(P, "contracts.list.hunt.stake") == "IGUI_MQ_Admin_UseRow|IGUI_MQ_Contract_hunt|IGUI_MQ_Admin_F_contracts_list_stake"
+            and A.pathLabel(P, "contracts.bonusPct") == "IGUI_MQ_Admin_UseRow|IGUI_MQ_Admin_Use_contract|IGUI_MQ_Admin_F_contracts_bonusPct"
+            and A.pathLabel(P, "shop.color.pts") == "IGUI_MQ_Admin_UseRow|IGUI_MQ_Admin_Use_color|IGUI_MQ_Admin_F_shop_color_pts"
+            and A.pathLabel(P, "hordes.paid.pts") == "IGUI_MQ_Admin_UseRow|IGUI_MQ_Admin_Use_horde|IGUI_MQ_Admin_F_hordes_paid_pts",
+            "the confirm view names a contract or colour field with what it is for; the others as before")
+    end)
 
     T.section("admin shop: without the economy mod the uses section stays")
     local exReply = replies["ex.status"]
@@ -229,6 +245,19 @@ return function(T, ctx)
     T.check(string.find(psk, "IGUI_MQ_Admin_UseRow|IGUI_MQ_Admin_ReportSpent_title|1,000", 1, true) ~= nil
         and string.find(psk, "IGUI_MQ_Admin_UseRow|IGUI_MQ_Admin_ReportSpent_horde|-500", 1, true) ~= nil
         and string.find(psk, "%", 1, true) == nil, "a net refund shows as a negative row, without shares")
+    -- squad contracts and title colours (plan points-play 2026-11-12): their spent columns and the contracts' success
+    rep.sum.spent, rep.sum.spentBy = 400, { contract = 100, color = 300 }
+    rep.sum.contractsBy = { ["hunt:open"] = 5, ["hunt:won"] = 3, ["hunt:lost"] = 1, ["long:open"] = 1 }
+    A.select(P, "towns")
+    P.pages.report.loaded = false
+    keyed(function() A.select(P, "report") end)
+    psk = pool("report")["psk"].lines[1]
+    T.check(string.find(psk, "IGUI_MQ_Admin_ReportSpent_contract|100|25%", 1, true) ~= nil
+        and string.find(psk, "IGUI_MQ_Admin_ReportSpent_color|300|75%", 1, true) ~= nil, "contracts and colours in the spent line")
+    T.check(shown("report", "pc") and pool("report")["pc1"].lines[1] == "IGUI_MQ_Admin_ReportContract|IGUI_MQ_Contract_hunt|5|3|1|75%"
+        and pool("report")["pc2"].lines[1] == "IGUI_MQ_Admin_ReportContract|IGUI_MQ_Contract_long|1|0|0|-"
+        and pool("report")["pc3"] == nil, "contracts by template: started, met, not met, the share met (none ended: -)")
+    rep.sum.contractsBy = nil
     rep.sum.spent, rep.sum.spentBy = nil, nil
     A.select(P, "towns")
     P.pages.report.loaded = false

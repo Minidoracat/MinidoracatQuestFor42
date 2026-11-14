@@ -345,7 +345,7 @@ return function(T)
     check(navHas("exchange"), "Exchange stays in the nav while exchange is off but there is history")
     -- the Points page (plan points-sinks 2026-11-12) also stays while any use of points is on: switch them all off
     push("catalog", { rev = 8, packs = {}, overrides = { shop = { swap = { enabled = false }, shield = { enabled = false },
-        titles = { enabled = false } } } })
+        titles = { enabled = false }, color = { enabled = false } } } })
     C.state.exchange = { available = false }
     W.select("exchange")
     W.onData()

@@ -497,6 +497,12 @@ function A.pathLabel(P, path)
     -- one window of the whole-set list (the server names hordes.windows.<i>.preset): "Windows 2"
     local wi = string.match(path, "^hordes%.windows%.(%d+)")
     if wi then return A.fLabel("hordes.windows") .. " " .. wi end
+    -- a squad contract template's field: "Hunt: Stake (points)"; the shared ones: "Squad contracts: Most per day"
+    local ctpl = string.match(path, "^contracts%.list%.([^%.]+)%.")
+    if ctpl then return getText("IGUI_MQ_Admin_UseRow", getText("IGUI_MQ_Contract_" .. ctpl), A.fLabel(path)) end
+    if string.sub(path, 1, 10) == "contracts." and path ~= "contracts.enabled" then
+        return getText("IGUI_MQ_Admin_UseRow", getText("IGUI_MQ_Admin_Use_contract"), A.fLabel(path))
+    end
     -- uses for points: a price or a limit reads with what it is for ("Swap quest: Each (points)"); the switches say it
     -- themselves. A title price is labelled with the title's name, like on the exchange tab
     local use, key = string.match(path, "^shop%.(%a+)%.(.+)$")
@@ -776,9 +782,10 @@ end
 
 -- ===== forms: a label column + controls, shared by every tab =====
 
--- a horde preset's field reads like the setting it holds: hordes.presets.<id>.limitMin -> F_hordes_limitMin
+-- a horde preset's field reads like the setting it holds: hordes.presets.<id>.limitMin -> F_hordes_limitMin; a squad
+-- contract template's the same way: contracts.list.<id>.stake -> F_contracts_list_stake
 function A.fLabel(path)
-    path = string.gsub(path, "^hordes%.presets%.[^%.]+%.", "hordes.")
+    path = string.gsub(string.gsub(path, "^hordes%.presets%.[^%.]+%.", "hordes."), "^contracts%.list%.[^%.]+%.", "contracts.list.")
     return getTextOrNull("IGUI_MQ_Admin_F_" .. string.gsub(path, "%.", "_")) or path
 end
 

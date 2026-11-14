@@ -57,8 +57,8 @@ function R.row(now)
     return d
 end
 
--- field += n (default 1); with key: field[key] += n (swaps by template id, pts by Points kind, spent by what; a
--- map missing from an older row starts empty)
+-- field += n (default 1); with key: field[key] += n (swaps by template id, pts by Points kind, spent by what, contracts
+-- by "<template>:open|won|lost"; a map missing from an older row starts empty)
 function R.add(field, key, n)
     if not ready() then return end
     local d = R.row(getTimestampMs())
@@ -93,7 +93,7 @@ end
 -- rows oldest first (a day without a row reads as zeros) and their sums; full keeps the swaps/pts/spent maps (export)
 local function rowsFor(days, now, full)
     local daily = Q.Store.root().daily or {}   -- absent on a read-only (newer schema) store
-    local rows, sum = {}, { swapsBy = {}, ptsBy = {}, spentBy = {} }
+    local rows, sum = {}, { swapsBy = {}, ptsBy = {}, spentBy = {}, contractsBy = {} }
     for _, f in ipairs(FIELDS) do sum[f] = 0 end
     for k = days - 1, 0, -1 do
         local key = Q.Clock.dayKey(now - k * DAY)
@@ -106,8 +106,10 @@ local function rowsFor(days, now, full)
         for tid, n in pairs(d.swaps or {}) do sum.swapsBy[tid] = (sum.swapsBy[tid] or 0) + n end
         for kind, n in pairs(d.pts or {}) do sum.ptsBy[kind] = (sum.ptsBy[kind] or 0) + n end
         for what, n in pairs(d.spent or {}) do sum.spentBy[what] = (sum.spentBy[what] or 0) + n end
+        for k, n in pairs(d.contracts or {}) do sum.contractsBy[k] = (sum.contractsBy[k] or 0) + n end
         if full then
             r.swaps, r.pts, r.spent = U.copy(d.swaps or {}), U.copy(d.pts or {}), U.copy(d.spent or {})
+            r.contracts = U.copy(d.contracts or {})
         else
             r.swaps, r.pts, r.spent = sumMap(d.swaps), sumMap(d.pts), sumMap(d.spent)
         end

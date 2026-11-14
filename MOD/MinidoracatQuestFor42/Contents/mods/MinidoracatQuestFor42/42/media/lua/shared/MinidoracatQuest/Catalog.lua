@@ -107,6 +107,7 @@ S("horde.wins", "count", 10, nil, true)     -- hordes cleared with at least one 
 S("horde.kills", "count", 120, nil, true)   -- kills of horde zombies
 S("horde.mvp", "count", 10, nil, true)      -- cleared hordes (2+ participants) where you had the most kills, ties too
 S("horde.sponsored", "count", 10, nil, true) -- sponsored hordes you pledged to that got planned (Hordes.lua fund)
+S("contract.wins", "count", 10, nil, true) -- squad contracts met with your share of the kills (Contracts.lua)
 for _, p in ipairs(Cat.perks) do S("level." .. p, "max", nil, "level") end
 for _, p in ipairs(Cat.perks) do S("xp." .. p, "count", 5000, "xp") end
 
@@ -224,7 +225,8 @@ A("weekly", "quest", "quest.weekly", { 3, 15, 50, 150, 375 })
 A("streak", "quest", "streak.best", { 3, 7, 30, 100, 250 })
 A("goal", "quest", "goal.done", { 1, 5, 15, 40, 100 })
 A("season", "quest", "season.joined", { 1, 3, 6, 12, 30 })
-A("achv_tiers", "quest", "achv.tiers", { 10, 50, 150, 300, 450 })   -- 94 x 5 + 17 hidden = 487 tiers
+A("achv_tiers", "quest", "achv.tiers", { 10, 50, 150, 300, 450 })   -- 95 x 5 + 17 hidden = 492 tiers
+A("contract_wins", "quest", "contract.wins", { 1, 5, 15, 40, 100 })   -- squad contracts (Contracts.lua)
 
 A("horde_wins", "horde", "horde.wins", { 3, 10, 25, 50, 125 })   -- the first clear is the hidden h_horde
 A("horde_kills", "horde", "horde.kills", { 25, 100, 300, 800, 2000 })
@@ -334,6 +336,14 @@ W("w_mech_repair", "mech", "mech.repair", 5, 8, 1)
 W("w_drive", "explore", "drive.km", 30, 50, 5)
 W("w_walk", "explore", "walk.km", 15, 25, 5)
 W("w_read", "explore", "book.read", 3, 5, 1)
+
+-- squad contracts (Contracts.lua, plan points-play 2026-11-13): the three fixed ids in page order and the stat each
+-- counts; price, target and time limit are settings (contracts.list)
+Cat.contracts = {
+    { id = "hunt", stat = "zombie.kills" },
+    { id = "melee", stat = "zombie.kills.melee" },
+    { id = "long", stat = "zombie.kills" },
+}
 
 Cat.newbie = {
     { stat = "zombie.kills", target = 5 },
@@ -454,7 +464,20 @@ Cat.DEFAULTS = {
         swap = { enabled = true, pts = 50, perDay = 3 },
         shield = { enabled = true, pts = 200, perWeek = 1 },
         titles = { enabled = true, season = 1500, list = { spend_1 = 1000, spend_2 = 2000, spend_3 = 3500, spend_4 = 5000 } },
+        -- title colour rent (Shop.titleColor): one of Contract.TITLE_COLORS for `days` days at `pts` points
+        color = { enabled = true, pts = 300, days = 7 },
     },
+    -- squad contracts (Contracts.lua): each member stakes the list entry's `stake`; joinMin minutes to gather minSize ..
+    -- maxSize players; the target is perMember x the members, within limitMin minutes. Met: every member gets returnPct %
+    -- of the stake back, and one with sharePct % of perMember kills of their own also bonusPct % as earned points (and a
+    -- contract.wins). Not met: nothing back. perDay contracts started a day each; maxActive gathering or running at once
+    contracts = { enabled = true, returnPct = 50, bonusPct = 30, sharePct = 30, perDay = 3, joinMin = 10,
+        minSize = 2, maxSize = 6, maxActive = 10,
+        list = {
+            hunt = { enabled = true, perMember = 150, limitMin = 60, stake = 100 },
+            melee = { enabled = true, perMember = 100, limitMin = 60, stake = 150 },
+            long = { enabled = true, perMember = 400, limitMin = 120, stake = 250 },
+        } },
     -- timed horde events (Hordes.lua). windows: { days ("1".."7", 1 = Monday), from / to "HH:MM" in the sandbox
     -- TimezoneOffset (to < from runs past midnight, to == from is all day), chance % per hourly roll, preset (the
     -- presets id its hordes play), leadMin (warning minutes), waitMin (minutes each wave waits for a player) };

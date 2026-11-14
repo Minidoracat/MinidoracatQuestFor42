@@ -70,7 +70,8 @@ local function record(acc, what, n, ref)
     acc.spent = list
 end
 
--- true when the balance was enough (what: swap | shield | title | horde; ref: the swapped tid, the title id)
+-- true when the balance was enough (what: swap | shield | title | horde | contract | color; ref: the swapped tid, the
+-- title id, the contract template, the colour)
 function P.pay(acc, user, amount, what, ref)
     if not P.spend(acc, amount) then return false end
     record(acc, what, -amount, ref)
@@ -80,13 +81,22 @@ function P.pay(acc, user, amount, what, ref)
     return true
 end
 
+-- the report column a payment given back comes off: the use it was paid for
+P.UNPAY_COLUMN = { hordeRefund = "horde", hordeBack = "horde", contractRefund = "contract", contractBack = "contract" }
+
 -- gives a payment back (a fund that did not fill or could not play, a sponsored horde that ended before a zombie
--- came): the report takes it off the horde column
+-- came, a squad contract's stake): the report takes it off the column of its use (P.UNPAY_COLUMN)
 function P.unpay(acc, user, amount, what, ref)
     if not P.refund(acc, amount) then return false end
     record(acc, what, amount, ref)
     Q.EventLog.write("spend", user, { what = what, ref = ref, n = -amount })
-    if Q.Report then Q.Report.add("spent", "horde", -amount) end
+    if Q.Report then Q.Report.add("spent", P.UNPAY_COLUMN[what] or what, -amount) end
     if Q.Sync and Q.Sync.dirty then Q.Sync.dirty(user, "all") end
     return true
+end
+
+-- an entry in the points history only (the points themselves went through award: a squad contract's bonus)
+function P.note(acc, user, what, n, ref)
+    record(acc, what, n, ref)
+    if Q.Sync and Q.Sync.dirty then Q.Sync.dirty(user, "all") end
 end

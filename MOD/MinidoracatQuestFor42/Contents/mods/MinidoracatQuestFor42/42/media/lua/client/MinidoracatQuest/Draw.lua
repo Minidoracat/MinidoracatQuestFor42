@@ -56,6 +56,24 @@ D.EXTRA = {
     hordeSoon = rgb(0.94, 0.63, 0.31),
 }
 
+-- title colours for rent (Contract.TITLE_COLORS; plan points-play 2026-11-12 section 4: colours the UI already uses),
+-- gold the default; rgb is the chat markup (Titles.lua)
+D.TITLE_RGB = {
+    gold = { r = 0.91, g = 0.76, b = 0.35, a = 1, rgb = "0.91,0.76,0.35" },   -- #e8c259
+    blue = { r = 0.45, g = 0.68, b = 1.0, a = 1, rgb = "0.45,0.68,1.0" },     -- #73adff
+    green = { r = 0.40, g = 0.82, b = 0.48, a = 1, rgb = "0.40,0.82,0.48" },  -- #66d17a
+    purple = { r = 0.74, g = 0.55, b = 1.0, a = 1, rgb = "0.74,0.55,1.0" },   -- #bd8cff
+    red = { r = 1.0, g = 0.48, b = 0.35, a = 1, rgb = "1.0,0.48,0.35" },      -- #ff7a59
+    white = { r = 1.0, g = 1.0, b = 1.0, a = 1, rgb = "1.0,1.0,1.0" },        -- #ffffff
+}
+
+-- the rented colour id of t = { c, cu } (a titleColor / titles push entry) while it runs by the server clock, else nil
+function D.titleColorId(t, now)
+    if type(t) ~= "table" or D.TITLE_RGB[t.c] == nil then return nil end
+    if (tonumber(t.cu or t.untilMs) or 0) <= (now or C.serverNow()) then return nil end
+    return t.c
+end
+
 function D.theme(UI)
     if D._theme ~= nil and D._themeUI == UI then return D._theme end
     D._theme, D._themeUI = UI.Theme.create({ variant = "dark", colors = D.EXTRA }), UI

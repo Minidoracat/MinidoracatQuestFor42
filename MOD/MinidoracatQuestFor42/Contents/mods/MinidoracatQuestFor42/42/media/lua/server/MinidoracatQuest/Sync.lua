@@ -8,8 +8,10 @@
 -- changes (Dock badge).
 -- Pins: "d1".."d4" today's daily slots, "w1".."w3" this week's slots, "a:<achId>"; at most LIMIT.MAX_PINS, saved on
 -- the account; quest pins go at the reset (or a swap of that slot), an achievement pin when its last tier unlocks.
--- Titles: { full, map = { user -> titleId } } of the online players at hello, then { u, t } to everyone on a change
--- (client Titles.lua: after the name in chat and on a line over the head).
+-- Titles: { full, map = { user -> titleId }, colors = { user -> { c, cu } } } of the online players at hello, then
+-- { u, t, c?, cu? } to everyone on a change (client Titles.lua: after the name in chat and on a line over the head; a
+-- rented colour c until cu, server clock, else gold).
+-- Contracts (Contracts.lua): the "contracts" part goes in deltas like "hordes", to the window and the tracker panel.
 -- Achievement toasts to one player within 2 s merge into one (C28); server-wide notices are capped per achiever.
 
 if isClient() then return end
@@ -27,8 +29,9 @@ local Y = Q.Sync or {}
 Q.Sync = Y
 local C, U = Q.Contract, Q.Util
 
-Y.PARTS = { "day", "week", "goal", "streak", "newbie", "season", "exchange", "events", "hordes" }
-Y.DELTA_PARTS = { day = true, week = true, goal = true, points = true, unseen = true, trk = true, pins = true, hordes = true }
+Y.PARTS = { "day", "week", "goal", "streak", "newbie", "season", "exchange", "events", "hordes", "contracts" }
+Y.DELTA_PARTS = { day = true, week = true, goal = true, points = true, unseen = true, trk = true, pins = true, hordes = true,
+    contracts = true }
 Y.providers = Y.providers or {}
 Y.dirtyMap = Y.dirtyMap or {}    -- user -> { [part] = true }
 Y.watchers = Y.watchers or {}    -- user -> true
@@ -61,6 +64,7 @@ function Y.state(user, acc)
         anon = acc.anon == true,
         unseen = acc.unseen or 0, pins = acc.pins or {}, trk = Y.trk(acc),
         spent = acc.spent or {},   -- last 10 point-sink entries, newest first (Points.pay / unpay mark "all")
+        titleColor = acc.titleColor,   -- { c, untilMs } of a rented title colour (Shop.titleColor)
         -- what a spend request must name (Server.onClientCommand); only in the full state, with the screen it is for
         spendSeq = acc.spendSeq or 0,
     }
@@ -273,6 +277,13 @@ local function push(user, parts, player)
             any = true
         end
     end
+    if parts.contracts and Y.providers.contracts then
+        local ok, v = pcall(Y.providers.contracts, acc, user, Q.Clock.now())
+        if ok then
+            d.contracts = v
+            any = true
+        end
+    end
     -- which state this delta belongs to: the client drops one of another spendSeq (an older one that comes late
     -- would put the screen from before a spend next to the spendSeq after it; a newer one has its state on the way)
     d.spendSeq = acc.spendSeq or 0
@@ -374,18 +385,26 @@ end
 
 -- ---------- worn titles of the online players (chat suffix, line over the head) ----------
 
+-- user -> worn title id, and user -> { c, cu } of a rented colour still running (Shop.titleColor)
 function Y.titles()
-    local map = {}
+    local map, colors, now = {}, {}, Q.Clock.now()
     Q.Net.eachOnline(function(_, u)
         local acc = Q.Store.account(u, false)
-        if acc ~= nil and acc.title ~= nil then map[u] = acc.title end
+        if acc ~= nil and acc.title ~= nil then
+            map[u] = acc.title
+            local tc = acc.titleColor
+            if type(tc) == "table" and tc.untilMs > now then colors[u] = { c = tc.c, cu = tc.untilMs } end
+        end
     end)
-    return map
+    return map, colors
 end
 
--- to everyone: a login (stale entries go too) or a title change; t = nil removes the entry
+-- to everyone: a login (stale entries go too), a title change or a colour change; t = nil removes the entry
 function Y.titleChanged(user, acc)
-    Q.Net.broadcast("titles", { u = user, t = acc ~= nil and acc.title or nil })
+    local tc = acc ~= nil and acc.titleColor or nil
+    local live = type(tc) == "table" and tc.untilMs > Q.Clock.now()
+    Q.Net.broadcast("titles", { u = user, t = acc ~= nil and acc.title or nil, c = live and tc.c or nil,
+        cu = live and tc.untilMs or nil })
 end
 
 function Y.prune(now)

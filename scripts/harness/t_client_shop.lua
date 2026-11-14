@@ -121,7 +121,7 @@ return function(T)
     local SHOP = { swap = { enabled = true, pts = 50, perDay = 3 }, shield = { enabled = true, pts = 200, perWeek = 1 },
         titles = { enabled = true, season = 1500, list = { spend_1 = 1000, spend_2 = 2000, spend_3 = 3500, spend_4 = 5000 } } }
     local function catalog(shop) push("catalog", { rev = 1, packs = {}, overrides = { shop = shop } }) end
-    local OFF = { swap = { enabled = false }, shield = { enabled = false }, titles = { enabled = false } }
+    local OFF = { swap = { enabled = false }, shield = { enabled = false }, titles = { enabled = false }, color = { enabled = false } }
     local d1, d2 = cat.daily[1], cat.daily[2]
     local function state(o)
         push("state", { v = 1, user = "alice", now = now, points = { season = 2310, total = 8450, balance = o.balance or 1240 },

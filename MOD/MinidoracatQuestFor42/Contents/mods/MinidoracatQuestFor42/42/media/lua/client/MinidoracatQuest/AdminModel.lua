@@ -24,6 +24,11 @@ AM.RANGE = {
     swapPts = { 1, 10000, true }, swapPerDay = { 1, 10, true }, shieldPts = { 1, 10000, true }, shieldPerWeek = { 1, 7, true },
     titlePts = { 1, 100000, true }, titleSeason = { 0, 100000, true },
     paidPts = { 100, 100000, true }, paidPledge = { 1, 10000, true }, paidFund = { 5, 240, true }, paidReward = { 0, 90, true },
+    -- title colour (shop.color) and squad contracts (contracts.*)
+    colorPts = { 1, 100000, true }, colorDays = { 1, 90, true },
+    contractPct = { 0, 100, true }, contractPerDay = { 1, 20, true }, contractJoin = { 1, 60, true },
+    contractMin = { 2, 6, true }, contractMax = { 2, 12, true }, contractActive = { 1, 50, true },
+    contractPer = { 1, 100000, true }, contractLimit = { 5, 600, true }, contractStake = { 1, 100000, true },
 }
 AM.MAX_SPOTS = 32
 AM.MAX_WINDOWS = 8   -- hordes.windows items (Config.SCHEMA.hordes)
@@ -39,7 +44,16 @@ AM.USES = {
     { "shop.shield.enabled", "bool" }, { "shop.shield.pts", "shieldPts" }, { "shop.shield.perWeek", "shieldPerWeek" },
     { "shop.titles.enabled", "bool" }, { "shop.titles.list.spend_1", "titlePts" }, { "shop.titles.list.spend_2", "titlePts" },
     { "shop.titles.list.spend_3", "titlePts" }, { "shop.titles.list.spend_4", "titlePts" }, { "shop.titles.season", "titleSeason" },
+    { "shop.color.enabled", "bool" }, { "shop.color.pts", "colorPts" }, { "shop.color.days", "colorDays" },
 }
+-- squad contracts (exchange tab, below the uses): the shared knobs, then each template's (Catalog.contracts order)
+AM.CONTRACTS = {
+    { "contracts.enabled", "bool" }, { "contracts.returnPct", "contractPct" }, { "contracts.bonusPct", "contractPct" },
+    { "contracts.sharePct", "contractPct" }, { "contracts.perDay", "contractPerDay" }, { "contracts.joinMin", "contractJoin" },
+    { "contracts.minSize", "contractMin" }, { "contracts.maxSize", "contractMax" }, { "contracts.maxActive", "contractActive" },
+}
+AM.CONTRACT_TPL = { { "enabled", "bool" }, { "perMember", "contractPer" }, { "limitMin", "contractLimit" },
+    { "stake", "contractStake" } }
 AM.PAID = {
     { "hordes.paid.enabled", "bool" }, { "hordes.paid.pts", "paidPts" }, { "hordes.paid.minPledge", "paidPledge" },
     { "hordes.paid.maxPerDay", "hordePerDay" }, { "hordes.paid.rewardPct", "paidReward" }, { "hordes.paid.fundMin", "paidFund" },

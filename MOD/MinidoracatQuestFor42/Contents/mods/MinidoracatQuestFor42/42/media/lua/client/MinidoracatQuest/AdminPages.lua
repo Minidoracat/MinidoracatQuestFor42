@@ -697,6 +697,35 @@ local function layoutUses(P, pg, F)
     end
 end
 
+-- squad contracts (plan points-play 2026-11-12 section 2): the shared knobs, then each template's switch, target, time
+-- and stake, labelled "Hunt: Stake (points)"; the server refuses returnPct + bonusPct over 95 (Config validateAll)
+local function layoutContracts(P, pg, F)
+    F:gap()
+    F:head("hct", getText("IGUI_MQ_Admin_ContractsHead"))
+    F:text("nct", getText("IGUI_MQ_Admin_ContractsNote"), "textMuted")
+    local rows = {}
+    for _, r in ipairs(AM.CONTRACTS) do rows[#rows + 1] = { r[1], A.fLabel(r[1]), r[2] } end
+    for _, t in ipairs(MQ.Catalog.contracts) do
+        local name = getText("IGUI_MQ_Contract_" .. t.id)
+        for _, k in ipairs(AM.CONTRACT_TPL) do
+            local path = "contracts.list." .. t.id .. "." .. k[1]
+            rows[#rows + 1] = { path, getText("IGUI_MQ_Admin_UseRow", name, A.fLabel(path)), k[2] }
+        end
+    end
+    local lw = 0
+    for _, r in ipairs(rows) do
+        if r[3] ~= "bool" then lw = math.max(lw, A.textW(r[2])) end
+    end
+    lw = math.min(lw + A.GAP, 260)
+    for _, r in ipairs(rows) do
+        if r[3] == "bool" then
+            F:row({ A.boolField(P, pg, r[1], r[2], r[1]) })
+        else
+            formRow(F, r[1], r[2], lw, { A.numField(P, pg, r[1], r[1], nil, r[3]) })
+        end
+    end
+end
+
 local function layoutExchange(P, pg, F)
     local d = pg.data
     F:head("h", getText("IGUI_MQ_Admin_ExHead"))
@@ -739,6 +768,7 @@ local function layoutExchange(P, pg, F)
     form(P, pg, F, { { "exchange.enabled", "bool" }, { "exchange.rate", "rate" }, { "exchange.perDay", "perDay" },
         { "exchange.min", "exMin" } })
     layoutUses(P, pg, F)
+    layoutContracts(P, pg, F)
 end
 
 A.pages.exchange = { layout = layoutExchange, load = function(P) loadExchange(P) end }

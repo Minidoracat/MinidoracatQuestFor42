@@ -187,6 +187,11 @@ function E.toastText(t)
         -- ended before a zombie came (cancelled, nobody there)
         local why = t.why == "expired" and "IGUI_MQ_UI_FundRefund" or "IGUI_MQ_UI_FundRefundFail"
         return getText(why, D.num(t.pts or 0)), "", D.EXTRA.gold
+    elseif k == "contract" then
+        return Q.PageContracts.toastText(t)
+    elseif k == "colorSoon" then
+        return getText("IGUI_MQ_UI_ColorSoon"), getText("IGUI_MQ_UI_ColorSoonBody", getText("IGUI_MQ_UI_Color_" .. tostring(t.c)),
+            D.dateTime(tonumber(t.untilMs) or 0)), D.TITLE_RGB[t.c] or D.EXTRA.gold
     end
     return nil
 end

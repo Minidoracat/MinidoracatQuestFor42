@@ -192,6 +192,14 @@ function E.toastText(t)
     elseif k == "colorSoon" then
         return getText("IGUI_MQ_UI_ColorSoon"), getText("IGUI_MQ_UI_ColorSoonBody", getText("IGUI_MQ_UI_Color_" .. tostring(t.c)),
             D.dateTime(tonumber(t.untilMs) or 0)), D.TITLE_RGB[t.c] or D.EXTRA.gold
+    elseif k == "fundBack" then
+        -- a sponsored horde cleared: this sponsor's share of it back (plan points-play-1113 claim 3)
+        return getText("IGUI_MQ_UI_FundBackTitle"), getText("IGUI_MQ_UI_FundBackBody", D.num(t.pts or 0), D.num(t.mine or 0)),
+            D.EXTRA.success
+    elseif k == "donateDone" then
+        -- the server-wide donation filled: when its horde comes (plan points-play-1112 claim 3)
+        return getText("IGUI_MQ_UI_DonateDoneTitle"), getText("IGUI_MQ_UI_DonateDoneToast", D.dateTime(t.at or 0)),
+            D.EXTRA.info
     end
     return nil
 end

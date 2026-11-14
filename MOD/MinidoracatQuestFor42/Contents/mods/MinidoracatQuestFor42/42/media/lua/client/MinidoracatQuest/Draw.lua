@@ -946,6 +946,32 @@ function D.hordeKinds(kinds)
     return table.concat(names, getText("IGUI_MQ_UI_ListSep"))
 end
 
+-- a sponsored horde tier's name (plan points-play-1113): normal / hard / nightmare translated, "" = "Tier N", any
+-- other name as the admin typed it (like a preset's)
+function D.paidTier(name, i)
+    if name == "normal" or name == "hard" or name == "nightmare" then return getText("IGUI_MQ_Tier_" .. name) end
+    if type(name) ~= "string" or name == "" then return getText("IGUI_MQ_UI_TierN", tostring(i or 1)) end
+    return name
+end
+
+-- what one tier plays (state.hordes.paid.tiers[i]): its waves, then the kinds at x1 or the toughness and points
+-- x hp, then the most it pays
+function D.paidTierLine(t)
+    local waves, hp = math.floor(tonumber(t.waves) or 1), tonumber(t.hp) or 1
+    local key = hp == 1 and "IGUI_MQ_UI_TierPlain" or "IGUI_MQ_UI_TierTough"
+    if waves == 1 then key = key .. "1" end
+    return getText(key, tostring(waves), hp == 1 and D.hordeKinds(t.kinds) or D.mult(hp), D.num(t.cap or 0))
+end
+
+-- "Difficulty: Hard (toughness x2)" of a fund or a sponsored horde, nil with one tier or none (tiers = state.hordes.
+-- paid.tiers; plan points-play-1113: one tier shows as before the tiers)
+function D.paidTierOf(tiers, name, i, hp)
+    if type(tiers) ~= "table" or #tiers <= 1 then return nil end
+    hp = tonumber(hp) or 1
+    if hp == 1 then return getText("IGUI_MQ_UI_FundTier", D.paidTier(name, i)) end
+    return getText("IGUI_MQ_UI_FundTierHp", D.paidTier(name, i), D.mult(hp))
+end
+
 -- why a horde failed, "Wave W: " first when it has more than one wave
 function D.hordeWhy(why, wave, waves)
     local s = D.textOrNull("IGUI_MQ_Horde_Why_" .. tostring(why)) or ""

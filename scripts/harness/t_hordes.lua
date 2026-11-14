@@ -2601,8 +2601,12 @@ return function(T)
         T.check(cur.waveGot.alice == 4, "a registered kind's own points")
     end)
 
-    -- sponsored hordes (hordes.paid): their own file, over these fixtures
-    dofile("scripts/harness/t_hordes_fund.lua")(T, { SPOT = SPOT, section = section, boot = boot, step = step,
-        apply = apply, cmd = cmd, adm = adm, near = near, toasts = toasts, killAlive = killAlive, lastLog = lastLog,
-        sum = sum, spyAwards = spyAwards, encoded = encoded, today = today, keyOf = keyOf, wave = wave })
+    -- sponsored hordes (hordes.paid), its tiers and share back, the server-wide donation: their own files, over these
+    -- fixtures
+    local fixtures = { SPOT = SPOT, section = section, boot = boot, step = step,
+        apply = apply, cmd = cmd, adm = adm, near = near, far = far, toasts = toasts, killAlive = killAlive, lastLog = lastLog,
+        sum = sum, spyAwards = spyAwards, encoded = encoded, today = today, keyOf = keyOf, wave = wave, at = at }
+    dofile("scripts/harness/t_hordes_fund.lua")(T, fixtures)
+    dofile("scripts/harness/t_hordes_tiers.lua")(T, fixtures)
+    dofile("scripts/harness/t_donate.lua")(T, fixtures)
 end

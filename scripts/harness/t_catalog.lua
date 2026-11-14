@@ -113,7 +113,10 @@ return function(T)
     for id, d in pairs(stats) do
         nStats = nStats + 1
         T.check(d.id == id and (d.kind == "count" or d.kind == "max"), "stat shape " .. id)
-        if d.kind == "count" then T.check(isInt(d.ceil) and d.ceil > 0, "count stat has ceil " .. id) end
+        -- donate.points: one donation may be thousands of points at once (contract A3: no per-minute ceiling)
+        if d.kind == "count" and id ~= "donate.points" then
+            T.check(isInt(d.ceil) and d.ceil > 0, "count stat has ceil " .. id)
+        end
     end
     T.check(nStats == #Cat.statOrder, "statOrder lists every stat once")
     T.check(#Cat.perks == 35, "35 perks (42.21.0 PerkFactory.init)")
@@ -139,7 +142,7 @@ return function(T)
         T.check(d ~= nil and d.enabled == true and #d.tiers == #a.tiers and d.tiers ~= a.tiers, "DEFAULTS copy " .. a.id)
     end
     T.check(#Cat.achievements >= 105 and #Cat.achievements <= 115, "achievement count 105..115 (" .. #Cat.achievements .. ")")
-    T.check(perCat.skill == 37 and perCat.hidden == 17 and perCat.horde == 3, "skill 37, hidden 17, horde 3")
+    T.check(perCat.skill == 37 and perCat.hidden == 17 and perCat.horde == 5, "skill 37, hidden 17, horde 5")
     -- five default tiers: 10/20/30/50/80 points, title at IV only; tier V never over a stat's ceiling
     local nTiers, nTitles, nPts, five = 0, 0, 0, true
     for _, a in ipairs(Cat.achievements) do
@@ -154,8 +157,8 @@ return function(T)
         end
     end
     T.check(five, "regular achievements: 5 tiers, 10/20/30/50/80, title at IV only, skill levels top at 10")
-    T.check(nTiers == 492 and nTitles == 104 and nPts == 18560,
-        "492 tiers, 104 titles, 18,560 points (" .. nTiers .. ", " .. nTitles .. ", " .. nPts .. ")")
+    T.check(nTiers == 502 and nTitles == 106 and nPts == 18940,
+        "502 tiers, 106 titles, 18,940 points (" .. nTiers .. ", " .. nTitles .. ", " .. nPts .. ")")
     T.check(Cat.ach("skill_total").tiers[5] <= 10 * #Cat.perks and Cat.ach("towns").tiers[5] < Cat.ach("h_all_towns").tiers[1]
         and Cat.ach("achv_tiers").tiers[5] <= nTiers, "tier V within the ceiling: skill total, towns, achievement tiers")
     T.check(not Cat.scalable("level.Axe") and not Cat.scalable("skill.total") and not Cat.scalable("town.visited")

@@ -1,6 +1,7 @@
 -- MinidoracatQuest/PageWeekly.lua: weekly page (spec 4): the server-wide weekly goal card (gold frame, 8 px bar,
---   my contribution, payout rule) on top, then the header with the Monday reset countdown and the three weekly
---   quest cards (same card as daily, no swap).
+--   my contribution, payout rule) on top, the server-wide donation card under it (state.donate, plan points-play-1112
+--   claim 3: progress, my share, "Donate..." opening DonateDialog; once full the extra horde's time), then the header
+--   with the Monday reset countdown and the three weekly quest cards (same card as daily, no swap).
 
 if isServer() then return end
 
@@ -8,6 +9,7 @@ require "MinidoracatQuest/Client"
 require "MinidoracatQuest/Draw"
 require "MinidoracatQuest/Window"
 require "MinidoracatQuest/PageDaily"
+require "MinidoracatQuest/DonateDialog"
 
 local Q = MinidoracatQuest
 local C, D, W = Q.Client, Q.Draw, Q.Window
@@ -63,6 +65,72 @@ function P.goal(b, page, x, y, w, s)
     return y + h + GAP
 end
 
+function P.onDonate() Q.DonateDialog.open() end
+
+-- The donation card (blue frame like the goal: "server-wide"). Not full: the target and when its horde comes, the bar,
+-- the total and my share, "what is not full stays for next week" and Donate...; full (hordeAt): the extra horde's
+-- time, how many donations filled it and what already counts toward the next round. "Toughness xN" when hp ~= 1.
+-- No reset chip: a round not full stays. Less than the least donation: no button, how many points are missing.
+function P.donate(b, page, x, y, w, s)
+    local d = type(s.donate) == "table" and s.donate or nil
+    if d == nil or (d.on ~= true and tonumber(d.hordeAt) == nil) then return y end
+    local cfg = C.defs().cfg.donate or {}
+    local lh, pad, mh = D.fontH(), 10, D.fontH(UIFont.Medium)
+    local inner = w - 2 * pad
+    local full = tonumber(d.hordeAt) ~= nil
+    local target, total = tonumber(d.target) or 0, tonumber(d.total) or 0
+    local line = full and getText("IGUI_MQ_UI_DonateAt", D.dateTime(d.hordeAt))
+        or getText("IGUI_MQ_UI_DonateGoal", D.num(target), getText("IGUI_MQ_UI_Weekday_" .. tostring(cfg.day or 6)),
+            tostring(cfg.time or ""))
+    local notes = {}
+    if (tonumber(d.hp) or 1) ~= 1 then notes[#notes + 1] = getText("IGUI_MQ_UI_DonateHp", D.mult(d.hp)) end
+    if full then
+        local last = type(d.last) == "table" and d.last or {}
+        notes[#notes + 1] = getText("IGUI_MQ_UI_DonateDoneBody", D.num(last.n or 0), D.num(total))
+    end
+    local noteLines = {}
+    for _, n in ipairs(notes) do
+        for _, l in ipairs(D.wrap(page.UI, n, inner, UIFont.Small)) do noteLines[#noteLines + 1] = l end
+    end
+    local q = C.donateQuote(s, nil)
+    local btn, foot = nil, full and "" or getText("IGUI_MQ_UI_DonateKeep")
+    if d.on == true then
+        if q.balance >= q.min then
+            btn = page.pool:button("donate", page.UI, page.theme, getText("IGUI_MQ_UI_DonateOpen"), page, P.onDonate)
+        else
+            foot = getText("IGUI_MQ_UI_PointsShort", D.num(q.min - q.balance))
+        end
+    end
+    local footH = math.max(lh, btn and btn.height or 0)
+    local h = pad + D.chipH() + 6 + mh + 6 + #noteLines * (lh + 2) + (full and 0 or 8 + 8 + lh + 6) + footH + pad
+    b:card(x, y, w, h, full and D.EXTRA.success or D.EXTRA.info)
+    local cy = y + pad
+    b:text(x + pad, cy + 3, getText("IGUI_MQ_UI_Donate"), D.EXTRA.info)
+    if full then b:textRight(x + w - pad, cy + 3, getText("IGUI_MQ_UI_DonateFull"), D.EXTRA.success) end
+    cy = cy + D.chipH() + 6
+    b:fitText(x + pad, cy, line, inner, "text", UIFont.Medium)
+    cy = cy + mh + 6
+    if not full then
+        b:bar(x + pad, cy, inner, 8, target > 0 and total / target or 0, D.EXTRA.info)
+        cy = cy + 16
+        b:text(x + pad, cy, getText("IGUI_MQ_UI_Progress", D.num(total), D.num(target)), "textMuted")
+        b:textRight(x + w - pad, cy, getText("IGUI_MQ_UI_DonateMine", D.num(d.mine or 0)), "textMuted")
+        cy = cy + lh + 6
+    end
+    for _, l in ipairs(noteLines) do
+        b:text(x + pad, cy, l, "textMuted")
+        cy = cy + lh + 2
+    end
+    local room = inner
+    if btn ~= nil then
+        btn:setX(x + w - pad - btn.width)
+        btn:setY(cy + math.floor((footH - btn.height) / 2))
+        room = inner - btn.width - 8
+    end
+    if foot ~= "" then b:fitText(x + pad, cy + math.floor((footH - lh) / 2), foot, room, "textMuted") end
+    return y + h + GAP
+end
+
 function P.layout(page)
     page.pool:begin()
     local b = D.begin(page.canvas)
@@ -76,6 +144,7 @@ function P.layout(page)
         return
     end
     y = P.goal(b, page, x, y, w, s)
+    y = P.donate(b, page, x, y, w, s)
     local chips = {}
     if tonumber(s.weekResetAt) then
         chips[1] = { getText("IGUI_MQ_UI_WeekReset", D.duration(D.left(s.weekResetAt))), "textMuted" }

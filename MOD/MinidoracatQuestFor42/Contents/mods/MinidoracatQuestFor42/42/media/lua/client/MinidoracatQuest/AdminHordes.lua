@@ -5,8 +5,10 @@
 -- applied preset, its warning and wait minutes), the last 5 results (a list box). Below it the settings: spots (a
 -- list box with a Map button; add = towns.here, the admin's own position), horde corpses (the most kept, the minutes
 -- after the end before the rest go), windows (days, clock, chance, preset, warning and wait minutes per window; the
--- hordes per day and the wait after a server start), sponsored hordes (hordes.paid: price, limits, preset, warning and
--- wait; the fund line in the status), presets (the one the page edits, copy, delete, its name, the
+-- hordes per day and the wait after a server start), sponsored hordes (hordes.paid: limits, the share given back on
+-- a clear, warning and wait, then the difficulty table of 1 to 4 tiers: name, preset, price, toughness, minutes per
+-- wave; the fund line in the status), the server-wide donation (donate: switch, target, least, weekday and time,
+-- preset, toughness, warning, wait; where it stands), presets (the one the page edits, copy, delete, its name, the
 -- windows using it), then that preset's waves (base and % per extra player, previews for 1 and 4 players), kinds
 -- (weight, computed share, points per kill, toughness) and reward (the cap and an estimate for 1 / 4 / 8 players).
 -- Every setting goes through the draft and the bottom Apply (cfg.preview / cfg.apply), so History and config.json
@@ -218,10 +220,12 @@ local function curLine(P, c)
     return getText("IGUI_MQ_Admin_HordeCurPlan", st, place(c), A.time(c.startMs), n, kindsText(P, c.weights), curPreset(c))
 end
 
--- a sponsored horde (contract 6: cur.sponsors, actor "fund") says so on its status line
+-- a sponsored horde (contract 6: cur.sponsors, actor "fund") or the donation's (actor "donate") says so on its status
+-- line
 local function curText(P, c)
     local s = curLine(P, c)
     if type(c.sponsors) == "table" or c.actor == "fund" then s = getText("IGUI_MQ_Admin_HordeCurPaid", s) end
+    if c.actor == "donate" then s = getText("IGUI_MQ_Admin_HordeCurDonate", s) end
     return s
 end
 
@@ -506,14 +510,21 @@ end
 -- "Mon, Tue 20:00-23:00": a window in the presets section and the delete dialog
 local function windowShort(w) return getText("IGUI_MQ_Admin_HordeWindowShort", daysText(w.days), tostring(w.from), tostring(w.to)) end
 
--- preview rows: a whole windows / waves value as one readable line (presets named as the draft names them)
+-- preview rows: a whole windows / waves / paid tiers value as one readable line (presets named as the draft names
+-- them); the donation's weekday by name
 function A.hordeValue(P, path, v)
+    if path == "donate.day" and tonumber(v) then return getText("IGUI_MQ_UI_Weekday_" .. tostring(v)) end
     if type(v) ~= "table" then return v end
     local parts = {}
     if path == "hordes.windows" then
         for i, w in ipairs(v) do
             parts[i] = getText("IGUI_MQ_Admin_HordeWindowText", tostring(w.from), tostring(w.to), A.num(tonumber(w.chance) or 0),
                 daysText(w.days), nameOf(P.S, tostring(w.preset)), A.num(tonumber(w.leadMin) or 0), A.num(tonumber(w.waitMin) or 0))
+        end
+    elseif path == "hordes.paid.tiers" then
+        for i, t in ipairs(v) do
+            parts[i] = getText("IGUI_MQ_Admin_HordeTierText", MQ.Draw.paidTier(t.name, i), A.num(tonumber(t.pts) or 0),
+                A.num(tonumber(t.hp) or 1), nameOf(P.S, tostring(t.preset)))
         end
     elseif string.match(path, "^hordes%.presets%.[^%.]+%.waves$") then
         for i, w in ipairs(v) do
@@ -545,8 +556,10 @@ function A.hordeRow(P, r, label)
         end
         return { label = label, before = A.valueText(b), after = A.valueText(a) }
     end
-    if path == "hordes.windows" or string.match(path, "^hordes%.presets%.[^%.]+%.waves$") then
-        return { label = label, before = A.valueText(A.hordeValue(P, path, r.before)), after = A.valueText(A.hordeValue(P, path, r.after)) }
+    if path == "hordes.windows" or path == "hordes.paid.tiers" or path == "donate.day"
+        or string.match(path, "^hordes%.presets%.[^%.]+%.waves$") then
+        return { label = label, before = A.valueText(A.hordeValue(P, path, r.before)),
+            after = A.valueText(A.hordeValue(P, path, r.after)) }
     end
     return nil
 end
@@ -645,11 +658,81 @@ local function layoutWindows(P, pg, F, lw, ids)
     F:text("rmn", getText("IGUI_MQ_Admin_HordeResumeNote"), "textMuted")
 end
 
--- ===== sponsored hordes (hordes.paid; plan points-sinks-1112 claims 4, 5.2) =====
+-- ===== sponsored hordes (hordes.paid; plan points-sinks-1112 claims 4, 5.2; tiers plan points-play-1113) =====
 
-local function paidUses(P, id) return AM.get(P.S, "hordes.paid.preset") == id end
+local TIERS = "hordes.paid.tiers"
 
--- between the windows and the presets: a horde the players fund; its preset dropdown lists the presets like a window's
+-- a paid tier plays preset id
+local function paidUses(P, id)
+    for _, t in ipairs(AM.get(P.S, TIERS) or {}) do
+        if t.preset == id then return true end
+    end
+    return false
+end
+local function donateUses(P, id) return AM.get(P.S, "donate.preset") == id end
+
+local function onTierPreset(P, id, dd)
+    editList(P, TIERS, function(list)
+        if list[dd.tier] then list[dd.tier].preset = id end
+    end)
+end
+
+-- a new tier copies the last one (same price is allowed, the names must differ: blank reads "Tier N")
+local function onTierAdd(P)
+    editList(P, TIERS, function(list)
+        local last = list[#list] or MQ.Catalog.DEFAULTS.hordes.paid.tiers[1]
+        if #list < AM.MAX_PAID_TIERS then
+            list[#list + 1] = { name = "", preset = last.preset, pts = last.pts, hp = last.hp, limitMin = last.limitMin }
+        end
+    end)
+end
+
+local function onTierRemove(P, b)
+    editList(P, TIERS, function(list)
+        if #list > 1 then table.remove(list, b.tier) end
+    end)
+end
+
+-- the preset's limitMin: what a tier without its own plays per wave (its field shows it, unset when left there)
+local function presetLimit(P, id)
+    return AM.get(P.S, "hordes.presets." .. tostring(id) .. ".limitMin") or base().limitMin
+end
+
+-- the difficulty table (the windows' way: two rows a tier, Remove at the end of the second): name and preset, then
+-- price, toughness and minutes per wave; 1 to 4 tiers, cheapest first
+local function layoutTiers(P, pg, F, ids)
+    F:text("tn", getText("IGUI_MQ_Admin_HordeTiersNote"), "textMuted")
+    local list = AM.get(P.S, TIERS) or {}
+    local opts = presetOptions(P, ids)
+    local L = F:list("t")
+    for i, t in ipairs(list) do
+        local key = TIERS .. "." .. i
+        local dd = F:dropdown("t:p" .. i, opts, t.preset, onTierPreset)
+        dd.tier = i
+        F:item()
+        F:row({ F:label("t:i" .. i, getText("IGUI_MQ_UI_TierN", tostring(i)), "text"),
+            F:label("t:nl" .. i, A.fLabel(TIERS .. ".name"), "textMuted"),
+            A.textField(P, pg, key .. ".name", TIERS, 160, AM.MAX_NAME, { i, "name" }),
+            F:label("t:pl" .. i, A.fLabel(TIERS .. ".preset"), "textMuted"), dd })
+        local rm = F:button("t:r" .. i, getText("IGUI_MQ_Admin_Remove"), onTierRemove)
+        rm.tier = i
+        rm:setEnabled(#list > 1)
+        F:row({ F:label("t:ptl" .. i, A.fLabel(TIERS .. ".pts"), "textMuted"),
+            A.numField(P, pg, key .. ".pts", TIERS, { i, "pts" }, "paidPts", numW("paidPts")),
+            F:label("t:hl" .. i, A.fLabel(TIERS .. ".hp"), "textMuted"),
+            A.numField(P, pg, key .. ".hp", TIERS, { i, "hp" }, "hordeHp", numW("hordeHp")),
+            F:label("t:ll" .. i, A.fLabel(TIERS .. ".limitMin"), "textMuted"),
+            A.numField(P, pg, key .. ".limitMin", TIERS, { i, "limitMin" }, "hordeLimit", numW("hordeLimit"),
+                presetLimit(P, t.preset)) }, nil, rm)
+    end
+    F:listEnd(L)
+    local add = F:button("t:add", getText("IGUI_MQ_Admin_HordeTierAdd"), onTierAdd)
+    add:setEnabled(#list < AM.MAX_PAID_TIERS)
+    F:row({ add, maxLabel(F, "t:max", getText("IGUI_MQ_Admin_HordeTiersMax", AM.MAX_PAID_TIERS),
+        #list >= AM.MAX_PAID_TIERS) })
+end
+
+-- between the windows and the presets: a horde the players fund, its rules then its difficulty table
 local function layoutPaid(P, pg, F, lw, ids)
     F:head("hpd", getText("IGUI_MQ_Admin_HordePaidHead"))
     F:text("pdn", getText("IGUI_MQ_Admin_HordePaidNote"), "textMuted")
@@ -657,8 +740,42 @@ local function layoutPaid(P, pg, F, lw, ids)
         local path, range = r[1], r[2]
         if range == "bool" then
             F:row({ A.boolField(P, pg, path, A.fLabel(path), path) })
+        else
+            formRow(F, path, A.fLabel(path), lw, { A.numField(P, pg, path, path, nil, range, numW(range)) })
+        end
+    end
+    layoutTiers(P, pg, F, ids)
+end
+
+-- ===== server-wide donation (donate; plan points-play-1112 claim 3) =====
+
+-- where the donation stands (horde.status donate = root.donate): this round, or the extra horde's time
+local function donateText(P, d)
+    if type(d) ~= "table" then return nil end
+    if tonumber(d.hordeAt) then
+        return getText("IGUI_MQ_Admin_DonateFull", A.time(d.hordeAt), A.num(tonumber(d.total) or 0))
+    end
+    return getText("IGUI_MQ_Admin_DonateNow", A.num(tonumber(d.total) or 0),
+        A.num(tonumber(AM.get(appliedS(P), "donate.target")) or 0), A.num(tonumber(d.n) or 0))
+end
+
+local function layoutDonate(P, pg, F, lw, ids)
+    F:head("hdn", getText("IGUI_MQ_Admin_DonateHead"))
+    F:text("dnn", getText("IGUI_MQ_Admin_DonateNote") .. " " .. A.tzNote(), "textMuted")
+    local st = pg.data and donateText(P, pg.data.donate)
+    if st then F:text("dns", st, "text") end
+    local days = {}
+    for d = 1, 7 do days[d] = { id = d, label = getText("IGUI_MQ_UI_Weekday_" .. d) } end
+    for _, r in ipairs(AM.DONATE) do
+        local path, range = r[1], r[2]
+        if range == "bool" then
+            F:row({ A.boolField(P, pg, path, A.fLabel(path), path) })
         elseif range == "pick" then
             formRow(F, path, A.fLabel(path), lw, { A.pickField(P, pg, path, path, presetOptions(P, ids)) })
+        elseif range == "day" then
+            formRow(F, path, A.fLabel(path), lw, { A.pickField(P, pg, path, path, days) })
+        elseif range == "clock" then
+            formRow(F, path, A.fLabel(path), lw, { A.clockField(P, pg, path, path) })
         else
             formRow(F, path, A.fLabel(path), lw, { A.numField(P, pg, path, path, nil, range, numW(range)) })
         end
@@ -769,10 +886,17 @@ local function deletePreset(P, id, name)
         if AM.same(wins, applied(P, "hordes.windows")) then AM.draftUnset(P.S.draft, "hordes.windows")
         else AM.draftSet(P.S.draft, "hordes.windows", wins) end
     end
-    -- the sponsored horde's preset too, the same way as a window's
+    -- the sponsored horde's tiers and the donation too, the same way as a window's
     if paidUses(P, id) then
-        if applied(P, "hordes.paid.preset") == "default" then AM.draftUnset(P.S.draft, "hordes.paid.preset")
-        else AM.draftSet(P.S.draft, "hordes.paid.preset", "default") end
+        local tiers = AM.copy(AM.get(P.S, TIERS)) or {}
+        for _, t in ipairs(tiers) do
+            if t.preset == id then t.preset = "default" end
+        end
+        if AM.same(tiers, applied(P, TIERS)) then AM.draftUnset(P.S.draft, TIERS) else AM.draftSet(P.S.draft, TIERS, tiers) end
+    end
+    if donateUses(P, id) then
+        if applied(P, "donate.preset") == "default" then AM.draftUnset(P.S.draft, "donate.preset")
+        else AM.draftSet(P.S.draft, "donate.preset", "default") end
     end
     local under = {}
     for _, dp in ipairs(P.S.draft.order) do
@@ -804,6 +928,10 @@ local function onPresetDel(P)
     if paidUses(P, id) then
         local paid = getText("IGUI_MQ_Admin_HordePresetDelPaid")
         text = text and (text .. "\n" .. paid) or paid
+    end
+    if donateUses(P, id) then
+        local dn = getText("IGUI_MQ_Admin_HordePresetDelDonate")
+        text = text and (text .. "\n" .. dn) or dn
     end
     text = text or getText("IGUI_MQ_Admin_HordePresetUnused")
     A.ask(P, { title = getText("IGUI_MQ_Admin_HordePresetDelTitle", name), danger = true,
@@ -1111,9 +1239,10 @@ end
 
 -- every form label of the tab, one column (A.labelWidth; preset fields read as hordes.<field>, A.fLabel)
 local PATHS = { "hordes.maxPerDay", "hordes.resumeMin", "hordes.corpses.max", "hordes.corpses.afterMin", "hordes.name",
-    "hordes.restSec", "hordes.limitMin", "hordes.maxAlive", "hordes.cap", "hordes.paid.pts", "hordes.paid.minPledge",
-    "hordes.paid.maxPerDay", "hordes.paid.rewardPct", "hordes.paid.fundMin", "hordes.paid.preset", "hordes.paid.leadMin",
-    "hordes.paid.waitMin" }
+    "hordes.restSec", "hordes.limitMin", "hordes.maxAlive", "hordes.cap", "hordes.paid.minPledge",
+    "hordes.paid.maxPerDay", "hordes.paid.rewardPct", "hordes.paid.backPct", "hordes.paid.fundMin", "hordes.paid.leadMin",
+    "hordes.paid.waitMin", "donate.target", "donate.min", "donate.day", "donate.time", "donate.preset", "donate.hp",
+    "donate.leadMin", "donate.waitMin" }
 
 local function layout(P, pg, F)
     -- no page heading: the tab already says Hordes (review). Its notes wrap narrower (Flow:text)
@@ -1129,6 +1258,7 @@ local function layout(P, pg, F)
     layoutCorpses(P, pg, F, lw)
     layoutWindows(P, pg, F, lw, ids)
     layoutPaid(P, pg, F, lw, ids)
+    layoutDonate(P, pg, F, lw, ids)
     layoutPresets(P, pg, F, lw, ids)
     layoutWaves(P, pg, F, lw)
     layoutKinds(P, pg, F, kinds, lw)

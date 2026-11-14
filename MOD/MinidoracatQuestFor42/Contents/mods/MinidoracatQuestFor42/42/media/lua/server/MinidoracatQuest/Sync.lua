@@ -29,7 +29,8 @@ local Y = Q.Sync or {}
 Q.Sync = Y
 local C, U = Q.Contract, Q.Util
 
-Y.PARTS = { "day", "week", "goal", "streak", "newbie", "season", "exchange", "events", "hordes", "contracts" }
+Y.PARTS = { "day", "week", "goal", "streak", "newbie", "season", "exchange", "events", "hordes", "contracts",
+    "donate" }   -- Donate.lua: a change sends a full state to the open windows (not a delta part)
 Y.DELTA_PARTS = { day = true, week = true, goal = true, points = true, unseen = true, trk = true, pins = true, hordes = true,
     contracts = true }
 Y.providers = Y.providers or {}

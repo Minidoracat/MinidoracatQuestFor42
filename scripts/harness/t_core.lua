@@ -114,16 +114,18 @@ return function(T)
         { "shop.swap.pts", 0 }, { "shop.swap.pts", 10001 }, { "shop.swap.perDay", 11 }, { "shop.swap.enabled", 1 },
         { "shop.shield.perWeek", 0 }, { "shop.shield.perWeek", 8 }, { "shop.shield.pts", 1.5 },
         { "shop.titles.season", -1 }, { "shop.titles.season", 100001 }, { "shop.titles.list.spend_1", 0 },
-        { "shop.titles.list.spend_5", 100 }, { "hordes.paid.pts", 99 }, { "hordes.paid.minPledge", 0 },
+        { "shop.titles.list.spend_5", 100 }, { "hordes.paid.backPct", 51 }, { "hordes.paid.minPledge", 0 },
         { "hordes.paid.fundMin", 4 }, { "hordes.paid.maxPerDay", 25 }, { "hordes.paid.rewardPct", 91 },
         { "hordes.paid.leadMin", Q.Contract.LIMIT.MAX_LEAD + 1 }, { "hordes.paid.waitMin", 0 },
-        { "hordes.paid.preset", "1bad" }, { "hordes.paid.preset", "nosuch" },
+        { "hordes.paid.tiers", { { name = "normal", preset = "1bad", pts = 600, hp = 1 } } },
+        { "hordes.paid.tiers", { { name = "normal", preset = "nosuch", pts = 600, hp = 1 } } },
+        { "hordes.paid.pts", 600 }, { "hordes.paid.preset", "default" },   -- the 0.7.0 keys are gone (Config.migrate)
     }
     for _, b in ipairs(sinkBad) do
         local ok, c = Q.Config.apply({ { op = "set", path = b[1], value = b[2] } }, "bad", "boss")
         T.check(ok == false and c == CODE.BAD_CONFIG, "rejected: " .. b[1] .. " = " .. tostring(b[2]))
     end
-    T.check(Q.Config.get().shop.swap.pts == 50 and Q.Config.get().hordes.paid.preset == "default", "refused sets change nothing")
+    T.check(Q.Config.get().shop.swap.pts == 50 and #Q.Config.get().hordes.paid.tiers == 3, "refused sets change nothing")
     local okSet = Q.Config.apply({ { op = "set", path = "shop.titles.list.spend_2", value = 2500 },
         { op = "set", path = "hordes.paid.rewardPct", value = 0 }, { op = "set", path = "shop.titles.season", value = 0 } },
         "sinks", "boss")
@@ -132,7 +134,8 @@ return function(T)
         and cfgNow.hordes.paid.rewardPct == 0 and cfgNow.shop.titles.season == 0, "in-range sink settings apply one key at a time")
     local dj = T.files[Q.Store.path("defaults.json")]
     local defs = dj and Q.Util.decode(table.concat(dj.lines, "\n"))
-    T.check(defs and defs.shop and defs.shop.swap.pts == 50 and defs.hordes.paid.pts == 600, "defaults.json has the new groups")
+    T.check(defs and defs.shop and defs.shop.swap.pts == 50 and defs.hordes.paid.tiers[1].pts == 600
+        and defs.donate and defs.donate.target == 10000, "defaults.json has the new groups")
     Q.Config.apply({ { op = "del", path = "shop" }, { op = "del", path = "hordes.paid" } }, "sinks back", "boss")
     r = T.cmd(admin, "admin", { op = "cfg.apply", summary = "rot",
         changes = '[{"op":"set","path":"goal.rotation","value":["zombie.kills"]},'

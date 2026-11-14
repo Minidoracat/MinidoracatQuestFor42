@@ -503,6 +503,13 @@ function A.pathLabel(P, path)
     if string.sub(path, 1, 10) == "contracts." and path ~= "contracts.enabled" then
         return getText("IGUI_MQ_Admin_UseRow", getText("IGUI_MQ_Admin_Use_contract"), A.fLabel(path))
     end
+    -- one paid tier (the server names hordes.paid.tiers.<i>.<field>): "Sponsored horde: Tier 2 - Price (points)"
+    local ti, tf = string.match(path, "^hordes%.paid%.tiers%.(%d+)%.?(%a*)$")
+    if ti then
+        local what = getText("IGUI_MQ_UI_TierN", ti)
+        if tf ~= "" then what = what .. " - " .. A.fLabel("hordes.paid.tiers." .. tf) end
+        return getText("IGUI_MQ_Admin_UseRow", getText("IGUI_MQ_Admin_Use_horde"), what)
+    end
     -- uses for points: a price or a limit reads with what it is for ("Swap quest: Each (points)"); the switches say it
     -- themselves. A title price is labelled with the title's name, like on the exchange tab
     local use, key = string.match(path, "^shop%.(%a+)%.(.+)$")
@@ -733,16 +740,16 @@ function A.boolField(P, pg, key, label, path, part)
     return f.el
 end
 
--- free text bound to a config path (a horde preset's name): control characters dropped, spaces trimmed, cut to max
--- characters (Kahlua strings count UTF-16 units: 32 Chinese characters too); the page's own check says what a name
--- may not be, and a refill clears its mark
-function A.textField(P, pg, key, path, width, max)
+-- free text bound to a config path (a horde preset's name; part = key list inside the value: a paid tier's name):
+-- control characters dropped, spaces trimmed, cut to max characters (Kahlua strings count UTF-16 units: 32 Chinese
+-- characters too); the page's own check says what a name may not be, and a refill clears its mark
+function A.textField(P, pg, key, path, width, max, part)
     local f = field(pg, key)
-    f.path, f.kind, f.max = path, "text", max
+    f.path, f.part, f.kind, f.max = path, part, "text", max
     f.el = pg.flow:field("f:" .. key, width, nil, max)
     if f.at ~= pg.version then
         f.at = pg.version
-        local v = AM.get(P.S, path)
+        local v = valueAt(P, f)
         f.el:setText(type(v) == "string" and v or "")
         markError(P, f.el, nil)
     end

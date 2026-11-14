@@ -132,8 +132,14 @@ return function(T)
             streak = { days = 12, graceUsed = o.graceUsed, week = o.week or { "done", "grace", "done", "", "", "", "" },
                 shield = o.shield, shieldLeft = o.shieldLeft },
             season = { no = 2, endsAt = now + 12 * 86400000 }, titles = o.titles or {}, title = o.title, titleSrc = o.titleSrc,
-            exchange = o.exchange or { available = false }, spent = o.spent, hordes = o.hordes })
+            exchange = o.exchange or { available = false }, spent = o.spent, hordes = o.hordes, donate = o.donate })
     end
+    -- state.hordes.paid.tiers: one tier (as before the tiers) and the three default ones (plan points-play-1113)
+    local KINDS = { { id = "vanilla", nameKey = "IGUI_MQ_Horde_Kind_vanilla" }, { id = "runner", nameKey = "IGUI_MQ_Horde_Kind_runner" } }
+    local function oneTier(pts, cap) return { { name = "normal", pts = pts or 600, hp = 1, cap = cap, waves = 1, kinds = KINDS, limitMin = 15 } } end
+    local THREE = { { name = "normal", pts = 600, hp = 1, cap = 300, waves = 1, kinds = KINDS, limitMin = 15 },
+        { name = "hard", pts = 1200, hp = 2, cap = 600, waves = 1, kinds = KINDS, limitMin = 15 },
+        { name = "nightmare", pts = 2500, hp = 3, cap = 1250, waves = 2, kinds = KINDS, limitMin = 20 } }
     catalog(SHOP)
 
     T.section("points uses: the daily page's swap button")
@@ -282,7 +288,7 @@ return function(T)
     check(not PE.shown() and not navHas("exchange"), "every use off, no exchange, no history: no Points page in the nav")
     state({ spent = { { at = now, what = "swap", n = -50, ref = d1.tid } } })
     check(PE.shown() and navHas("exchange"), "a spend in the history keeps the page")
-    state({ hordes = { on = true, paid = { on = true, pts = 600 } } })
+    state({ hordes = { on = true, paid = { on = true, tiers = oneTier() } } })
     check(PE.shown(), "sponsored hordes on: the page shows")
     catalog({ swap = { enabled = false }, shield = { enabled = false }, titles = SHOP.titles })
     state({})
@@ -292,7 +298,7 @@ return function(T)
     local selected = nil
     local realSelect = W.select
     W.select = function(id) selected = id end
-    state({ balance = 2760, titles = { "spend_1" }, title = "spend_1", hordes = { on = true, paid = { on = true, pts = 600 } },
+    state({ balance = 2760, titles = { "spend_1" }, title = "spend_1", hordes = { on = true, paid = { on = true, tiers = oneTier() } },
         exchange = { available = true, enabled = true, rate = 1, perDay = 100, used = 0, min = 10, queued = 20, hist = {} } })
     PE.layout(ep)
     local primary = 0
@@ -372,46 +378,50 @@ return function(T)
     check(drew(rp, "IGUI_MQ_UI_TitleCondShopOwned") and not drew(rp, "IGUI_MQ_UI_TitleNoSource"),
         "My titles: a bought title says it was bought with points")
 
-    T.section("points uses: Sponsor a horde on the Hordes page")
+    T.section("points uses: Sponsor a horde on the Hordes page (one tier: as before the tiers)")
     local PH, X = MQ.PageHordes, MQ.PledgeDialog
     local hp = newPage()
-    local paid = { on = true, pts = 600, minPledge = 50, rewardPct = 50, leadMin = 15, left = 1 }
+    local paid = { on = true, tiers = oneTier(600, 300), minPledge = 50, rewardPct = 50, leadMin = 15, left = 1 }
     state({ hordes = { on = true, paid = paid } })
     PH.layout(hp)
     local pb = btn(hp, "pledge")
     check(pb ~= nil and pb.opts.title == "IGUI_MQ_UI_FundStart" and drew(hp, "IGUI_MQ_UI_FundLeftToday|1")
         and drew(hp, "IGUI_MQ_UI_FundIdle|600|15|300"), "no fund: hordes left today, the rule with the most it pays, Start a fund...")
-    paid.cap = 200
+    check(not drew(hp, "IGUI_MQ_UI_FundIdleTiers") and not drew(hp, "IGUI_MQ_UI_FundTier") and not drew(hp, "IGUI_MQ_UI_FundBack"),
+        "one tier, nothing given back: no difficulty and no share-back line, as before")
+    paid.tiers = oneTier(600, 200)
     state({ hordes = { on = true, paid = paid } })
     PH.layout(hp)
     check(drew(hp, "IGUI_MQ_UI_FundIdle|600|15|200"), "the server's cap (a lower preset cap) is what the rule promises")
-    paid.cap = nil
+    paid.tiers = oneTier(600, nil)
     state({ hordes = { on = true, paid = paid } })
     PH.layout(hp)
     pb = btn(hp, "pledge")
     press(pb)
     check(X.visible() and X.text == "100" and X.win.title == "IGUI_MQ_UI_FundStartTitle", "the dialog opens with min(left, 100, balance)")
+    check(not drew({ canvas = X.canvas }, "IGUI_MQ_UI_Tier") and X.pool.items.tier1 == nil and not drew({ canvas = X.canvas }, "IGUI_MQ_UI_FundTier"),
+        "one tier: the dialog has no difficulty")
     -- the dialog redraws with every state: Submit names the spendSeq of the state shown as it is pressed
     C.state.spendSeq = 9
     X.onText("150")
     press(X.pool.items.submit)
-    check(lastSent().command == "pledge" and lastSent().args.n == 150 and lastSent().args.total == 600 and lastSent().args.seq == 9,
-        "submit sends pledge { n, total, seq }")
+    check(lastSent().command == "pledge" and lastSent().args.n == 150 and lastSent().args.total == 600 and lastSent().args.seq == 9
+        and lastSent().args.tier == 1, "submit sends pledge { n, total, tier 1, seq }")
     push("result", { ok = true, command = "pledge", requestId = lastSent().args.requestId, n = 150 })
     check(not X.visible() and toasts[#toasts].message == "IGUI_MQ_UI_FundPledged|150", "the reply closes it: what was taken")
-    state({ hordes = { on = true, paid = { on = true, pts = 600, minPledge = 50, left = 0 } } })
+    state({ hordes = { on = true, paid = { on = true, tiers = oneTier(), minPledge = 50, left = 0 } } })
     PH.layout(hp)
     check(btn(hp, "pledge") == nil and drew(hp, "IGUI_MQ_UI_FundDayUsed"), "today's used up: says so, no button")
     state({ balance = 20, hordes = { on = true, paid = paid } })
     PH.layout(hp)
     check(btn(hp, "pledge") == nil and drew(hp, "IGUI_MQ_UI_PointsShort|30"), "less than the least pledge: no button, 30 short")
-    local fund = { total = 450, pts = 600, n = 3, mine = 150, expireAt = now + 12 * 60000, state = "open" }
-    state({ hordes = { on = true, paid = { on = true, pts = 700, minPledge = 50, left = 1 }, fund = fund } })
+    local fund = { total = 450, pts = 600, n = 3, mine = 150, expireAt = now + 12 * 60000, state = "open", tier = 1, name = "normal", hp = 1 }
+    state({ hordes = { on = true, paid = { on = true, tiers = oneTier(700), minPledge = 50, left = 1 }, fund = fund } })
     PH.layout(hp)
     pb = btn(hp, "pledge")
     check(pb ~= nil and pb.opts.title == "IGUI_MQ_UI_FundPledge" and drew(hp, "IGUI_MQ_UI_FundOpen")
-        and drew(hp, "IGUI_MQ_UI_FundProgress|450|600") and drew(hp, "IGUI_MQ_UI_FundOpenBody|3|150") and drew(hp, "IGUI_MQ_UI_FundExpires|"),
-        "fund open: progress of the fund's own target, sponsors and mine, when it ends, Sponsor...")
+        and drew(hp, "IGUI_MQ_UI_FundProgress|450|600") and drew(hp, "IGUI_MQ_UI_FundOpenBody|3|150") and drew(hp, "IGUI_MQ_UI_FundExpires|")
+        and not drew(hp, "IGUI_MQ_UI_FundTier"), "fund open: progress of the fund's own target, sponsors and mine, when it ends, Sponsor...")
     press(pb)
     local fill = X.pool.items.fill
     check(X.win.title == "IGUI_MQ_UI_FundPledgeTitle" and fill ~= nil and fill.visible ~= false and fill.opts.title == "IGUI_MQ_UI_FundFill|150",
@@ -444,16 +454,119 @@ return function(T)
     check(btn(hp, "pledge") == nil and drew(hp, "IGUI_MQ_UI_FundFull") and drew(hp, "IGUI_MQ_UI_FundFullBody|4|600")
         and drew(hp, "IGUI_MQ_UI_FundFullSoon"), "fund full: who filled it and that it is announced next, no button")
     state({ hordes = { on = true, paid = paid, cur = { id = 3, state = "announced", name = "Gas", x = 1, y = 2, kinds = {},
-        startMs = now + 600000, paid = true, sponsorN = 4, capPts = 300 } } })
+        startMs = now + 600000, paid = true, sponsorN = 4, capPts = 300, tier = 1, tierName = "normal", hp = 1 } } })
     PH.layout(hp)
-    check(drew(hp, "IGUI_MQ_Horde_PaidChip") and drew(hp, "IGUI_MQ_Horde_PaidLine|4|300"), "the sponsored horde: the chip and the line in the banner")
+    check(drew(hp, "IGUI_MQ_Horde_PaidChip") and drew(hp, "IGUI_MQ_Horde_PaidLine|4|300") and not drew(hp, "IGUI_MQ_UI_FundTier"),
+        "the sponsored horde: the chip and the line in the banner, no difficulty with one tier")
     PD.layout(dp)
     check(drew(dp, "IGUI_MQ_Horde_PaidChip") and drew(dp, "IGUI_MQ_Horde_PaidLine|4|300"), "the daily page banner shows the same")
-    local q = C.pledgeQuote({ hordes = { paid = { on = false, pts = 600 } } }, "100")
-    local qd = C.pledgeQuote({ points = { balance = 500 }, hordes = { paid = { on = true, pts = 600, left = 0 } } }, "100")
-    local qf = C.pledgeQuote({ points = { balance = 500 }, hordes = { paid = { on = true, pts = 600, left = 1 },
+    local q = C.pledgeQuote({ hordes = { paid = { on = false, tiers = oneTier() } } }, "100")
+    local qd = C.pledgeQuote({ points = { balance = 500 }, hordes = { paid = { on = true, tiers = oneTier(), left = 0 } } }, "100")
+    local qf = C.pledgeQuote({ points = { balance = 500 }, hordes = { paid = { on = true, tiers = oneTier(), left = 1 },
         fund = { pts = 600, total = 600, state = "ready" } } }, "100")
     check(q.reason == "FUND_OFF" and qd.reason == "FUND_DAY" and qf.reason == "FUND_FULL", "pledge quote: off, today's used, full")
+
+    do   -- its own block: the scenario function is close to Lua's 200 locals
+    T.section("points uses: difficulty tiers in the pledge dialog and on the Hordes page")
+    local paid3 = { on = true, tiers = THREE, minPledge = 50, rewardPct = 50, backPct = 10, leadMin = 15, left = 1 }
+    state({ balance = 3000, hordes = { on = true, paid = paid3 } })
+    PH.layout(hp)
+    check(drew(hp, "IGUI_MQ_UI_FundIdleTiers|600|2,500|15") and drew(hp, "IGUI_MQ_UI_FundBack|10") and not drew(hp, "IGUI_MQ_UI_FundIdle|"),
+        "2+ tiers: the price range instead of one price; the share back on a clear")
+    press(btn(hp, "pledge"))
+    local cv = { canvas = X.canvas }
+    local t1, t3 = X.pool.items.tier1, X.pool.items.tier3
+    check(drew(cv, "IGUI_MQ_UI_Tier") and t1 and t1.active == true and t3.active == false and t1.opts.title == "IGUI_MQ_Tier_normal"
+        and t3.opts.title == "IGUI_MQ_Tier_nightmare" and drew(cv, "IGUI_MQ_UI_PointsN|2,500") and drew(cv, "IGUI_MQ_UI_FundGot|0|600"),
+        "a new fund picks its difficulty: one row a tier, the first picked, each with its price")
+    check(drew(cv, "IGUI_MQ_UI_TierPlain1|1|") and drew(cv, "|300") and drew(cv, "IGUI_MQ_UI_TierTough1|1|2|600")
+        and drew(cv, "IGUI_MQ_UI_TierTough|2|3|1,250"), "each row: waves, the kinds at x1 or toughness and points x hp, the most it pays")
+    local elite = 0
+    for i = 1, X.canvas.n do if X.canvas.ops[i].s == "IGUI_MQ_UI_TierElite" then elite = elite + 1 end end
+    check(elite == 1, "only the last tier says it has its own achievement")
+    press(t3)
+    check(t3.active == true and t1.active == false and drew(cv, "IGUI_MQ_UI_FundGot|0|2,500"), "picking Nightmare: its price is the goal")
+    X.onText("300")
+    press(X.pool.items.submit)
+    check(lastSent().command == "pledge" and lastSent().args.tier == 3 and lastSent().args.total == 2500 and lastSent().args.n == 300,
+        "submit sends the picked tier and its price")
+    push("result", { ok = true, command = "pledge", requestId = lastSent().args.requestId, n = 300 })
+    local fund2 = { total = 300, pts = 1200, n = 1, mine = 300, expireAt = now + 20 * 60000, state = "open", tier = 2, name = "hard", hp = 2 }
+    state({ balance = 3000, hordes = { on = true, paid = paid3, fund = fund2 } })
+    PH.layout(hp)
+    check(drew(hp, "IGUI_MQ_UI_FundTierHp|IGUI_MQ_Tier_hard|2") and drew(hp, "IGUI_MQ_UI_FundProgress|300|1,200"),
+        "an open fund names its difficulty and toughness")
+    press(btn(hp, "pledge"))
+    check(drew(cv, "IGUI_MQ_UI_FundTier|IGUI_MQ_Tier_hard") and X.pool.items.tier1.visible == false,
+        "joining an open fund: its tier only, nothing to pick")
+    X.onText("100")
+    press(X.pool.items.submit)
+    check(lastSent().args.tier == 2 and lastSent().args.total == 1200, "and the fund's tier and price go with the pledge")
+    push("result", { ok = true, command = "pledge", requestId = lastSent().args.requestId, n = 100 })
+    state({ hordes = { on = true, paid = paid3, cur = { id = 4, state = "announced", name = "Gas", x = 1, y = 2, kinds = {},
+        startMs = now + 600000, paid = true, sponsorN = 2, capPts = 1250, tier = 3, tierName = "nightmare", hp = 3 } } })
+    PD.layout(dp)
+    check(drew(dp, "IGUI_MQ_UI_FundTierHp|IGUI_MQ_Tier_nightmare|3"), "the sponsored horde's banner names its difficulty")
+    check(D.paidTier("", 2) == "IGUI_MQ_UI_TierN|2" and D.paidTier("Elite", 4) == "Elite" and D.paidTier("hard", 2) == "IGUI_MQ_Tier_hard",
+        "tier names: the three known ones translated, blank reads Tier N, any other as typed")
+    local q3 = C.pledgeQuote({ points = { balance = 500 }, hordes = { paid = paid3 } }, "100", 9)
+    check(q3.tier == 3 and q3.target == 2500, "a tier past the list is kept within it")
+
+    T.section("points uses: the server-wide donation on the weekly page")
+    local PW, DX = MQ.PageWeekly, MQ.DonateDialog
+    local wp = newPage()
+    state({ donate = { on = false, total = 0, target = 10000, min = 10, mine = 0, n = 0, hp = 3 } })
+    PW.layout(wp)
+    check(not drew(wp, "IGUI_MQ_UI_Donate") and btn(wp, "donate") == nil, "off: no donation card")
+    state({ balance = 1240, donate = { on = true, total = 6400, target = 10000, min = 10, mine = 300, n = 42, hp = 3 } })
+    PW.layout(wp)
+    check(drew(wp, "IGUI_MQ_UI_DonateGoal|10,000|IGUI_MQ_UI_Weekday_6|21:00") and drew(wp, "IGUI_MQ_UI_Progress|6,400|10,000")
+        and drew(wp, "IGUI_MQ_UI_DonateMine|300") and drew(wp, "IGUI_MQ_UI_DonateHp|3") and drew(wp, "IGUI_MQ_UI_DonateKeep")
+        and btn(wp, "donate") and btn(wp, "donate").opts.title == "IGUI_MQ_UI_DonateOpen" and not drew(wp, "IGUI_MQ_UI_DonateFull"),
+        "the card: target and when, the total, my share, toughness, it stays for next week, Donate...")
+    press(btn(wp, "donate"))
+    local dc = { canvas = DX.canvas }
+    check(DX.visible() and DX.text == "100" and drew(dc, "IGUI_MQ_UI_DonateGot|6,400|10,000") and drew(dc, "IGUI_MQ_UI_DonateHint|10|1,240|1,140"),
+        "the amount dialog: 100 to start, where it stands, the balance before and after")
+    DX.onText("5")
+    check(DX.pool.items.submit.enabled == false and drew(dc, "IGUI_MQ_UI_DonateMin|10") and drew(dc, "IGUI_MQ_UI_DonateHint|10|1,240|1,240"),
+        "under the least: says so, cannot send, no points leave")
+    DX.onText("2000")
+    check(DX.pool.items.submit.enabled == false and drew(dc, "IGUI_MQ_UI_PointsShort|760"), "more than the balance: how many short")
+    DX.onText("250")
+    C.state.spendSeq = 11
+    press(DX.pool.items.submit)
+    check(lastSent().command == "donate" and lastSent().args.n == 250 and lastSent().args.total == 10000 and lastSent().args.seq == 11,
+        "submit sends donate { n, total = the target shown, seq }")
+    local dn = #T.clientSent
+    press(DX.pool.items.submit)
+    DX.close()
+    press(btn(wp, "donate"))
+    press(DX.pool.items.submit)
+    check(#T.clientSent == dn and DX.pool.items.submit.enabled == false, "one confirmation, one request: nothing more while it waits")
+    push("result", { ok = true, command = "donate", requestId = lastSent().args.requestId, n = 250 })
+    check(not DX.visible() and toasts[#toasts].message == "IGUI_MQ_UI_Donated|250", "the reply closes it: what was given")
+    press(btn(wp, "donate"))
+    press(DX.pool.items.submit)
+    push("result", { ok = false, code = "PRICE_CHANGED", command = "donate", requestId = lastSent().args.requestId })
+    check(DX.visible() and toasts[#toasts].message == "IGUI_MQ_Code_PRICE_CHANGED", "a refusal says why and keeps it open")
+    DX.close()
+    state({ balance = 5, donate = { on = true, total = 6400, target = 10000, min = 10, mine = 0, n = 42, hp = 1 } })
+    PW.layout(wp)
+    check(btn(wp, "donate") == nil and drew(wp, "IGUI_MQ_UI_PointsShort|5") and not drew(wp, "IGUI_MQ_UI_DonateHp"),
+        "less than the least: no button, how many short; toughness x1 is not mentioned")
+    state({ donate = { on = true, total = 1150, target = 10000, min = 10, mine = 0, n = 0, hp = 3, hordeAt = now + 3 * 86400000,
+        last = { round = 1, n = 142, at = now } } })
+    PW.layout(wp)
+    check(drew(wp, "IGUI_MQ_UI_DonateFull") and drew(wp, "IGUI_MQ_UI_DonateAt|") and drew(wp, "IGUI_MQ_UI_DonateDoneBody|142|1,150")
+        and not drew(wp, "IGUI_MQ_UI_Progress|1,150") and btn(wp, "donate") ~= nil, "full: when the extra horde comes, the donations, what counts next")
+    state({ donate = { on = false, total = 0, target = 10000, min = 10, mine = 0, n = 0, hp = 3, hordeAt = now + 86400000 } })
+    PW.layout(wp)
+    check(drew(wp, "IGUI_MQ_UI_DonateAt|") and btn(wp, "donate") == nil, "switched off with its horde still to come: the card, no button")
+    local dq = C.donateQuote({ points = { balance = 50 }, donate = { on = true, target = 10000, min = 10 } }, "5")
+    local dq2 = C.donateQuote({ points = { balance = 50 }, donate = { on = false, target = 10000, min = 10 } }, "20")
+    check(dq.reason == "DONATE_MIN" and dq2.reason == "DONATE_OFF" and dq.dflt == 50, "donate quote: under the least, off; default = balance")
+    end
 
     T.section("points uses: toasts")
     local E = MQ.Entry
@@ -474,6 +587,11 @@ return function(T)
     check(r1 == "IGUI_MQ_UI_FundRefund|150" and r2 == "IGUI_MQ_UI_FundRefundFail|150" and r3 == r2 and r4 == r2,
         "refund toasts: not filled, or the horde could not start or ended before a zombie came")
     check(D.codeText("PRICE_CHANGED") == "IGUI_MQ_Code_PRICE_CHANGED", "new codes read their own text")
+    local b1t, b1b = E.toastText({ kind = "fundBack", pts = 25, mine = 250 })
+    local b2t, b2b = E.toastText({ kind = "donateDone", at = now + 86400000 })
+    check(b1t == "IGUI_MQ_UI_FundBackTitle" and b1b == "IGUI_MQ_UI_FundBackBody|25|250"
+        and b2t == "IGUI_MQ_UI_DonateDoneTitle" and string.find(b2b, "IGUI_MQ_UI_DonateDoneToast|", 1, true) == 1,
+        "a cleared sponsored horde: what came back of what I gave; a full donation: when its horde comes")
     check(#errors == 0, "points uses ran clean " .. tostring(errors[1]))
 
     for k, v in pairs(saved) do _G[k] = v end

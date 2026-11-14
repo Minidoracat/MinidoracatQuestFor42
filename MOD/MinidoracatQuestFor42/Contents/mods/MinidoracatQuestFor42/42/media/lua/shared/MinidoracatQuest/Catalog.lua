@@ -107,6 +107,8 @@ S("horde.wins", "count", 10, nil, true)     -- hordes cleared with at least one 
 S("horde.kills", "count", 120, nil, true)   -- kills of horde zombies
 S("horde.mvp", "count", 10, nil, true)      -- cleared hordes (2+ participants) where you had the most kills, ties too
 S("horde.sponsored", "count", 10, nil, true) -- sponsored hordes you pledged to that got planned (Hordes.lua fund)
+S("horde.eliteWins", "count", 10, nil, true) -- cleared elite sponsored hordes (last of 2+ tiers), a kill of your own
+S("donate.points", "count", nil, nil, true) -- points given to the server-wide donation (Donate.lua; no per-minute ceiling)
 S("contract.wins", "count", 10, nil, true) -- squad contracts met with your share of the kills (Contracts.lua)
 for _, p in ipairs(Cat.perks) do S("level." .. p, "max", nil, "level") end
 for _, p in ipairs(Cat.perks) do S("xp." .. p, "count", 5000, "xp") end
@@ -225,12 +227,14 @@ A("weekly", "quest", "quest.weekly", { 3, 15, 50, 150, 375 })
 A("streak", "quest", "streak.best", { 3, 7, 30, 100, 250 })
 A("goal", "quest", "goal.done", { 1, 5, 15, 40, 100 })
 A("season", "quest", "season.joined", { 1, 3, 6, 12, 30 })
-A("achv_tiers", "quest", "achv.tiers", { 10, 50, 150, 300, 450 })   -- 95 x 5 + 17 hidden = 492 tiers
+A("achv_tiers", "quest", "achv.tiers", { 10, 50, 150, 300, 450 })   -- 97 x 5 + 17 hidden = 502 tiers
 A("contract_wins", "quest", "contract.wins", { 1, 5, 15, 40, 100 })   -- squad contracts (Contracts.lua)
 
 A("horde_wins", "horde", "horde.wins", { 3, 10, 25, 50, 125 })   -- the first clear is the hidden h_horde
 A("horde_kills", "horde", "horde.kills", { 25, 100, 300, 800, 2000 })
 A("horde_mvp", "horde", "horde.mvp", { 1, 3, 8, 20, 50 })
+A("horde_elite", "horde", "horde.eliteWins", { 1, 3, 10, 25, 50 })
+A("donate_points", "horde", "donate.points", { 500, 2000, 5000, 15000, 40000 })
 
 H("h_first_blood", "zombie.kills", 1)
 H("h_unarmed", "zombie.kills.unarmed", 1, true)
@@ -457,6 +461,12 @@ Cat.DEFAULTS = {
     boards = { inactiveDays = 180, rebuildSeasonMs = 300000, rebuildTotalMs = 1800000 },
     towns = { custom = {}, disabled = {} },
     ceilings = {},
+    -- server-wide donation (Donate.lua, plan points-play 3): players give at least `min` points toward `target`; full,
+    -- one horde of `preset` with every kind's health and points x hp is planned on the next weekday `day` (1 =
+    -- Monday) at `time` in the sandbox TimezoneOffset that is 24 h or more away, announced leadMin before, waitMin per
+    -- wave. What is over the target counts toward the next round; a round not full stays (no refund)
+    donate = { enabled = false, target = 10000, min = 10, day = 6, time = "21:00", preset = "default", hp = 3,
+        leadMin = 30, waitMin = 60 },
     -- point sinks (plan points-sinks 2026-11-12): spending takes balance only. swap: paid swaps once the free ones are
     -- used, perDay a day; shield: one streak-shield day held at most, bought perWeek times a week; titles: the four
     -- fixed list ids at their price, plus s<season no>_patron at `season` points (0 = not sold)
@@ -499,17 +509,28 @@ Cat.DEFAULTS = {
                 points = { vanilla = 5, runner = 8 }, hp = {}, limitMin = 15, restSec = 30, maxAlive = 200, cap = 500 },
         },
         spots = {},
-        -- sponsored hordes: players pool `pts` points (at least minPledge each) within fundMin minutes; a full fund plays
-        -- `preset` after leadMin with waitMin per wave, at most maxPerDay a day apart from the timed ones, its cap
-        -- rewardPct % of the pooled points
-        paid = { enabled = false, pts = 600, minPledge = 50, fundMin = 30, maxPerDay = 1, rewardPct = 50, preset = "default",
-            leadMin = 15, waitMin = 60 } },
+        -- sponsored hordes: players pool a tier's `pts` points (at least minPledge each) within fundMin minutes; a full
+        -- fund plays the tier's `preset` with its health and points x hp (limitMin, when set, per wave) after leadMin
+        -- with waitMin per wave, at most maxPerDay a day apart from the timed ones, its cap rewardPct % of the pooled
+        -- points; cleared, every sponsor gets backPct % of their share back. tiers: 1 to 4, cheapest first (whole-set)
+        paid = { enabled = false, minPledge = 50, fundMin = 30, maxPerDay = 1, rewardPct = 50, backPct = 10,
+            leadMin = 15, waitMin = 60,
+            tiers = {
+                { name = "normal", preset = "default", pts = 600, hp = 1 },
+                { name = "hard", preset = "default", pts = 1200, hp = 2 },
+                { name = "nightmare", preset = "default", pts = 2500, hp = 3 },
+            } } },
 }
 
 -- zombies in a horde wave: base, plus perPlayer % of base for every player near the spot after the first (the server
 -- and the admin preview use it)
 function Cat.hordeWaveSize(base, perPlayer, players)
     return math.max(1, math.floor(base * (1 + perPlayer / 100 * (math.max(players, 1) - 1)) + 0.5))
+end
+
+-- a preset's cap or a kind's points times a toughness multiplier (a paid tier's or the donation's hp), rounded
+function Cat.hordeScale(v, hp)
+    return math.floor(v * hp + 0.5)
 end
 
 -- { { kind, n } } in kindIds order for the ids with weight > 0; n sums to count: floors first, then the remainder one

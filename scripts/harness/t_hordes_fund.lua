@@ -2,7 +2,8 @@
 -- temp/points-sinks/contract.md sections 2, 4, 6): pledges and their refusals, the last pledge taking what is missing,
 -- expiry paying everyone back (offline too, over a restart), a full fund waiting for the horde on, the plan's cap,
 -- paidDay apart from perDay, no spot / no id file paying back, the payout of a sponsored horde (rewardPct 0 too), the
--- sponsors in the notices (anonymous ones counted), and what a player sees of the fund.
+-- sponsors in the notices (anonymous ones counted), and what a player sees of the fund. Every section runs on one
+-- tier (the 0.7.0 single price as Config.migrate turns it into hordes.paid.tiers): the 0.7.0 flow holds with it.
 -- F: t_hordes.lua's fixtures.
 return function(T, F)
     local MIN = 60000
@@ -10,10 +11,18 @@ return function(T, F)
     local near, toasts, killAlive, lastLog, sum, spyAwards = F.near, F.toasts, F.killAlive, F.lastLog, F.sum, F.spyAwards
     local encoded, today, keyOf, wave = F.encoded, F.today, F.keyOf, F.wave
 
-    -- hordes.paid.<key> through Config.apply
+    -- hordes.paid.<key> through Config.apply; pts = the one tier's price (hordes.paid.tiers = { normal, default, pts,
+    -- x1 }), set with the first call and whenever pts is given
     local function paid(Q, fields)
         local changes = {}
-        for k, v in pairs(fields) do changes[#changes + 1] = { op = "set", path = "hordes.paid." .. k, value = v } end
+        local ov = Q.Config.overrides().hordes
+        if fields.pts ~= nil or not (ov and ov.paid and ov.paid.tiers) then
+            changes[1] = { op = "set", path = "hordes.paid.tiers",
+                value = { { name = "normal", preset = "default", pts = fields.pts or 600, hp = 1 } } }
+        end
+        for k, v in pairs(fields) do
+            if k ~= "pts" then changes[#changes + 1] = { op = "set", path = "hordes.paid." .. k, value = v } end
+        end
         local ok, code, detail = Q.Config.apply(changes, "test", "tester")
         if not ok then T.check(false, "apply hordes.paid: " .. tostring(code) .. " " .. tostring(detail and detail.path)) end
     end
@@ -51,11 +60,12 @@ return function(T, F)
             "no spot: the paid part is off, the page stays out of the nav")
         apply(Q, { spots = { SPOT }, cap = 500 })
         local st = H.stateHordes(nil, "alice", T.now)
-        T.check(st.on == true and st.paid.on == true and st.paid.pts == 600 and st.paid.minPledge == 50 and st.paid.left == 1
+        T.check(st.on == true and st.paid.on == true and #st.paid.tiers == 1 and st.paid.tiers[1].pts == 600
+            and st.paid.minPledge == 50 and st.paid.left == 1
             and st.paid.rewardPct == 50 and st.paid.leadMin == 15 and st.fund == nil, "paid on with a spot: the page is in the nav")
-        T.check(st.paid.cap == 300, "the most it pays: 600 x 50%, under the preset's cap 500")
+        T.check(st.paid.tiers[1].cap == 300, "the most it pays: 600 x 50%, under the preset's cap 500")
         apply(Q, { spots = { SPOT }, cap = 200 })
-        T.check(H.stateHordes(nil, "alice", T.now).paid.cap == 200, "a preset cap under that share: the preset's")
+        T.check(H.stateHordes(nil, "alice", T.now).paid.tiers[1].cap == 200, "a preset cap under that share: the preset's")
         apply(Q, { spots = { SPOT }, cap = 500 })
         r = pledge(alice, 150, 500)
         T.check(r and r.code == "PRICE_CHANGED" and h.fund == nil and bal(Q, "alice") == 1000, "another goal than 600: PRICE_CHANGED")
@@ -299,8 +309,10 @@ return function(T, F)
         T.check(h.cur == nil and e.state == "success" and e.pool == 300 and e.capped == true and sum(awards.horde) == 300
             and sum(e.paid) <= cur.cap, "value 400 over cap 300: 300 paid in all")
         local sp = Q.Store.account("alice", false).spent
-        T.check(Q.Store.account("alice", false).total["horde.sponsored"] == 1 and #sp == 1 and sp[1].what == "horde" and sp[1].n == -300
-            and #refunds(alice) == 0, "a sponsored horde that played: horde.sponsored + 1, no refund")
+        -- cleared: backPct (10) of the 300 comes back as its own row (plan points-play-1113 claim 3), not as a refund
+        T.check(Q.Store.account("alice", false).total["horde.sponsored"] == 1 and #sp == 2 and sp[2].what == "horde"
+            and sp[2].n == -300 and sp[1].what == "hordeBack" and sp[1].n == 30 and sp[1].ref == "horde:" .. cur.id
+            and #refunds(alice) == 0, "a sponsored horde that played: horde.sponsored + 1, no refund, 10% back on the clear")
 
         paid(Q, { rewardPct = 0 })
         pledge(alice, 300)

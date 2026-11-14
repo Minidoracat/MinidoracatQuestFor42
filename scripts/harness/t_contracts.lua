@@ -56,7 +56,16 @@ return function(T)
         end
         return out
     end
-    local function start(p, tpl, pay) return T.cmd(p, "contractStart", { tpl = tpl or "hunt", pay = pay or 100 }) end
+    -- the template's sig as the state shows it now (review r1 B-3); "none" for a template that does not exist
+    local function sigOf(tpl)
+        local Q = MinidoracatQuest
+        local cfg = Q.Config.get().contracts
+        return cfg.list[tpl] and Q.Contracts.sig(cfg, cfg.list[tpl]) or "none"
+    end
+    local function start(p, tpl, pay, sig)
+        tpl = tpl or "hunt"
+        return T.cmd(p, "contractStart", { tpl = tpl, pay = pay or 100, sig = sig or sigOf(tpl) })
+    end
     local function join(p, id, pay) return T.cmd(p, "contractJoin", { id = id, pay = pay or 100 }) end
     -- the hunt contract at perMember 10 (target 10 x members), its stake 100; sharePct 30 -> 3 kills of your own
     local function small(Q) T.check(set(Q, { ["contracts.list.hunt.perMember"] = 10 }), "hunt perMember 10") end
@@ -114,6 +123,8 @@ return function(T)
             and day.contracts["hunt:won"] == 1, "report: 100 spent net, 30 earned, one started and met")
         T.check(#events == 2 and events[1].ev == "start" and events[1].target == 20 and events[2].ev == "won"
             and events[2].prog == 20, "event log: the start and the result")
+        T.check(events[1].startMs == c.startMs and events[2].startMs == c.startMs,
+            "every contract event has startMs (ids come back after a crash restores an older save; review r1 B-7)")
         Q.EventLog.write = write
         T.cmd(a, "records")
         T.cmd(b, "records")
@@ -174,11 +185,14 @@ return function(T)
         T.check(r and r.ok and bal(Q, "bob") == 1000 and list(Q)[id].size == 2 and list(Q)[id].members.bob == nil
             and acct(Q, "bob").contract == nil, "bob leaves: 100 back, 2 left")
         T.check(T.cmd(b, "contractLeave", { id = id }).code == "NOT_FOUND", "not in it any more")
+        T.check(Q.Contracts.today(acct(Q, "bob"), T.now) == 1, "leaving used one of bob's contracts today (review r1 B-4)")
         r = T.cmd(a, "contractLeave", { id = id })
         T.check(r and r.ok and list(Q)[id] == nil and bal(Q, "alice") == 1000 and bal(Q, "carol") == 1000,
             "the leader leaves: called off, everyone paid back")
         local tc = toasts(c, "refund")[1]
         T.check(tc and tc.why == "leader" and tc.pts == 100 and #toasts(b, "refund") == 0, "carol is told why; bob had left")
+        T.check(Q.Contracts.today(acct(Q, "alice"), T.now) == 1 and Q.Contracts.today(acct(Q, "carol"), T.now) == 0,
+            "calling it off used one of alice's; carol, whose squad was called off, keeps hers")
     end)
 
     section("the refusals, in order; nothing taken", function()
@@ -355,12 +369,12 @@ return function(T)
         local a, b = players(Q, { "alice", "bob" }, 1000)
         local acc = acct(Q, "alice")
         local seq, rid = acc.spendSeq or 0, T.newRequestId()
-        local r1 = T.cmd(a, "contractStart", { tpl = "hunt", pay = 100, seq = seq }, rid)
-        local r2 = T.cmd(a, "contractStart", { tpl = "hunt", pay = 100, seq = seq }, rid)
+        local r1 = T.cmd(a, "contractStart", { tpl = "hunt", pay = 100, sig = sigOf("hunt"), seq = seq }, rid)
+        local r2 = T.cmd(a, "contractStart", { tpl = "hunt", pay = 100, sig = sigOf("hunt"), seq = seq }, rid)
         T.check(r1.ok and r2.ok and r2.replay and bal(Q, "alice") == 900 and count(list(Q)) == 1, "the same packet: one stake")
         local id = r1.id
         T.cmd(a, "contractLeave", { id = id })
-        local r3 = T.cmd(a, "contractStart", { tpl = "hunt", pay = 100, seq = seq })
+        local r3 = T.cmd(a, "contractStart", { tpl = "hunt", pay = 100, sig = sigOf("hunt"), seq = seq })
         T.check(r3.code == "STALE" and bal(Q, "alice") == 1000 and count(list(Q)) == 0, "a new request on the old screen: STALE")
         local s = acct(Q, "bob").spendSeq or 0
         start(a)
@@ -368,6 +382,142 @@ return function(T)
         local j1 = T.cmd(b, "contractJoin", { id = id2, pay = 100, seq = s })
         local j2 = T.cmd(b, "contractJoin", { id = id2, pay = 100, seq = s })
         T.check(j1.ok and j2.code == "STALE" and bal(Q, "bob") == 900, "join twice from one screen: one stake")
+    end)
+
+    section("review r1 B-1: a payout to an account that is gone makes it again", function()
+        local Q = boot()
+        small(Q)
+        local a, b, c = players(Q, { "alice", "bob", "carol" }, 1000)
+        local function drop(n) Q.Store.shards[Q.Util.hash(n) % Q.Contract.SHARDS].accounts[n] = nil end
+        local id = start(a).id
+        join(b, id)
+        T.cmd(a, "contractGo", { id = id })
+        kill(Q, "bob", 5)
+        drop("bob")
+        kill(Q, "alice", 15)
+        T.check(list(Q)[id] == nil and acct(Q, "bob") ~= nil and bal(Q, "bob") == 50 + 30,
+            "met: bob's account is made again with his 50 back and the 30 bonus")
+        local id2 = start(a).id
+        join(c, id2)
+        drop("carol")
+        T.check(T.cmd(a, "contractLeave", { id = id2 }).ok and acct(Q, "carol") ~= nil and bal(Q, "carol") == 100,
+            "called off: carol's account is made again with her 100")
+        local id3 = start(a).id
+        join(c, id3)
+        local unpay = Q.Points.unpay
+        Q.Points.unpay = function() return false end
+        local n0 = #T.prints
+        T.check(T.cmd(c, "contractLeave", { id = id3 }).ok and acct(Q, "carol").contract == nil, "a member leaves")
+        local logged = false
+        for i = n0 + 1, #T.prints do
+            if string.find(T.prints[i], "not paid back to carol", 1, true) then logged = true end
+        end
+        Q.Points.unpay = unpay
+        T.check(logged, "a refund that fails on leaving is logged, as when a squad is called off")
+    end)
+
+    section("review r1 B-2: a gathering past its time is settled by whichever comes first", function()
+        local Q = boot()
+        T.check(set(Q, { ["contracts.maxActive"] = 10 }), "maxActive 10")
+        local a, b, c, d = players(Q, { "alice", "bob", "carol", "dave" }, 1000)
+        local id = start(a).id
+        join(b, id)
+        T.advance(10 * MIN)
+        T.check(T.cmd(a, "contractGo", { id = id }).code == "NOT_FOUND" and list(Q)[id].state == "active",
+            "Start now after the time, before the tick: it has started already (NOT_FOUND)")
+        local id2 = start(c).id
+        join(d, id2)
+        T.advance(10 * MIN)
+        T.check(T.cmd(d, "contractLeave", { id = id2 }).code == "FORBIDDEN" and list(Q)[id2].state == "active"
+            and bal(Q, "dave") == 900, "Leave after the time with enough members: it has started (FORBIDDEN), the stake stays")
+        T.check(set(Q, { ["contracts.minSize"] = 3 }), "minSize 3")
+        local e, f = players(Q, { "erin", "frank" }, 1000)
+        local id3 = start(e).id
+        join(f, id3)
+        T.advance(10 * MIN)
+        T.check(T.cmd(f, "contractLeave", { id = id3 }).code == "NOT_FOUND" and list(Q)[id3] == nil
+            and bal(Q, "erin") == 1000 and bal(Q, "frank") == 1000, "Leave after the time, short: called off first, NOT_FOUND")
+        T.check(#toasts(f, "refund") == 1 and toasts(f, "refund")[1].why == "small"
+            and Q.Contracts.today(acct(Q, "frank"), T.now) == 0, "frank is told it was short; not his leaving, not his day")
+        local g = players(Q, { "gina" }, 1000)
+        local id4 = start(e).id
+        T.advance(10 * MIN)
+        T.check(join(g, id4).code == "NOT_FOUND" and list(Q)[id4] == nil and bal(Q, "gina") == 1000 and bal(Q, "erin") == 1000,
+            "Join after the time: called off first, NOT_FOUND, nothing taken")
+        T.tick(11)
+        T.check(#toasts(f, "refund") == 1 and #toasts(e, "refund") == 2, "the tick does not settle them again")
+    end)
+
+    section("review r1 B-2: a command before the first tick after a restart leaves the down time out too", function()
+        local Q = boot()
+        local a, b = players(Q, { "alice", "bob" }, 1000)
+        local id = start(a).id
+        T.advance(5 * MIN)
+        T.tick(11)
+        T.now = T.now + 3 * 3600000
+        Q = T.boot({ sandbox = { AdminRoles = "admin" }, keepGmd = true, keepFiles = true })
+        a, b = players(Q, { "alice", "bob" })
+        local r = join(b, id)
+        T.check(r.ok and list(Q)[id] ~= nil and list(Q)[id].size == 2 and list(Q)[id].state == "open",
+            "joined: the 3 hours down do not end the gathering")
+    end)
+
+    section("review r1 B-3: Start carries what its question showed (sig)", function()
+        local Q = boot()
+        local a, b = players(Q, { "alice", "bob" }, 1000)
+        local cfg = Q.Config.get().contracts
+        T.check(Q.Contracts.state(acct(Q, "alice"), "alice", T.now).tpls[1].sig == Q.Contracts.sig(cfg, cfg.list.hunt),
+            "each template in the state has the server's sig")
+        T.check(T.cmd(a, "contractStart", { tpl = "hunt", pay = 100 }).code == "BAD_ARGS" and bal(Q, "alice") == 1000,
+            "no sig: BAD_ARGS")
+        local function getp(path)
+            local v = Q.Config.get()
+            for k in string.gmatch(path, "[^.]+") do v = v[k] end
+            return v
+        end
+        for _, ch in ipairs({ { "contracts.returnPct", 40 }, { "contracts.bonusPct", 20 }, { "contracts.sharePct", 50 },
+            { "contracts.list.hunt.perMember", 99 }, { "contracts.list.hunt.limitMin", 30 } }) do
+            local old = getp(ch[1])
+            local shown = Q.Contracts.state(acct(Q, "alice"), "alice", T.now).tpls[1].sig
+            T.check(set(Q, { [ch[1]] = ch[2] }), ch[1] .. " changed while the question is open")
+            T.check(start(a, "hunt", 100, shown).code == "PRICE_CHANGED" and bal(Q, "alice") == 1000 and count(list(Q)) == 0,
+                ch[1] .. ": PRICE_CHANGED, nothing taken")
+            T.check(set(Q, { [ch[1]] = old }), ch[1] .. " back")
+        end
+        local id = start(a).id
+        local copy = list(Q)[id].returnPct
+        T.check(set(Q, { ["contracts.returnPct"] = 40 }), "returnPct 40 after the start")
+        local o = Q.Contracts.state(acct(Q, "bob"), "bob", T.now).open[1]
+        T.check(o.returnPct == copy and join(b, id).ok and list(Q)[id].returnPct == copy,
+            "Join: the squad's copy is what its question shows and what it pays; later settings do not change it")
+    end)
+
+    section("review r1 B-4: leaving uses one of the day's contracts", function()
+        local Q = boot()
+        local a, b = players(Q, { "alice", "bob" }, 5000)
+        T.now = Q.Clock.nextResetMs(T.now) + 60000
+        for i = 1, 3 do
+            local id = start(a).id
+            T.check(join(b, id).ok and T.cmd(b, "contractLeave", { id = id }).ok, "bob joins and leaves " .. i)
+            T.check(T.cmd(a, "contractLeave", { id = id }).ok, "alice calls it off " .. i)
+        end
+        T.check(start(a).code == "CONTRACT_DAY" and start(b).code == "CONTRACT_DAY" and bal(Q, "alice") == 5000
+            and bal(Q, "bob") == 5000, "a fourth: CONTRACT_DAY for both; every stake came back")
+    end)
+
+    section("review r1 B-6: no squad contracts in single player", function()
+        local Q = T.boot({ sp = true })
+        T.tick(2)
+        local p = T.player{ name = "solo" }
+        T.cmd(p, "hello")
+        Q.Points.award(acct(Q, "solo"), "solo", 1000, "admin", "t")
+        local st = Q.Contracts.state(acct(Q, "solo"), "solo", T.now)
+        T.check(st.on == false and Q.Config.get().contracts.enabled == true, "on in the settings, off in the state")
+        T.check(start(p).code == "CONTRACT_OFF" and bal(Q, "solo") == 1000 and count(list(Q)) == 0,
+            "Start: CONTRACT_OFF, nothing taken")
+        local C = MinidoracatQuest.Client
+        T.check(C.state ~= nil and C.state.contracts ~= nil and C.state.contracts.on == false and C.uses(C.state).contract == nil
+            and not MinidoracatQuest.PageContracts.shown(), "the client: no page, no row on the Points page")
     end)
 
     section("Points.unpay: the report column follows what was paid back", function()
@@ -482,8 +632,9 @@ return function(T)
         end
         return false
     end
-    local TPLS = { { id = "hunt", stake = 100, perMember = 150, limitMin = 60 }, { id = "melee", stake = 150, perMember = 100, limitMin = 60 },
-        { id = "long", stake = 250, perMember = 400, limitMin = 120 } }
+    local TPLS = { { id = "hunt", stake = 100, perMember = 150, limitMin = 60, sig = "100:150:60:50:30:30" },
+        { id = "melee", stake = 150, perMember = 100, limitMin = 60, sig = "150:100:60:50:30:30" },
+        { id = "long", stake = 250, perMember = 400, limitMin = 120, sig = "250:400:120:50:30:30" } }
     local function part(o)
         local ct = { on = true, perDay = 3, today = 1, returnPct = 50, bonusPct = 30, sharePct = 30, joinMin = 10, minSize = 2,
             maxSize = 6, tpls = TPLS, open = {} }
@@ -518,7 +669,8 @@ return function(T)
     press(btn(pg, "start:hunt"))
     answer(true)
     check(lastSent().command == "contractStart" and lastSent().args.tpl == "hunt" and lastSent().args.pay == 100
-        and lastSent().args.seq == C.spendSeq(), "Yes sends contractStart { tpl, pay, seq }")
+        and lastSent().args.seq == C.spendSeq() and lastSent().args.sig == "100:150:60:50:30:30",
+        "Yes sends contractStart { tpl, pay, sig, seq }: the sig of the numbers it showed (review r1 B-3)")
     C.pending = {}
     pg.spendRid = nil
     press(btn(pg, "join:7"))
@@ -542,8 +694,9 @@ return function(T)
         perMember = 150, limitMin = 60, returnPct = 50, bonusPct = 30, sharePct = 30, members = members }
     state({ contracts = part({ mine = mine }) })
     PC.layout(pg)
-    check(btn(pg, "go") == nil and drew(pg, "IGUI_MQ_Contract_NeedMore|2") and btn(pg, "leave")
-        and drew(pg, "IGUI_MQ_Contract_Gathering") and btn(pg, "start:hunt") == nil, "alone: no Start now, how many it needs; Leave")
+    check(btn(pg, "go") == nil and drew(pg, "IGUI_MQ_Contract_NeedMore|2") and btn(pg, "disband") and btn(pg, "leave") == nil
+        and btn(pg, "disband").opts.title == "IGUI_MQ_Contract_Disband" and drew(pg, "IGUI_MQ_Contract_Gathering")
+        and btn(pg, "start:hunt") == nil, "alone: no Start now, how many it needs; the leader's button is Disband squad")
     members[2] = { n = "Bob", k = 0 }
     mine.size = 2
     state({ contracts = part({ mine = mine }) })
@@ -554,20 +707,42 @@ return function(T)
     check(lastSent().command == "contractGo" and lastSent().args.id == 3 and lastSent().args.seq == nil, "Start now sends contractGo")
     C.pending = {}
     pg.actRid = nil
-    press(btn(pg, "leave"))
-    check(lastSent().command == "contractLeave" and lastSent().args.id == 3, "Leave sends contractLeave")
+    local sentD = #T.clientSent
+    press(btn(pg, "disband"))
+    d = dialogs[#dialogs]
+    check(#T.clientSent == sentD and d.title == "IGUI_MQ_Contract_AskDisband" and d.confirmText == "IGUI_MQ_Contract_Disband"
+        and d.danger == true and string.find(d.text, "IGUI_MQ_Contract_AskDisbandBody|100", 1, true) ~= nil
+        and string.find(d.text, "IGUI_MQ_Contract_AskUsesDay|1", 1, true) ~= nil,
+        "Disband squad asks first: every stake back, one of today's contracts (review r1 B-5)")
+    answer(false)
+    check(#T.clientSent == sentD, "No sends nothing")
+    press(btn(pg, "disband"))
+    answer(true)
+    check(lastSent().command == "contractLeave" and lastSent().args.id == 3, "Yes sends contractLeave")
     C.pending = {}
     pg.actRid = nil
     mine.lead = false
     state({ contracts = part({ mine = mine }) })
     PC.layout(pg)
-    check(btn(pg, "go") == nil and btn(pg, "leave") and drew(pg, "IGUI_MQ_Contract_OpenNote"), "a member: no Start now")
+    check(btn(pg, "go") == nil and btn(pg, "leave") and btn(pg, "disband") == nil and drew(pg, "IGUI_MQ_Contract_OpenNote"),
+        "a member: no Start now; Leave")
+    sentD = #T.clientSent
+    press(btn(pg, "leave"))
+    d = dialogs[#dialogs]
+    check(#T.clientSent == sentD and d.title == "IGUI_MQ_Contract_AskLeave" and d.confirmText == "IGUI_MQ_Contract_Leave|100"
+        and not d.danger and string.find(d.text, "IGUI_MQ_Contract_AskLeaveBody|100", 1, true) ~= nil
+        and string.find(d.text, "IGUI_MQ_Contract_AskUsesDay|1", 1, true) ~= nil, "Leave asks first: the stake back, one of today's")
+    answer(true)
+    check(lastSent().command == "contractLeave" and lastSent().args.id == 3, "Yes sends contractLeave")
+    C.pending = {}
+    pg.actRid = nil
     mine.state, mine.target, mine.prog, mine.endsAt = "active", 450, 212, T.now + 2468000
     members[1].k, members[2].k = 88, 79
     state({ contracts = part({ mine = mine }), pins = { "d1" } })
     PC.layout(pg)
     check(drew(pg, "IGUI_MQ_Contract_Running") and drew(pg, "IGUI_MQ_Contract_Kills|212|450")
-        and drew(pg, "IGUI_MQ_Contract_Member|IGUI_MQ_Contract_You|88") and btn(pg, "leave") == nil, "running: kills, everyone's share")
+        and drew(pg, "IGUI_MQ_Contract_Member|IGUI_MQ_Contract_You|88") and btn(pg, "leave") == nil and btn(pg, "disband") == nil,
+        "running: kills, everyone's share, no leaving")
 
     T.section("contracts: the tracker row")
     local rows = H.rows(C.state, C.defs())

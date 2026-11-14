@@ -4,7 +4,9 @@
 --   Running: time left, the kills against the target, every member's kills. The result comes as a toast
 --   (P.toastText), and stays in Recent contracts (records.contracts, Contracts.recent). Start and Join ask first
 --   (Draw.askSpend): the stake, what comes back when met, the share rule, nothing back otherwise, no leaving once it
---   runs, the contracts left today. In the nav while contracts are on or the player is in one (state.contracts).
+--   runs, the contracts left today; Start sends the template's sig with it (review r1 B-3). Leave (a member) and
+--   Disband squad (the leader) ask too: the stake(s) come back and it uses one of today's contracts (B-4, B-5).
+--   In the nav while contracts are on (never in single player, B-6) or the player is in one (state.contracts).
 --   The tracker row of a running contract is Hud.contractRow.
 
 if isServer() then return end
@@ -63,11 +65,16 @@ function P.ask(page, join, c, args, cmd)
 end
 
 function P.onStart(page, btn)
-    local t, ct = btn.tpl, part(C.state) or {}
+    local ct = part(C.state) or {}
+    -- the template as the state has it now: its numbers and its sig come from the same state
+    local t = btn.tpl
+    for _, x in ipairs(type(ct.tpls) == "table" and ct.tpls or {}) do
+        if x.id == t.id then t = x end
+    end
     -- a new contract copies today's percentages (Contracts.start)
     local c = { tpl = t.id, stake = t.stake, perMember = t.perMember, returnPct = ct.returnPct, bonusPct = ct.bonusPct,
         sharePct = ct.sharePct }
-    P.ask(page, false, c, { tpl = t.id, pay = t.stake }, "contractStart")
+    P.ask(page, false, c, { tpl = t.id, pay = t.stake, sig = tostring(t.sig or "") }, "contractStart")
 end
 
 function P.onJoin(page, btn)
@@ -85,7 +92,24 @@ local function act(page, cmd, args)
     end)
     page.dirty = true
 end
-function P.onLeave(page, btn) act(page, "contractLeave", { id = btn.internal }) end
+-- Leave / Disband squad: asked first; either uses one of today's contracts (Contracts.leave)
+function P.onLeave(page, btn)
+    local c, ct = btn.mine, part(C.state) or {}
+    if C.isPending(page.actRid) or type(c) ~= "table" then return end
+    if not D.has(page.UI, "dialog") then
+        D.toast(getText("IGUI_MQ_UI_NeedFramework"), "")
+        return
+    end
+    local left = math.max(0, (tonumber(ct.perDay) or 0) - (tonumber(ct.today) or 0) - 1)
+    local stake = D.num(c.stake or 0)
+    local o = c.lead and { title = getText("IGUI_MQ_Contract_AskDisband"), confirm = getText("IGUI_MQ_Contract_Disband"),
+        text = getText("IGUI_MQ_Contract_AskDisbandBody", stake), danger = true }
+        or { title = getText("IGUI_MQ_Contract_AskLeave"), confirm = getText("IGUI_MQ_Contract_Leave", stake),
+        text = getText("IGUI_MQ_Contract_AskLeaveBody", stake) }
+    page.UI.Dialog.show({ title = o.title, text = o.text .. "\n" .. getText("IGUI_MQ_Contract_AskUsesDay", tostring(left)),
+        confirmText = o.confirm, cancelText = getText("UI_Cancel"), danger = o.danger == true, theme = page.theme,
+        opaque = true, onResult = function(ok) if ok then act(page, "contractLeave", { id = c.id }) end end })
+end
 function P.onGo(page, btn) act(page, "contractGo", { id = btn.internal }) end
 
 -- ===== a list of { name, sub, price, btn | short }: the price right-aligned, the action at the right (under the text
@@ -203,8 +227,9 @@ local function gathering(b, page, x, y, w, ct, c)
             y = b:para(x + 8, y, getText("IGUI_MQ_Contract_NeedMore", tostring(ct.minSize or 2)), iw, "warning")
         end
     end
-    local leave = page.pool:button("leave", page.UI, page.theme, getText("IGUI_MQ_Contract_Leave", D.num(c.stake)), page, P.onLeave)
-    leave.internal = c.id
+    local leave = c.lead and page.pool:button("disband", page.UI, page.theme, getText("IGUI_MQ_Contract_Disband"), page, P.onLeave)
+        or page.pool:button("leave", page.UI, page.theme, getText("IGUI_MQ_Contract_Leave", D.num(c.stake)), page, P.onLeave)
+    leave.mine = c
     btns[#btns + 1] = leave
     for _, bt in ipairs(btns) do bt:setEnabled(not C.isPending(page.actRid)) end
     y = D.placeRow(btns, x + 8, y + 6, x + w - 8) + 8

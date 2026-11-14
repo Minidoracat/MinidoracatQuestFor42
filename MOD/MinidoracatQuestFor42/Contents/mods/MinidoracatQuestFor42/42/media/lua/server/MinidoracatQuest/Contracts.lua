@@ -10,6 +10,11 @@
 -- the contracts back together. The time the server was down does not count: every tick keeps beat, the first tick
 -- after a start moves openUntil / endsAt on by the gap.
 -- Prices and percentages are copied into the contract when it starts; later settings do not change it.
+-- Review 2026-11-14 round 1: every payout creates a missing account (B-1); a gathering contract past openUntil is
+-- settled by whichever comes first, the tick or a command on it (B-2); contractStart carries the template's sig, the
+-- numbers its question showed (B-3); leaving, or a leader calling it off, uses one of the day's contracts (B-4); no
+-- contracts in single player (B-6); the event log has startMs, as ids come back after a crash restores an older
+-- save (B-7).
 
 if isClient() then return end
 
@@ -38,6 +43,16 @@ Ct.RECENT = 10     -- the records reply: this player's last ones
 Ct.lastTick = 0
 
 local function settings() return MQ.Config.get().contracts end
+
+-- squads need other players: a dedicated server or a hosted game's server (isServer(); single player has neither)
+function Ct.on(cfg) return cfg.enabled == true and isServer() == true end
+
+-- the numbers a template's question shows, as one string: contractStart sends the one it showed, and a request whose
+-- sig is not what the settings make now is refused before any points move
+function Ct.sig(cfg, t)
+    return tostring(t.stake) .. ":" .. tostring(t.perMember) .. ":" .. tostring(t.limitMin) .. ":"
+        .. tostring(cfg.returnPct) .. ":" .. tostring(cfg.bonusPct) .. ":" .. tostring(cfg.sharePct)
+end
 
 -- root.contracts; a read-only store gets an empty one that is not kept
 local function data()
@@ -108,14 +123,21 @@ local function detach(c)
     end
 end
 
+-- a payout's account: created when it is missing (a stake must not vanish with it); nil only in a read-only store
+local function payee(c, u, n)
+    local acc = MQ.Store.account(u, true)
+    if acc == nil then U.log("contract " .. c.id .. ": " .. n .. " points not paid to " .. U.logSafe(u)) end
+    return acc
+end
+
 -- every stake back (online or not); why: "small" (joinMin ended short of minSize) | "leader" (the leader left)
 function Ct.disband(c, why)
     detach(c)
     for _, u in ipairs(c.order) do
-        local acc = MQ.Store.account(u, false)
-        if acc == nil or not MQ.Points.unpay(acc, u, c.stake, "contractRefund", c.tpl) then
+        local acc = payee(c, u, c.stake)
+        if acc ~= nil and not MQ.Points.unpay(acc, u, c.stake, "contractRefund", c.tpl) then
             U.log("contract " .. c.id .. ": " .. c.stake .. " points not paid back to " .. U.logSafe(u))
-        else
+        elseif acc ~= nil then
             MQ.Sync.toast(u, { kind = "contract", ev = "refund", tpl = c.tpl, pts = c.stake, why = why })
         end
     end
@@ -130,7 +152,8 @@ function Ct.begin(c, now)
         local acc = MQ.Store.account(u, false)
         if acc ~= nil then countDay(acc, now) end
     end
-    MQ.EventLog.write("contract", c.leader, { ev = "start", id = c.id, tpl = c.tpl, size = c.size, target = c.target })
+    MQ.EventLog.write("contract", c.leader, { ev = "start", id = c.id, tpl = c.tpl, size = c.size, target = c.target,
+        startMs = c.startMs })
     dirtyAll()
 end
 
@@ -147,14 +170,17 @@ function Ct.finish(c, won, now)
     while #d.log > Ct.LOG do table.remove(d.log, 1) end
     if MQ.Report then MQ.Report.add("contracts", c.tpl .. (won and ":won" or ":lost")) end
     MQ.EventLog.write("contract", c.leader, { ev = won and "won" or "lost", id = c.id, tpl = c.tpl, size = c.size,
-        target = c.target, prog = c.prog })
+        target = c.target, prog = c.prog, startMs = c.startMs })
     local mins = math.max(1, math.ceil((now - c.startMs) / MIN))
     for _, u in ipairs(c.order) do
-        local acc = MQ.Store.account(u, false)
+        -- a member owed something gets the account made; a lost contract owes nothing and makes none
+        local acc = won and payee(c, u, back + bonus) or MQ.Store.account(u, false)
         local k = c.members[u] or 0
         if acc ~= nil and won then
             local full = k >= need
-            if back > 0 then MQ.Points.unpay(acc, u, back, "contractBack", c.tpl) end
+            if back > 0 and not MQ.Points.unpay(acc, u, back, "contractBack", c.tpl) then
+                U.log("contract " .. c.id .. ": " .. back .. " points not paid back to " .. U.logSafe(u))
+            end
             if full and bonus > 0 and MQ.Points.award(acc, u, bonus, "contract", "contract:" .. c.id) then
                 MQ.Points.note(acc, u, "contractBonus", bonus, c.tpl)
             end
@@ -171,23 +197,56 @@ end
 
 -- ===== commands =====
 
--- the checks contractStart and contractJoin share, in the contract's order (after "not found")
+-- the boot catch-up (the server's down time does not count): the first tick, or a command that comes before it
+local function catchUp(now)
+    if Ct.booted or not MQ.Store.ready() or MQ.Store.readOnly then return end
+    Ct.booted = true
+    local d = data()
+    -- the server was down from the last beat (a save) to now: that time does not count
+    local down = d.beat ~= nil and now - d.beat or 0
+    if down > 0 then
+        for _, c in pairs(d.list) do
+            c.openUntil = c.openUntil + down
+            if c.endsAt ~= nil then c.endsAt = c.endsAt + down end
+        end
+        dirtyAll()
+    end
+end
+
+-- a gathering contract past openUntil: it starts with minSize members, else it is called off
+local function due(c, now)
+    if c.state ~= "open" or now < c.openUntil then return end
+    if c.size >= settings().minSize then Ct.begin(c, now) else Ct.disband(c, "small") end
+end
+
+-- contract id as the tick would leave it now: a command in the second before the tick answers from that, not from a
+-- gathering that is already over. Returns the contract, or nil when it is gone.
+function Ct.settle(id, now)
+    catchUp(now)
+    local c = data().list[id]
+    if c ~= nil then due(c, now) end
+    return data().list[id]
+end
+
+-- the checks contractStart and contractJoin share, in the contract's order (after "not found"); the player's own
+-- gathering contract is settled first, as the tick would
 local function canJoin(acc, cfg, now)
+    if acc.contract ~= nil then Ct.settle(acc.contract, now) end
     if mineOf(acc) ~= nil then return CODE.CONTRACT_IN end
     if Ct.today(acc, now) >= cfg.perDay then return CODE.CONTRACT_DAY end
     return nil
 end
 
--- true, { id } | false, code
-function Ct.start(acc, user, tpl, pay, now)
+-- true, { id } | false, code. sig: the template's Ct.sig the question showed
+function Ct.start(acc, user, tpl, pay, sig, now)
     local cfg = settings()
-    if not cfg.enabled then return false, CODE.CONTRACT_OFF end
+    if not Ct.on(cfg) then return false, CODE.CONTRACT_OFF end
     local t, stat = cfg.list[tpl], Ct.statOf(tpl)
     if t == nil or stat == nil or not t.enabled then return false, CODE.NOT_FOUND end
     local bad = canJoin(acc, cfg, now)
     if bad then return false, bad end
     if live() >= cfg.maxActive then return false, CODE.CONTRACT_MAX end
-    if pay ~= t.stake then return false, CODE.PRICE_CHANGED end
+    if pay ~= t.stake or sig ~= Ct.sig(cfg, t) then return false, CODE.PRICE_CHANGED end
     if not MQ.Points.pay(acc, user, t.stake, "contract", tpl) then return false, CODE.NOT_ENOUGH_POINTS end
     local d = data()
     d.seq = d.seq + 1
@@ -203,9 +262,9 @@ end
 
 function Ct.join(acc, user, id, pay, now)
     local cfg = settings()
-    if not cfg.enabled then return false, CODE.CONTRACT_OFF end
-    local c = data().list[id]
-    if c == nil or c.state ~= "open" or now >= c.openUntil then return false, CODE.NOT_FOUND end
+    if not Ct.on(cfg) then return false, CODE.CONTRACT_OFF end
+    local c = Ct.settle(id, now)
+    if c == nil or c.state ~= "open" then return false, CODE.NOT_FOUND end
     local bad = canJoin(acc, cfg, now)
     if bad then return false, bad end
     if c.size >= cfg.maxSize then return false, CODE.CONTRACT_FULL end
@@ -219,13 +278,15 @@ function Ct.join(acc, user, id, pay, now)
     return true
 end
 
--- gathering only; the leader leaving ends it for everyone
-function Ct.leave(acc, user, id)
-    local c = data().list[id]
+-- gathering only; the leader leaving ends it for everyone. Either uses one of the day's contracts for the one who
+-- left (a contract called off for being short does not, nor for the members the leader left).
+function Ct.leave(acc, user, id, now)
+    local c = Ct.settle(id, now)
     if c == nil or c.members[user] == nil then return false, CODE.NOT_FOUND end
     if c.state ~= "open" then return false, CODE.FORBIDDEN end
     if c.leader == user then
         Ct.disband(c, "leader")
+        countDay(acc, now)
         return true
     end
     for i, u in ipairs(c.order) do
@@ -237,13 +298,16 @@ function Ct.leave(acc, user, id)
     c.members[user] = nil
     c.size = c.size - 1
     acc.contract = nil
-    MQ.Points.unpay(acc, user, c.stake, "contractRefund", c.tpl)
+    countDay(acc, now)
+    if not MQ.Points.unpay(acc, user, c.stake, "contractRefund", c.tpl) then
+        U.log("contract " .. c.id .. ": " .. c.stake .. " points not paid back to " .. U.logSafe(user))
+    end
     dirtyAll()
     return true
 end
 
 function Ct.go(user, id, now)
-    local c = data().list[id]
+    local c = Ct.settle(id, now)
     if c == nil or c.state ~= "open" then return false, CODE.NOT_FOUND end
     if c.leader ~= user then return false, CODE.FORBIDDEN end
     if c.size < settings().minSize then return false, CODE.CONTRACT_SMALL end
@@ -271,33 +335,15 @@ function Ct.tick(now)
     if now - Ct.lastTick < 1000 or not MQ.Store.ready() or MQ.Store.readOnly then return end
     Ct.lastTick = now
     local d = data()
-    if not Ct.booted then
-        Ct.booted = true
-        -- the server was down from the last beat (a save) to now: that time does not count
-        local down = d.beat ~= nil and now - d.beat or 0
-        if down > 0 then
-            for _, c in pairs(d.list) do
-                c.openUntil = c.openUntil + down
-                if c.endsAt ~= nil then c.endsAt = c.endsAt + down end
-            end
-            dirtyAll()
-        end
-    end
+    catchUp(now)
     d.beat = now
-    local due = {}
+    local list = {}
     for _, c in pairs(d.list) do
-        if (c.state == "open" and now >= c.openUntil) or (c.state == "active" and now >= c.endsAt) then due[#due + 1] = c end
+        if (c.state == "open" and now >= c.openUntil) or (c.state == "active" and now >= c.endsAt) then list[#list + 1] = c end
     end
-    U.sort(due, function(a, b) return a.id < b.id end)
-    local minSize = settings().minSize
-    for _, c in ipairs(due) do
-        if c.state == "active" then
-            Ct.finish(c, c.prog >= c.target, now)
-        elseif c.size >= minSize then
-            Ct.begin(c, now)
-        else
-            Ct.disband(c, "small")
-        end
+    U.sort(list, function(a, b) return a.id < b.id end)
+    for _, c in ipairs(list) do
+        if c.state == "active" then Ct.finish(c, c.prog >= c.target, now) else due(c, now) end
     end
 end
 
@@ -317,18 +363,19 @@ local function isAdmin(user)
 end
 
 -- Sync provider "contracts": { on, perDay, today, returnPct, bonusPct, sharePct, joinMin, minSize, maxSize,
--- tpls = { { id, stake, perMember, limitMin } } (the enabled ones, Catalog order), open = { gathering ones the player
--- is not in }, mine = the player's own with every member's kills }
+-- tpls = { { id, stake, perMember, limitMin, sig } } (the enabled ones, Catalog order), open = { gathering ones the
+-- player is not in }, mine = the player's own with every member's kills }. on is false in single player.
 function Ct.state(acc, user, now)
     local cfg, d = settings(), data()
     local admin = isAdmin(user)
-    local out = { on = cfg.enabled, perDay = cfg.perDay, today = Ct.today(acc, now), returnPct = cfg.returnPct,
+    local out = { on = Ct.on(cfg), perDay = cfg.perDay, today = Ct.today(acc, now), returnPct = cfg.returnPct,
         bonusPct = cfg.bonusPct, sharePct = cfg.sharePct, joinMin = cfg.joinMin, minSize = cfg.minSize,
         maxSize = cfg.maxSize, tpls = {}, open = {} }
     for _, t in ipairs(MQ.Catalog.contracts) do
         local s = cfg.list[t.id]
         if s.enabled then
-            out.tpls[#out.tpls + 1] = { id = t.id, stake = s.stake, perMember = s.perMember, limitMin = s.limitMin }
+            out.tpls[#out.tpls + 1] = { id = t.id, stake = s.stake, perMember = s.perMember, limitMin = s.limitMin,
+                sig = Ct.sig(cfg, s) }
         end
     end
     for _, c in pairs(d.list) do
@@ -371,9 +418,9 @@ function Ct.recent(user)
     return out
 end
 
-MQ.Server.define("contractStart", { kind = "mutation", spend = true, fields = { tpl = "str", pay = "int" },
+MQ.Server.define("contractStart", { kind = "mutation", spend = true, fields = { tpl = "str", pay = "int", sig = "str" },
     run = function(ctx)
-        return Ct.start(MQ.Store.account(ctx.user, true), ctx.user, ctx.args.tpl, ctx.args.pay, ctx.now)
+        return Ct.start(MQ.Store.account(ctx.user, true), ctx.user, ctx.args.tpl, ctx.args.pay, ctx.args.sig, ctx.now)
     end })
 
 MQ.Server.define("contractJoin", { kind = "mutation", spend = true, fields = { id = "int", pay = "int" },
@@ -385,7 +432,7 @@ MQ.Server.define("contractLeave", { kind = "mutation", fields = { id = "int" },
     run = function(ctx)
         local acc = MQ.Store.account(ctx.user, false)
         if acc == nil then return false, CODE.NOT_FOUND end
-        return Ct.leave(acc, ctx.user, ctx.args.id)
+        return Ct.leave(acc, ctx.user, ctx.args.id, ctx.now)
     end })
 
 MQ.Server.define("contractGo", { kind = "mutation", fields = { id = "int" },

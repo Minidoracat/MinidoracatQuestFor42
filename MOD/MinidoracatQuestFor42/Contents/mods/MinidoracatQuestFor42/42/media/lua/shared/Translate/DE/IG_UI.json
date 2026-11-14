@@ -1310,7 +1310,7 @@
   "IGUI_MQ_Contract_Start": "Starten...",
   "IGUI_MQ_Contract_Join": "Beitreten...",
   "IGUI_MQ_Contract_TodayLeft": "Heute noch %1",
-  "IGUI_MQ_Contract_DayUsed": "Du hast heute %1 Aufträge gestartet. Komm morgen wieder.",
+  "IGUI_MQ_Contract_DayUsed": "Deine %1 Aufträge für heute sind aufgebraucht. Komm morgen wieder.",
   "IGUI_MQ_Contract_OpenHead": "Trupps suchen Mitglieder",
   "IGUI_MQ_Contract_OpenNone": "Gerade sucht kein Trupp Mitglieder.",
   "IGUI_MQ_Contract_Size": "%1 · %2/%3 Spieler",

@@ -1310,7 +1310,7 @@
   "IGUI_MQ_Contract_Start": "Iniciar...",
   "IGUI_MQ_Contract_Join": "Entrar...",
   "IGUI_MQ_Contract_TodayLeft": "Restam %1 hoje",
-  "IGUI_MQ_Contract_DayUsed": "Você já iniciou %1 contratos hoje. Volte amanhã.",
+  "IGUI_MQ_Contract_DayUsed": "Você já usou seus %1 contratos de hoje. Volte amanhã.",
   "IGUI_MQ_Contract_OpenHead": "Equipes recrutando",
   "IGUI_MQ_Contract_OpenNone": "Nenhuma equipe está recrutando agora.",
   "IGUI_MQ_Contract_Size": "%1 · %2/%3 jogadores",

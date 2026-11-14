@@ -1310,7 +1310,7 @@
   "IGUI_MQ_Contract_Start": "시작...",
   "IGUI_MQ_Contract_Join": "참여...",
   "IGUI_MQ_Contract_TodayLeft": "오늘 %1회 남음",
-  "IGUI_MQ_Contract_DayUsed": "오늘 계약 %1회를 모두 시작했습니다. 내일 다시 오십시오.",
+  "IGUI_MQ_Contract_DayUsed": "오늘의 계약 %1회를 모두 사용했습니다. 내일 다시 오십시오.",
   "IGUI_MQ_Contract_OpenHead": "모집 중인 분대",
   "IGUI_MQ_Contract_OpenNone": "지금 모집 중인 분대가 없습니다.",
   "IGUI_MQ_Contract_Size": "%1 · %2/%3명",

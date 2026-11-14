@@ -1310,7 +1310,7 @@
   "IGUI_MQ_Contract_Start": "Lancer...",
   "IGUI_MQ_Contract_Join": "Rejoindre...",
   "IGUI_MQ_Contract_TodayLeft": "Encore %1 aujourd'hui",
-  "IGUI_MQ_Contract_DayUsed": "Vous avez lancé %1 contrats aujourd'hui. Revenez demain.",
+  "IGUI_MQ_Contract_DayUsed": "Vous avez utilisé vos %1 contrats du jour. Revenez demain.",
   "IGUI_MQ_Contract_OpenHead": "Escouades en formation",
   "IGUI_MQ_Contract_OpenNone": "Aucune escouade en formation pour le moment.",
   "IGUI_MQ_Contract_Size": "%1 · %2/%3 joueurs",

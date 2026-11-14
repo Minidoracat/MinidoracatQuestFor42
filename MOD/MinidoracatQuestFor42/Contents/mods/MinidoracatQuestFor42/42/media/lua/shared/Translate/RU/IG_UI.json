@@ -1310,7 +1310,7 @@
   "IGUI_MQ_Contract_Start": "Начать...",
   "IGUI_MQ_Contract_Join": "Вступить...",
   "IGUI_MQ_Contract_TodayLeft": "Сегодня ещё %1",
-  "IGUI_MQ_Contract_DayUsed": "Сегодня вы уже начали контрактов: %1. Возвращайтесь завтра.",
+  "IGUI_MQ_Contract_DayUsed": "Контракты на сегодня (%1) использованы. Возвращайтесь завтра.",
   "IGUI_MQ_Contract_OpenHead": "Идёт набор в отряды",
   "IGUI_MQ_Contract_OpenNone": "Сейчас никто не набирает отряд.",
   "IGUI_MQ_Contract_Size": "%1 · игроков: %2/%3",

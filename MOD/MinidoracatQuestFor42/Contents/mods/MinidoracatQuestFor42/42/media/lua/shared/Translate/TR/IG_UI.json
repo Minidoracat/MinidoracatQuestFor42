@@ -1310,7 +1310,7 @@
   "IGUI_MQ_Contract_Start": "Başlat...",
   "IGUI_MQ_Contract_Join": "Katıl...",
   "IGUI_MQ_Contract_TodayLeft": "Bugün %1 kaldı",
-  "IGUI_MQ_Contract_DayUsed": "Bugün %1 sözleşme başlattınız. Yarın tekrar gelin.",
+  "IGUI_MQ_Contract_DayUsed": "Bugünkü %1 sözleşme hakkınızı kullandınız. Yarın tekrar gelin.",
   "IGUI_MQ_Contract_OpenHead": "Üye arayan ekipler",
   "IGUI_MQ_Contract_OpenNone": "Şu an üye arayan ekip yok.",
   "IGUI_MQ_Contract_Size": "%1 · %2/%3 oyuncu",

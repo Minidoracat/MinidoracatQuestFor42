@@ -83,7 +83,9 @@ local function allowance(acc, user, stat, n, ceil, calm)
 end
 
 -- true, added | false. n: finite and > 0. opts.quiet: no notifications (import). opts.calm: see allowance.
-function S.add(who, stat, n, opts)
+-- opts via ...: most callers omit it, and Kahlua does not nil-fill a missing fixed parameter (family pitfalls.md).
+function S.add(who, stat, n, ...)
+    local opts = ...
     if type(n) ~= "number" or n * 0 ~= 0 or n <= 0 or type(stat) ~= "string" then return false end
     local St = Q.Store
     if not St.ready() or St.readOnly then return false end
@@ -105,7 +107,8 @@ function S.add(who, stat, n, opts)
 end
 
 -- Keeps the best value in each scope; listeners get delta = increase of total (0 when only life/season rose).
-function S.max(who, stat, value, opts)
+function S.max(who, stat, value, ...)
+    local opts = ...
     if type(value) ~= "number" or value * 0 ~= 0 or value < 0 or type(stat) ~= "string" then return false end
     local St = Q.Store
     if not St.ready() or St.readOnly then return false end
